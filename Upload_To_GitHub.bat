@@ -1,34 +1,21 @@
 @echo off
-chcp 65001 >nul
-title رفع المشروع إلى GitHub - MediaHive ERP
-echo ====================================================================
-echo               رفع مشروع MediaHive ERP إلى GitHub
-echo ====================================================================
-echo.
-
+set "PATH=C:\Users\MAHMOUD\AppData\Local\Microsoft\WinGet\Packages\Git.MinGit_Microsoft.Winget.Source_8wekyb3d8bbwe\cmd;%PATH%"
 cd /d "H:\mediahive001"
-set "PATH=%LOCALAPPDATA%\Microsoft\WinGet\Packages\Git.MinGit_Microsoft.Winget.Source_8wekyb3d8bbwe\cmd;%PATH%"
 
-echo التحقق من الاتصال والمستودع...
+echo ========================================================
+echo           MediaHive ERP - Upload To GitHub
+echo ========================================================
+echo.
+echo Remote repository:
 git remote -v
 echo.
-echo جاري رفع الملفات إلى الفرع main...
+echo Pushing branch 'main' to GitHub...
 echo.
 
 git push -u origin main
 
-if %errorlevel% equ 0 (
-    echo.
-    echo ====================================================================
-    echo   [نجاح] تم رفع المشروع بالكامل إلى GitHub بنجاح!
-    echo ====================================================================
-) else (
-    echo.
-    echo ====================================================================
-    echo   [ملاحظة] إذا طُلب منك إدخال كلمة المرور (Password):
-    echo   يرجى إدخال Personal Access Token الخاص بحسابك بدلاً من كلمة المرور العادية.
-    echo ====================================================================
-)
-
 echo.
+echo ========================================================
+echo Finished! Check the output above.
+echo ========================================================
 pause
