@@ -560,11 +560,12 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th style="width: 5%; text-align: center;">#</th>
+                  <th style="width: 15%; text-align: center;">كود الصنف</th>
                   <th>الصنف</th>
-                  <th>الكمية</th>
-                  <th>السعر</th>
-                  <th>الإجمالي</th>
+                  <th style="width: 12%; text-align: center;">الكمية</th>
+                  <th style="width: 15%; text-align: center;">السعر</th>
+                  <th style="width: 18%; text-align: center;">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
@@ -572,21 +573,15 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
                   const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
                   return `
                   <tr>
-                    <td>${index + 1}</td>
+                    <td style="text-align: center;">${index + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-size: 12px; color: ${isGrayscale ? '#000' : '#374151'}; font-weight: 600;">${itemCode || '-'}</td>
                     <td>
-                      <div>
-                        <strong>${item.productName}</strong>
-                        ${itemCode ? `
-                          <span style="font-size: 11px; font-family: monospace; background: ${isGrayscale ? '#fff' : '#f1f5f9'}; border: 1px solid #cbd5e1; padding: 1px 6px; border-radius: 3px; margin-right: 6px; font-weight: normal; color: ${isGrayscale ? '#000' : '#475569'};">
-                            كود: ${itemCode}
-                          </span>
-                        ` : ''}
-                      </div>
+                      <strong>${item.productName}</strong>
                       ${item.description ? `<div style="font-size: 12px; color: ${isGrayscale ? '#000' : '#666'}; margin-top: 2px;">${item.description}</div>` : ''}
                     </td>
-                    <td>${item.quantity.toLocaleString('en-US')}</td>
-                    <td>${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
-                    <td>${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                    <td style="text-align: center;">${item.quantity.toLocaleString('en-US')}</td>
+                    <td style="text-align: center;">${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                    <td style="text-align: center;">${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                   </tr>
                 `;}).join('')}
               </tbody>
