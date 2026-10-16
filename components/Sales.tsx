@@ -568,18 +568,27 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
                 </tr>
               </thead>
               <tbody>
-                 ${invoice.items.map((item, index) => `
+                 ${invoice.items.map((item, index) => {
+                  const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                  return `
                   <tr>
                     <td>${index + 1}</td>
                     <td>
-                      <strong>${item.productName}</strong>
-                      ${item.description ? `<br><span style="font-size: 12px; color: ${isGrayscale ? '#000' : '#666'};">${item.description}</span>` : ''}
+                      <div>
+                        <strong>${item.productName}</strong>
+                        ${itemCode ? `
+                          <span style="font-size: 11px; font-family: monospace; background: ${isGrayscale ? '#fff' : '#f1f5f9'}; border: 1px solid #cbd5e1; padding: 1px 6px; border-radius: 3px; margin-right: 6px; font-weight: normal; color: ${isGrayscale ? '#000' : '#475569'};">
+                            كود: ${itemCode}
+                          </span>
+                        ` : ''}
+                      </div>
+                      ${item.description ? `<div style="font-size: 12px; color: ${isGrayscale ? '#000' : '#666'}; margin-top: 2px;">${item.description}</div>` : ''}
                     </td>
                     <td>${item.quantity.toLocaleString('en-US')}</td>
                     <td>${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                     <td>${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
             <div class="totals-container">

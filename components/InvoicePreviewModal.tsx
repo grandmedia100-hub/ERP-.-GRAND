@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import type { SalesInvoice, PurchaseInvoice, CompanyInfo } from '../types.ts';
 
 interface InvoicePreviewModalProps {
@@ -60,16 +60,22 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                     : (invoice.discountValue || 0).toLocaleString()}</span>
             </div>` : '';
 
-        const itemsHtml = invoice.items.map((item, idx) => `
+        const itemsHtml = invoice.items.map((item, idx) => {
+            const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+            return `
             <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
                 <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">
-                    <div style="font-weight:700;color:#1f2937;">${item.productName}</div>
+                    <div style="font-weight:700;color:#1f2937;">
+                        ${item.productName}
+                        ${itemCode ? `<span style="display:inline-block;margin-right:8px;font-size:11px;font-family:monospace;background:#f3f4f6;color:#4b5563;padding:1px 6px;border-radius:4px;border:1px solid #e5e7eb;">كود: ${itemCode}</span>` : ''}
+                    </div>
                     ${item.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">${item.description}</div>` : ''}
                 </td>
                 <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${item.quantity} ${item.unit || ''}</td>
                 <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${item.price.toLocaleString()}</td>
                 <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${item.total.toLocaleString()}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         const scheduleHtml = isSales && (invoice as SalesInvoice).paymentSchedule?.length ? `
             <div style="margin-top:16px;">
@@ -328,17 +334,27 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                             </tr>
                         </thead>
                         <tbody>
-                            {invoice.items.map((item, idx) => (
+                            {invoice.items.map((item, idx) => {
+                                const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                                return (
                                 <tr key={idx} className="border-b hover:bg-gray-50">
                                     <td className="p-3">
-                                        <div className="font-bold text-gray-800">{item.productName}</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-gray-800">{item.productName}</span>
+                                            {itemCode && (
+                                                <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded border border-gray-200">
+                                                    كود: {itemCode}
+                                                </span>
+                                            )}
+                                        </div>
                                         {item.description && <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>}
                                     </td>
                                     <td className="p-3 text-center">{item.quantity} {item.unit || ''}</td>
                                     <td className="p-3 text-center">{item.price.toLocaleString()}</td>
                                     <td className="p-3 text-center font-bold">{item.total.toLocaleString()}</td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
 

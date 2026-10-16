@@ -55,7 +55,13 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
             setCustomerId(invoiceToEdit.customerId);
             setCompanyName(invoiceToEdit.companyName || '');
             setDate(invoiceToEdit.date);
-            setItems(invoiceToEdit.items);
+            setItems((invoiceToEdit.items || []).map(item => {
+                const prod = products.find(p => p.id === item.productId || p.name === item.productName);
+                return {
+                    ...item,
+                    productCode: item.productCode || item.sku || prod?.sku || prod?.barcode || prod?.id || ''
+                };
+            }));
             setPaymentMethod(invoiceToEdit.paymentMethod);
             setNotes(invoiceToEdit.notes || '');
             setSchedule(invoiceToEdit.paymentSchedule || []);
@@ -72,7 +78,7 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
             setCustomerId('');
             setCompanyName('');
             setDate(new Date().toISOString().split('T')[0]);
-            setItems([{ productName: '', description: '', quantity: 1, price: 0, cost: 0, total: 0, itemType: 'product' }]);
+            setItems([{ productName: '', productCode: '', description: '', quantity: 1, price: 0, cost: 0, total: 0, itemType: 'product' }]);
             setPaymentMethod('اجل');
             setNotes('');
             setSchedule([]);
@@ -165,19 +171,53 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
             // Reset fields when type changes
             currentItem.productId = undefined;
             currentItem.productName = '';
+            currentItem.productCode = '';
+            currentItem.sku = '';
+            currentItem.barcode = '';
             currentItem.price = 0;
             currentItem.cost = 0;
             currentItem.total = 0;
         }
 
         if (field === 'productName' && currentItem.itemType !== 'expense') {
-            const product = products.find(p => p.name === value);
+            const trimmed = (value || '').trim();
+            const product = products.find(p =>
+                p.name.toLowerCase() === trimmed.toLowerCase() ||
+                (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+                (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+                p.id.toLowerCase() === trimmed.toLowerCase()
+            );
             if (product) {
                 currentItem.productId = product.id;
+                currentItem.productName = product.name;
+                currentItem.productCode = product.sku || product.barcode || product.id;
+                currentItem.sku = product.sku;
+                currentItem.barcode = product.barcode;
                 currentItem.price = product.salePrice;
                 currentItem.cost = product.costPrice || 0; // Default to product cost if available
             } else {
                 currentItem.productId = undefined;
+            }
+        }
+
+        if (field === 'productCode' && currentItem.itemType !== 'expense') {
+            const trimmed = (value || '').trim();
+            const product = products.find(p =>
+                (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+                (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+                p.id.toLowerCase() === trimmed.toLowerCase() ||
+                p.name.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (product) {
+                currentItem.productId = product.id;
+                currentItem.productName = product.name;
+                currentItem.productCode = product.sku || product.barcode || product.id;
+                currentItem.sku = product.sku;
+                currentItem.barcode = product.barcode;
+                currentItem.price = product.salePrice;
+                currentItem.cost = product.costPrice || 0;
+            } else {
+                currentItem.productCode = value;
             }
         }
 
@@ -186,7 +226,7 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
         setItems(newItems);
     };
 
-    const addItemRow = () => setItems([...items, { productName: '', description: '', quantity: 1, price: 0, cost: 0, total: 0, itemType: 'product' }]);
+    const addItemRow = () => setItems([...items, { productName: '', productCode: '', description: '', quantity: 1, price: 0, cost: 0, total: 0, itemType: 'product' }]);
     const removeItemRow = (index: number) => setItems(items.filter((_, i) => i !== index));
 
     const subTotal = useMemo(() => {
@@ -295,7 +335,12 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
         >
             <datalist id="products-datalist-sales">
                 {products.map(p => (
-                    <option key={p.id} value={p.name}>{`سعر: ${p.salePrice} - كمية: ${p.quantity}`}</option>
+                    <option key={p.id} value={p.name}>{`كود: ${p.sku || p.id} | سعر: ${p.salePrice} | رصيد: ${p.quantity}`}</option>
+                ))}
+            </datalist>
+            <datalist id="products-codes-datalist-sales">
+                {products.map(p => (
+                    <option key={p.id} value={p.sku || p.id}>{`${p.name} (سعر: ${p.salePrice})`}</option>
                 ))}
             </datalist>
             <div
@@ -435,8 +480,9 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
                         <table className="w-full text-right min-w-[700px]">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="p-3 text-sm font-semibold tracking-wide w-[12%]">النوع</th>
-                                    <th className="p-3 text-sm font-semibold tracking-wide w-[30%]">الصنف / الخدمة</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[11%]">النوع</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[14%]">كود الصنف</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[25%]">الصنف / الخدمة</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide">الكمية</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide">السعر</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide text-gray-500">التكلفة (تقديري)</th>
@@ -456,6 +502,20 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
                                                 <option value="product">صنف (مخزون)</option>
                                                 <option value="expense">خدمة / آخر</option>
                                             </select>
+                                        </td>
+                                        <td className="p-2 align-top">
+                                            {item.itemType === 'expense' ? (
+                                                <span className="text-xs text-gray-400 block pt-2 text-center">-</span>
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    list="products-codes-datalist-sales"
+                                                    value={item.productCode || ''}
+                                                    onChange={(e) => handleItemChange(index, 'productCode', e.target.value)}
+                                                    placeholder="كود الصنف"
+                                                    className="w-full p-2 border border-gray-300 rounded-md font-mono text-xs text-blue-900 bg-gray-50 focus:bg-white"
+                                                />
+                                            )}
                                         </td>
                                         <td className="p-2 align-top">
                                             <input

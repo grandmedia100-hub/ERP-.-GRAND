@@ -129,6 +129,9 @@ export interface StockTransaction {
 export interface InvoiceItem {
   productId: string;
   productName: string;
+  productCode?: string; // كود الصنف أو الباركود
+  sku?: string;
+  barcode?: string;
   description?: string;
   quantity: number;
   price: number;

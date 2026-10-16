@@ -486,20 +486,29 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
                 </tr>
               </thead>
               <tbody>
-                 ${invoice.items.map((item, index) => `
+                 ${invoice.items.map((item, index) => {
+                  const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                  return `
                   <tr>
                     <td>${index + 1}</td>
                     <td>
-                      <strong>${item.productName}</strong>
-                      ${item.itemType === 'expense' ? '<span style="color:red; font-size:0.8em"> (مصروف)</span>' : ''}
-                      ${item.description ? `<br><span style="font-size: 12px; color: #666;">${item.description}</span>` : ''}
+                      <div>
+                        <strong>${item.productName}</strong>
+                        ${item.itemType === 'expense' ? '<span style="color:red; font-size:0.8em"> (مصروف)</span>' : ''}
+                        ${itemCode ? `
+                          <span style="font-size: 11px; font-family: monospace; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 1px 6px; border-radius: 3px; margin-right: 6px; font-weight: normal; color: #475569;">
+                            كود: ${itemCode}
+                          </span>
+                        ` : ''}
+                      </div>
+                      ${item.description ? `<div style="font-size: 12px; color: #666; margin-top: 2px;">${item.description}</div>` : ''}
                     </td>
                     <td>${item.quantity.toLocaleString('en-US')}</td>
                     <td>${item.unit || 'عدد'}</td>
                     <td>${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })} ${item.priceType === 'سعر الطن' ? '/ طن' : ''}</td>
                     <td>${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
 

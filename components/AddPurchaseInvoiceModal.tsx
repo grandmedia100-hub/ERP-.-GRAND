@@ -59,7 +59,13 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
             setSupplierId(invoiceToEdit.supplierId);
             setCompanyName(invoiceToEdit.companyName || '');
             setDate(invoiceToEdit.date);
-            setItems(invoiceToEdit.items.map(i => ({ ...i }))); // Deep copy items
+            setItems((invoiceToEdit.items || []).map(i => {
+                const prod = products.find(p => p.id === i.productId || p.name === i.productName);
+                return {
+                    ...i,
+                    productCode: i.productCode || i.sku || prod?.sku || prod?.barcode || prod?.id || ''
+                };
+            }));
             setPaymentMethod(invoiceToEdit.paymentMethod);
             setNotes(invoiceToEdit.notes || '');
             setDiscountValue(invoiceToEdit.discountValue || 0);
@@ -72,7 +78,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
             setSupplierId('');
             setCompanyName('');
             setDate(new Date().toISOString().split('T')[0]);
-            setItems([{ productId: '', productName: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
+            setItems([{ productId: '', productName: '', productCode: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
             setPaymentMethod('اجل');
             setNotes('');
             setDiscountValue(0);
@@ -134,13 +140,52 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
         const newItems = [...items];
         const item = { ...newItems[index], [field]: value };
 
+        if (field === 'itemType') {
+            item.productId = '';
+            item.productName = '';
+            item.productCode = '';
+            item.sku = '';
+            item.barcode = '';
+            item.price = 0;
+            item.total = 0;
+        }
+
         // Auto-fill details if product selected
-        if (field === 'productName') {
-            // Handle product selection (optional: auto-fill price from product list if available)
-            const product = products.find(p => p.name === value);
+        if (field === 'productName' && item.itemType !== 'expense') {
+            const trimmed = (value || '').trim();
+            const product = products.find(p =>
+                p.name.toLowerCase() === trimmed.toLowerCase() ||
+                (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+                (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+                p.id.toLowerCase() === trimmed.toLowerCase()
+            );
             if (product) {
                 item.productId = product.id;
+                item.productName = product.name;
+                item.productCode = product.sku || product.barcode || product.id;
+                item.sku = product.sku;
+                item.barcode = product.barcode;
                 if (!item.price) item.price = product.costPrice; // Use cost price for purchases
+            }
+        }
+
+        if (field === 'productCode' && item.itemType !== 'expense') {
+            const trimmed = (value || '').trim();
+            const product = products.find(p =>
+                (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+                (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+                p.id.toLowerCase() === trimmed.toLowerCase() ||
+                p.name.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (product) {
+                item.productId = product.id;
+                item.productName = product.name;
+                item.productCode = product.sku || product.barcode || product.id;
+                item.sku = product.sku;
+                item.barcode = product.barcode;
+                if (!item.price) item.price = product.costPrice;
+            } else {
+                item.productCode = value;
             }
         }
 
@@ -150,7 +195,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
     };
 
     const addItemRow = () => {
-        setItems([...items, { productId: '', productName: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
+        setItems([...items, { productId: '', productName: '', productCode: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
     };
 
     const removeItemRow = (index: number) => {
@@ -236,7 +281,12 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
         >
             <datalist id="products-datalist">
                 {products.map(p => (
-                    <option key={p.id} value={p.name}>{`تكلفة: ${p.costPrice} - كمية: ${p.quantity}`}</option>
+                    <option key={p.id} value={p.name}>{`كود: ${p.sku || p.id} | تكلفة: ${p.costPrice} | رصيد: ${p.quantity}`}</option>
+                ))}
+            </datalist>
+            <datalist id="products-codes-datalist-purchases">
+                {products.map(p => (
+                    <option key={p.id} value={p.sku || p.id}>{`${p.name} (تكلفة: ${p.costPrice})`}</option>
                 ))}
             </datalist>
             <div
@@ -318,8 +368,9 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
                         <table className="w-full text-right min-w-[900px]">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="p-3 text-sm font-semibold tracking-wide w-[12%]">النوع</th>
-                                    <th className="p-3 text-sm font-semibold tracking-wide w-[25%]">الصنف / المصروف</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[10%]">النوع</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[14%]">كود الصنف</th>
+                                    <th className="p-3 text-sm font-semibold tracking-wide w-[22%]">الصنف / المصروف</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide">الكمية</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide">الوحدة</th>
                                     <th className="p-3 text-sm font-semibold tracking-wide">السعر</th>
@@ -340,6 +391,20 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
                                                 <option value="product">صنف (مخزون)</option>
                                                 <option value="expense">مصروف</option>
                                             </select>
+                                        </td>
+                                        <td className="p-2 align-top">
+                                            {item.itemType === 'expense' ? (
+                                                <span className="text-xs text-gray-400 block pt-2 text-center">-</span>
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    list="products-codes-datalist-purchases"
+                                                    value={item.productCode || ''}
+                                                    onChange={(e) => handleItemChange(index, 'productCode', e.target.value)}
+                                                    placeholder="كود الصنف"
+                                                    className="w-full p-2 border border-gray-300 rounded-md font-mono text-xs text-emerald-900 bg-gray-50 focus:bg-white"
+                                                />
+                                            )}
                                         </td>
                                         <td className="p-2 align-top">
                                             <input
