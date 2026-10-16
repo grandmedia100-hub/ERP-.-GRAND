@@ -1,0 +1,38 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Production & Electron build outputs
+dist/
+dist-ssr/
+dist-electron*/
+dist-electron/
+release/
+*.local
+
+# SQLite temporary & lock files
+*.db-wal
+*.db-shm
+*.db.bak
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.zencoder/
+recovered_app.txt
