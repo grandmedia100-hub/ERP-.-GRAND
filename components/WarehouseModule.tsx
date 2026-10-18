@@ -535,7 +535,7 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                 <table className="w-full text-sm text-right">
                                     <thead className="bg-gray-50 border-b border-gray-200">
                                         <tr>
-                                            {['كود الصنف', 'اسم الصنف', 'المخزن', 'الوحدة', 'الرصيد', 'سعر التكلفة', 'سعر البيع', 'القيمة', 'الحالة', 'إجراءات'].map(h => (
+                                            {['كود الصنف', 'اسم الصنف', 'الوحدة', 'الرصيد', 'سعر التكلفة', 'سعر البيع', 'القيمة', 'الحالة', 'إجراءات'].map(h => (
                                                 <th key={h} className="p-3 text-xs font-semibold text-gray-600 tracking-wide">{h}</th>
                                             ))}
                                         </tr>
@@ -545,23 +545,6 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                             <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="p-3 font-mono text-sm font-bold text-blue-700 bg-blue-50/50 rounded">{p.sku || p.id}</td>
                                                 <td className="p-3 font-semibold text-gray-800">{p.name}</td>
-                                                <td className="p-3">
-                                                    <select
-                                                        value={p.warehouseId || warehouses.find(w => w.name.trim() === (p.warehouseName || '').trim())?.id || ''}
-                                                        onChange={(e) => {
-                                                            const newWhId = e.target.value;
-                                                            const newWh = warehouses.find(w => w.id === newWhId);
-                                                            setProducts(prev => prev.map(item => item.id === p.id ? { ...item, warehouseId: newWhId, warehouseName: newWh?.name || '' } : item));
-                                                            logAction(`تحديث مخزن الصنف ${p.name}: ${newWh?.name || 'غير محدد'}`);
-                                                        }}
-                                                        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:ring-1 focus:ring-purple-500 font-medium cursor-pointer"
-                                                    >
-                                                        <option value="">-- غير محدد --</option>
-                                                        {warehouses.map(w => (
-                                                            <option key={w.id} value={w.id}>{w.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </td>
                                                 <td className="p-3 text-gray-600">{p.unit || 'عدد'}</td>
                                                 <td className="p-3 font-bold text-center text-gray-800">{p.quantity.toLocaleString()}</td>
                                                 <td className="p-3 text-center text-gray-700">{p.costPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
@@ -584,7 +567,7 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                             </tr>
                                         ))}
                                         {displayedProducts.length === 0 && (
-                                            <tr><td colSpan={10} className="p-8 text-center text-gray-400">لا توجد أصناف. أضف صنفاً جديداً للبدء.</td></tr>
+                                            <tr><td colSpan={9} className="p-8 text-center text-gray-400">لا توجد أصناف. أضف صنفاً جديداً للبدء.</td></tr>
                                         )}
                                     </tbody>
                                 </table>

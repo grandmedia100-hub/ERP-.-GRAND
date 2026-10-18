@@ -106,24 +106,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
                   <td className="p-3 font-mono text-sm font-bold text-blue-700">{product.sku || product.id}</td>
                   <td className="p-3 text-sm font-semibold text-gray-800">{product.name}</td>
                   <td className="p-3 text-sm">
-                    {warehouses && warehouses.length > 0 ? (
-                      <select
-                        value={product.warehouseId || warehouses.find(w => w.name.trim() === (product.warehouseName || '').trim())?.id || ''}
-                        onChange={(e) => {
-                          const newWhId = e.target.value;
-                          const newWh = warehouses.find(w => w.id === newWhId);
-                          setProducts(prev => prev.map(item => item.id === product.id ? { ...item, warehouseId: newWhId, warehouseName: newWh?.name || '' } : item));
-                          if (logAction) logAction(`تحديث مخزن الصنف ${product.name}: ${newWh?.name || 'غير محدد'}`);
-                        }}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:ring-1 focus:ring-purple-500 font-medium cursor-pointer"
-                      >
-                        <option value="">-- غير محدد --</option>
-                        {warehouses.map(w => (
-                          <option key={w.id} value={w.id}>{w.name}</option>
-                        ))}
-                      </select>
+                    {product.warehouseName ? (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">{product.warehouseName}</span>
                     ) : (
-                      <span className="text-gray-500 text-xs">{product.warehouseName || '—'}</span>
+                      <span className="text-gray-400 text-xs">—</span>
                     )}
                   </td>
                   <td className="p-3 text-sm text-gray-700">{product.productType || '-'}</td>
