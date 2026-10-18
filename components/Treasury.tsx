@@ -562,12 +562,21 @@ const Treasury: React.FC<TreasuryProps> = ({
   };
 
   // Helper to check funds
+  // Helper to check funds
   const checkFunds = (accountName: string, amount: number, excludeTransactionId?: string): boolean => {
-    // Calculate current balance for the specific account
-    const companyInfoString = localStorage.getItem('companyInfo');
-    const companyInfo: CompanyInfo = companyInfoString
-      ? JSON.parse(companyInfoString)
-      : { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    // Calculate current balance for the specific account and branch
+    let companyInfo: CompanyInfo = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    if (currentBranchId === 'main') {
+      const companyInfoString = localStorage.getItem('companyInfo');
+      if (companyInfoString) {
+        try { companyInfo = JSON.parse(companyInfoString); } catch {}
+      }
+    } else {
+      const branchInfoString = localStorage.getItem(`companyInfo_${currentBranchId}`);
+      if (branchInfoString) {
+        try { companyInfo = JSON.parse(branchInfoString); } catch {}
+      }
+    }
 
     let balance = 0;
     if (accountName === 'الخزينة الرئيسية') {
@@ -587,12 +596,28 @@ const Treasury: React.FC<TreasuryProps> = ({
       .filter(p => !p.paidByOtherBranch && (p.treasuryAccount || 'الخزينة الرئيسية') === accountName && (p.status || 'active') === 'active' && p.id !== excludeTransactionId)
       .reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
 
-    // Transfers
+    // Transfers Out: Only deduct if this branch is source
     const transfersOut = treasuryTransfers
-      .filter(t => t.fromAccount === accountName && (t.status || 'active') === 'active')
+      .filter(t => {
+        if ((t.status || 'active') !== 'active') return false;
+        if (t.fromAccount !== accountName) return false;
+        if (t.isIntercompany) {
+          return t.branchId === currentBranchId || t.fromBranchId === currentBranchId;
+        }
+        return true;
+      })
       .reduce((sum, t) => sum + t.amount + (t.fee || 0), 0);
+
+    // Transfers In: Only add if this branch is target
     const transfersIn = treasuryTransfers
-      .filter(t => t.toAccount === accountName && (t.status || 'active') === 'active')
+      .filter(t => {
+        if ((t.status || 'active') !== 'active') return false;
+        if (t.toAccount !== accountName) return false;
+        if (t.isIntercompany) {
+          return t.toBranchId === currentBranchId || (t.id.startsWith('TR-IC-') && t.branchId === currentBranchId);
+        }
+        return true;
+      })
       .reduce((sum, t) => sum + t.amount, 0);
 
     // Subtract Expenses
@@ -608,16 +633,24 @@ const Treasury: React.FC<TreasuryProps> = ({
   };
 
   const balances = useMemo(() => {
-    const companyInfoString = localStorage.getItem('companyInfo');
-    const companyInfo: CompanyInfo = companyInfoString
-      ? JSON.parse(companyInfoString)
-      : { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    let companyInfo: CompanyInfo = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    if (currentBranchId === 'main') {
+      const companyInfoString = localStorage.getItem('companyInfo');
+      if (companyInfoString) {
+        try { companyInfo = JSON.parse(companyInfoString); } catch {}
+      }
+    } else {
+      const branchInfoString = localStorage.getItem(`companyInfo_${currentBranchId}`);
+      if (branchInfoString) {
+        try { companyInfo = JSON.parse(branchInfoString); } catch {}
+      }
+    }
 
     const accounts: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
     const result: Record<string, number> = {};
 
     accounts.forEach(acc => {
-      // Opening Balance
+      // Opening Balance for this branch
       let opening = 0;
       if (acc === 'الخزينة الرئيسية') {
         opening = companyInfo.treasuryOpeningBalance || 0;
@@ -635,12 +668,28 @@ const Treasury: React.FC<TreasuryProps> = ({
         .filter(p => !p.paidByOtherBranch && (p.treasuryAccount || 'الخزينة الرئيسية') === acc && (p.status || 'active') === 'active')
         .reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
 
-      // Transfers
+      // Transfers Out: Only deduct if this branch is source
       const transfersOut = treasuryTransfers
-        .filter(t => t.fromAccount === acc && (t.status || 'active') === 'active')
+        .filter(t => {
+          if ((t.status || 'active') !== 'active') return false;
+          if (t.fromAccount !== acc) return false;
+          if (t.isIntercompany) {
+            return t.branchId === currentBranchId || t.fromBranchId === currentBranchId;
+          }
+          return true;
+        })
         .reduce((sum, t) => sum + t.amount + (t.fee || 0), 0);
+
+      // Transfers In: Only add if this branch is target
       const transfersIn = treasuryTransfers
-        .filter(t => t.toAccount === acc && (t.status || 'active') === 'active')
+        .filter(t => {
+          if ((t.status || 'active') !== 'active') return false;
+          if (t.toAccount !== acc) return false;
+          if (t.isIntercompany) {
+            return t.toBranchId === currentBranchId || (t.id.startsWith('TR-IC-') && t.branchId === currentBranchId);
+          }
+          return true;
+        })
         .reduce((sum, t) => sum + t.amount, 0);
 
       result[acc] = opening + totalReceipts - totalPayments - transfersOut + transfersIn;
@@ -648,7 +697,7 @@ const Treasury: React.FC<TreasuryProps> = ({
 
     return result;
 
-  }, [customerPayments, supplierPayments, treasuryTransfers, accounts]);
+  }, [customerPayments, supplierPayments, treasuryTransfers, accounts, currentBranchId]);
 
   // Filtering Logic
   const filteredReceipts = useMemo(() => {

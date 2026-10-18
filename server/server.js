@@ -31,6 +31,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
         db.run("ALTER TABLE suppliers ADD COLUMN companyName TEXT;", (e) => {});
         db.run("ALTER TABLE products ADD COLUMN productType TEXT;", (e) => {});
         db.run("ALTER TABLE products ADD COLUMN barcode TEXT;", (e) => {});
+        db.run("ALTER TABLE products ADD COLUMN sku TEXT;", (e) => {});
+        db.run("ALTER TABLE products ADD COLUMN warehouseId TEXT;", (e) => {});
+        db.run("ALTER TABLE products ADD COLUMN warehouseName TEXT;", (e) => {});
 
         // BranchId migrations
         const branchTables = [
@@ -95,7 +98,7 @@ const ALLOWED_TABLES = [
 
 function initializeDatabase() {
     db.exec(`
-    CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT, unit TEXT, costPrice REAL, salePrice REAL, quantity REAL DEFAULT 0, minQuantity REAL DEFAULT 0, productType TEXT, barcode TEXT, branchId TEXT DEFAULT 'main');
+    CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT, unit TEXT, costPrice REAL, salePrice REAL, quantity REAL DEFAULT 0, minQuantity REAL DEFAULT 0, productType TEXT, barcode TEXT, branchId TEXT DEFAULT 'main', sku TEXT, warehouseId TEXT, warehouseName TEXT);
     CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT, address TEXT, openingBalance REAL DEFAULT 0, creditLimit REAL DEFAULT 0, companyName TEXT, branchId TEXT DEFAULT 'main');
     CREATE TABLE IF NOT EXISTS suppliers (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT, address TEXT, openingBalance REAL DEFAULT 0, companyName TEXT, branchId TEXT DEFAULT 'main');
     CREATE TABLE IF NOT EXISTS sales_invoices (id TEXT PRIMARY KEY, customerId TEXT, customerName TEXT, companyName TEXT, date TEXT, paymentMethod TEXT, total REAL, invoiceType TEXT DEFAULT "sale", status TEXT DEFAULT "active", notes TEXT, items TEXT, branchId TEXT DEFAULT 'main');
@@ -660,7 +663,7 @@ app.delete("/api/:table/:id", (req, res) => {
 
 function getTableColumns(table) {
     switch (table) {
-        case "products": return ["id", "name", "category", "unit", "costPrice", "salePrice", "quantity", "minQuantity", "productType", "barcode", "branchId"];
+        case "products": return ["id", "name", "category", "unit", "costPrice", "salePrice", "quantity", "minQuantity", "productType", "barcode", "branchId", "sku", "warehouseId", "warehouseName"];
         case "customers": return ["id", "name", "phone", "address", "openingBalance", "creditLimit", "companyName", "branchId"];
         case "suppliers": return ["id", "name", "phone", "address", "openingBalance", "companyName", "branchId"];
         case "sales_invoices": return ["id", "customerId", "customerName", "companyName", "date", "paymentMethod", "total", "invoiceType", "status", "notes", "items", "branchId"];
@@ -683,7 +686,7 @@ function getTableColumns(table) {
 function getRowValues(table, row) {
     const branch = row.branchId || "main";
     switch (table) {
-        case "products": return [row.id, row.name, row.category, row.unit, row.costPrice, row.salePrice, row.quantity, row.minQuantity, row.productType, row.barcode, branch];
+        case "products": return [row.id, row.name, row.category, row.unit, row.costPrice, row.salePrice, row.quantity, row.minQuantity, row.productType, row.barcode, branch, row.sku || "", row.warehouseId || "", row.warehouseName || ""];
         case "customers": return [row.id, row.name, row.phone, row.address, row.openingBalance, row.creditLimit, row.companyName, branch];
         case "suppliers": return [row.id, row.name, row.phone, row.address, row.openingBalance, row.companyName, branch];
         case "sales_invoices": return [row.id, row.customerId, row.customerName, row.companyName, row.date, row.paymentMethod, row.total, row.invoiceType, row.status, row.notes, JSON.stringify(row.items || []), branch];

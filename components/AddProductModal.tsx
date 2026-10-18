@@ -26,17 +26,17 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, exis
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
   useEffect(() => {
-    const prefix = 'PRD-';
-    const maxNum = existingProducts.reduce((max, prod) => {
-        const codeToUse = prod.sku || prod.id;
-        if (codeToUse.startsWith(prefix)) {
-            const num = parseInt(codeToUse.substring(prefix.length), 10);
-            return isNaN(num) ? max : Math.max(max, num);
+    let maxNum = 1000;
+    existingProducts.forEach(prod => {
+      const code = (prod.sku || prod.id || '').replace(/\D/g, '');
+      if (code && code.length >= 4 && code.length <= 5) {
+        const num = parseInt(code, 10);
+        if (!isNaN(num) && num > maxNum && num < 100000) {
+          maxNum = num;
         }
-        return max;
-    }, 0);
-    const nextSku = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`;
-    setSku(nextSku);
+      }
+    });
+    setSku(String(maxNum + 1));
   }, [existingProducts]);
 
   useEffect(() => {

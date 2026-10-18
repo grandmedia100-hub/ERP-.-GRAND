@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import type { Warehouse, Product } from '../types.ts';
 
 export type ImportType = 'products' | 'customers' | 'suppliers';
 
@@ -6,12 +7,16 @@ interface ExcelImportModalProps {
   importType: ImportType;
   onClose: () => void;
   onImport: (rows: any[]) => void;
+  warehouses?: Warehouse[];
+  existingProducts?: Product[];
 }
 
 // =========== Column Definitions ===========
 const COLUMNS: Record<ImportType, { key: string; label: string; required?: boolean }[]> = {
   products: [
+    { key: 'sku', label: 'كود الصنف' },
     { key: 'name', label: 'اسم الصنف', required: true },
+    { key: 'warehouseName', label: 'المخزن' },
     { key: 'unit', label: 'الوحدة', required: true },
     { key: 'productType', label: 'نوع الصنف' },
     { key: 'quantity', label: 'الكمية' },
@@ -91,9 +96,10 @@ function downloadTemplate(type: ImportType) {
   const cols = COLUMNS[type];
   const header = cols.map(c => c.label).join(',');
   const example: Record<string, string> = {
-    'اسم الصنف': 'ورق A4', 'الوحدة': 'رزمة', 'نوع الصنف': 'خامة', 'الكمية': '100',
-    'سعر التكلفة': '50', 'سعر البيع': '70', 'حد التنبيه': '10',
-    'التصنيف': 'مستلزمات مكتبية', 'الباركود': '',
+    'كود الصنف': '1001', 'المخزن': 'خام',
+    'اسم الصنف': 'ورق دوبلكس 250 جرام', 'الوحدة': 'طن', 'نوع الصنف': 'خام', 'الكمية': '10',
+    'سعر التكلفة': '35000', 'سعر البيع': '40000', 'حد التنبيه': '2',
+    'التصنيف': 'خامات كرتون', 'الباركود': '',
     'اسم المسؤول': 'أحمد محمد', 'اسم الشركة': 'شركة النور',
     'الهاتف': '01012345678', 'البريد الإلكتروني': 'info@company.com',
     'العنوان': 'القاهرة', 'الرقم الضريبي': '123456789',
@@ -109,11 +115,14 @@ function downloadTemplate(type: ImportType) {
 }
 
 // =========== Main Modal ===========
-const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ importType, onClose, onImport }) => {
+const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ importType, onClose, onImport, warehouses, existingProducts }) => {
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload');
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
+  const [defaultWarehouseId, setDefaultWarehouseId] = useState<string>(
+    warehouses && warehouses.length > 0 ? warehouses[0].id : ''
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const cols = COLUMNS[importType];
 
@@ -171,7 +180,65 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ importType, onClose
   };
 
   const handleConfirm = () => {
-    onImport(parsedRows);
+    let currentCode = 1000;
+    if (existingProducts && existingProducts.length > 0) {
+      existingProducts.forEach(p => {
+        const codeNum = parseInt((p.sku || p.id || '').replace(/\D/g, ''), 10);
+        if (!isNaN(codeNum) && codeNum > currentCode && codeNum < 100000) {
+          currentCode = codeNum;
+        }
+      });
+    }
+
+    const enriched = parsedRows.map((row) => {
+      let whId = row.warehouseId || '';
+      let whName = row.warehouseName || '';
+
+      if (!whId && whName && warehouses) {
+        const found = warehouses.find(w => w.name.trim().toLowerCase() === String(whName).trim().toLowerCase() || (w.code && w.code.toLowerCase() === String(whName).trim().toLowerCase()));
+        if (found) {
+          whId = found.id;
+          whName = found.name;
+        }
+      }
+
+      if (!whId && defaultWarehouseId && warehouses) {
+        const def = warehouses.find(w => w.id === defaultWarehouseId);
+        if (def) {
+          whId = def.id;
+          whName = def.name;
+        }
+      }
+
+      if (!whId && warehouses && warehouses.length > 0) {
+        const pt = (row.productType || '').trim();
+        const byType = warehouses.find(w => pt && (w.name.includes(pt) || pt.includes(w.name.trim())));
+        if (byType) {
+          whId = byType.id;
+          whName = byType.name;
+        } else {
+          whId = warehouses[0].id;
+          whName = warehouses[0].name;
+        }
+      }
+
+      // Generate clean 4 or 5 digit code if row.sku is missing or long
+      let finalSku = (row.sku || '').trim();
+      if (!finalSku || finalSku.length > 6) {
+        currentCode++;
+        finalSku = String(currentCode);
+      }
+
+      return {
+        ...row,
+        id: finalSku,
+        sku: finalSku,
+        warehouseId: whId,
+        warehouseName: whName,
+      };
+    });
+
+    onImport(enriched);
     setStep('done');
   };
 

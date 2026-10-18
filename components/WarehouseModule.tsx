@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { Product, StockTransaction, Warehouse } from '../types.ts';
+import ExcelImportModal from './ExcelImportModal.tsx';
 
 interface WarehouseModuleProps {
     products: Product[];
@@ -23,7 +24,9 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
 
     // Products tab state
     const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [filterWarehouseId, setFilterWarehouseId] = useState<string>('');
     const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
     const [productForm, setProductForm] = useState({ name: '', sku: '', unit: 'عدد', costPrice: 0, salePrice: 0, lowStockThreshold: 0, warehouseId: '', warehouseName: '' });
 
@@ -63,21 +66,20 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
     };
 
     // ── Products CRUD ────────────────────────────────────────────────────────
-    // Generate SKU based on selected warehouse prefix
-    const generateSku = useCallback((warehouseId: string) => {
-        const wh = warehouses.find(w => w.id === warehouseId);
-        const prefix = wh ? `${wh.code}-` : 'PRD-';
-        // Find max number for this warehouse prefix among all products
-        const maxNum = products.reduce((max, prod) => {
-            const codeToUse = prod.sku || prod.id;
-            if (codeToUse.startsWith(prefix)) {
-                const num = parseInt(codeToUse.substring(prefix.length), 10);
-                return isNaN(num) ? max : Math.max(max, num);
+    // Generate clean 4 or 5 digit numeric SKU (e.g. 1001, 1002... up to 99999)
+    const generateSku = useCallback(() => {
+        let maxNum = 1000;
+        products.forEach(prod => {
+            const code = (prod.sku || prod.id || '').replace(/\D/g, '');
+            if (code && code.length >= 4 && code.length <= 5) {
+                const num = parseInt(code, 10);
+                if (!isNaN(num) && num > maxNum && num < 100000) {
+                    maxNum = num;
+                }
             }
-            return max;
-        }, 0);
-        return `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`;
-    }, [products, warehouses]);
+        });
+        return String(maxNum + 1);
+    }, [products]);
 
     const handleOpenAddProduct = (p?: Product) => {
         if (p) {
@@ -85,19 +87,18 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
             setProductForm({ name: p.name, sku: p.sku || '', unit: p.unit || 'عدد', costPrice: p.costPrice, salePrice: p.salePrice, lowStockThreshold: p.lowStockThreshold, warehouseId: p.warehouseId || '', warehouseName: p.warehouseName || '' });
         } else {
             setEditingProduct(null);
-            // Use first active warehouse by default if none selected
-            const defaultWhId = warehouses.find(w => w.isActive)?.id || '';
-            const whId = defaultWhId;
-            const newSku = generateSku(whId);
-            const wh = warehouses.find(w => w.id === whId);
-            setProductForm({ name: '', sku: newSku, unit: 'عدد', costPrice: 0, salePrice: 0, lowStockThreshold: 0, warehouseId: whId, warehouseName: wh?.name || '' });
+            // Default to filtered warehouse or first active warehouse
+            const defaultWhId = (filterWarehouseId && filterWarehouseId !== '__unassigned__') ? filterWarehouseId : (warehouses.find(w => w.isActive)?.id || '');
+            const newSku = generateSku();
+            const wh = warehouses.find(w => w.id === defaultWhId);
+            setProductForm({ name: '', sku: newSku, unit: 'عدد', costPrice: 0, salePrice: 0, lowStockThreshold: 0, warehouseId: defaultWhId, warehouseName: wh?.name || '' });
         }
         setIsAddProductOpen(true);
     };
 
     const handleSaveProduct = () => {
         if (!productForm.name.trim()) return;
-        const finalSku = productForm.sku.trim() || generateSku(productForm.warehouseId);
+        const finalSku = productForm.sku.trim() || generateSku();
         const wh = warehouses.find(w => w.id === productForm.warehouseId);
         const updatedForm = { ...productForm, sku: finalSku, warehouseId: productForm.warehouseId, warehouseName: wh?.name || '' };
         if (editingProduct) {
@@ -106,9 +107,45 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
         } else {
             const newProduct: Product = { id: `PROD-${Date.now()}`, quantity: 0, ...updatedForm, costPrice: Number(productForm.costPrice), salePrice: Number(productForm.salePrice), lowStockThreshold: Number(productForm.lowStockThreshold) };
             setProducts(prev => [...prev, newProduct]);
-            logAction(`إضافة صنف جديد: ${productForm.name} - مخزن: ${wh?.name || 'غير محدد'}`);
+            logAction(`إضافة صنف جديد: ${productForm.name} - كود: ${finalSku} - مخزن: ${wh?.name || 'غير محدد'}`);
         }
         setIsAddProductOpen(false);
+    };
+
+    const handleImportProducts = (rows: any[]) => {
+        let currentCode = 1000;
+        products.forEach(p => {
+            const code = (p.sku || p.id || '').replace(/\D/g, '');
+            if (code && code.length >= 4 && code.length <= 5) {
+                const num = parseInt(code, 10);
+                if (!isNaN(num) && num > currentCode && num < 100000) currentCode = num;
+            }
+        });
+
+        const newProducts: Product[] = rows.map(r => {
+            let finalSku = (r.sku || '').trim();
+            if (!finalSku || finalSku.length > 6) {
+                currentCode++;
+                finalSku = String(currentCode);
+            }
+            return {
+                id: finalSku || `PROD-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                name: r.name || '',
+                sku: finalSku,
+                unit: r.unit || 'عدد',
+                quantity: Number(r.quantity) || 0,
+                costPrice: Number(r.costPrice) || 0,
+                salePrice: Number(r.salePrice) || 0,
+                lowStockThreshold: Number(r.lowStockThreshold) || 5,
+                warehouseId: r.warehouseId || '',
+                warehouseName: r.warehouseName || '',
+                category: r.category || '',
+                barcode: r.barcode || '',
+                productType: r.productType || '',
+            };
+        });
+        setProducts(prev => [...prev, ...newProducts]);
+        logAction(`استيراد ${newProducts.length} صنف من ملف Excel`);
     };
 
     const handleDeleteProduct = (id: string) => {
@@ -287,11 +324,18 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
     ];
 
     // ── Filter products by selected warehouse in products tab ─────────────
-    const [filterWarehouseId, setFilterWarehouseId] = useState('');
     const displayedProducts = useMemo(() => {
         if (!filterWarehouseId) return products;
-        return products.filter(p => p.warehouseId === filterWarehouseId);
-    }, [products, filterWarehouseId]);
+        if (filterWarehouseId === '__unassigned__') {
+            return products.filter(p => !p.warehouseId && !p.warehouseName);
+        }
+        const selWh = warehouses.find(w => w.id === filterWarehouseId);
+        return products.filter(p => {
+            if (p.warehouseId && p.warehouseId === filterWarehouseId) return true;
+            if (selWh && p.warehouseName && p.warehouseName.trim() === selWh.name.trim()) return true;
+            return false;
+        });
+    }, [products, filterWarehouseId, warehouses]);
 
     // ── Warehouse CRUD ────────────────────────────────────────────────────
     const [warehouseForm, setWarehouseForm] = useState({ name: '', code: '', location: '' });
@@ -469,13 +513,20 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                         <div>
                             <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
                                 <h2 className="text-lg font-bold text-gray-700">جميع الأصناف ({displayedProducts.length} / {products.length})</h2>
-                                <div className="flex gap-2 items-center">
+                                <div className="flex flex-wrap gap-2 items-center">
                                     {/* Filter by warehouse */}
-                                    <select value={filterWarehouseId} onChange={e => setFilterWarehouseId(e.target.value)} className="border rounded-lg p-2 text-sm text-gray-600">
-                                        <option value="">جميع المخازن</option>
-                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                    <select value={filterWarehouseId} onChange={e => setFilterWarehouseId(e.target.value)} className="border border-gray-300 rounded-lg p-2 text-sm text-gray-700 bg-white font-medium shadow-sm">
+                                        <option value="">جميع المخازن ({products.length})</option>
+                                        {warehouses.map(w => {
+                                            const count = products.filter(p => p.warehouseId === w.id || (p.warehouseName && p.warehouseName.trim() === w.name.trim())).length;
+                                            return <option key={w.id} value={w.id}>{w.name} ({count})</option>;
+                                        })}
+                                        <option value="__unassigned__">أصناف بدون مخزن ({products.filter(p => !p.warehouseId && !p.warehouseName).length})</option>
                                     </select>
-                                    <button onClick={() => handleOpenAddProduct()} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-semibold">
+                                    <button onClick={() => setIsImportOpen(true)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 flex items-center gap-1.5 text-sm font-semibold shadow-sm">
+                                        <span>📊</span> استيراد Excel
+                                    </button>
+                                    <button onClick={() => handleOpenAddProduct()} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-semibold shadow-sm">
                                         <span>+</span> إضافة صنف جديد
                                     </button>
                                 </div>
@@ -492,14 +543,24 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                     <tbody className="divide-y divide-gray-100">
                                         {displayedProducts.map(p => (
                                             <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="p-3 font-mono text-xs text-gray-500">{p.sku || p.id.slice(-6)}</td>
+                                                <td className="p-3 font-mono text-sm font-bold text-blue-700 bg-blue-50/50 rounded">{p.sku || p.id}</td>
                                                 <td className="p-3 font-semibold text-gray-800">{p.name}</td>
                                                 <td className="p-3">
-                                                    {p.warehouseName ? (
-                                                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">{p.warehouseName}</span>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">—</span>
-                                                    )}
+                                                    <select
+                                                        value={p.warehouseId || warehouses.find(w => w.name.trim() === (p.warehouseName || '').trim())?.id || ''}
+                                                        onChange={(e) => {
+                                                            const newWhId = e.target.value;
+                                                            const newWh = warehouses.find(w => w.id === newWhId);
+                                                            setProducts(prev => prev.map(item => item.id === p.id ? { ...item, warehouseId: newWhId, warehouseName: newWh?.name || '' } : item));
+                                                            logAction(`تحديث مخزن الصنف ${p.name}: ${newWh?.name || 'غير محدد'}`);
+                                                        }}
+                                                        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:ring-1 focus:ring-purple-500 font-medium cursor-pointer"
+                                                    >
+                                                        <option value="">-- غير محدد --</option>
+                                                        {warehouses.map(w => (
+                                                            <option key={w.id} value={w.id}>{w.name}</option>
+                                                        ))}
+                                                    </select>
                                                 </td>
                                                 <td className="p-3 text-gray-600">{p.unit || 'عدد'}</td>
                                                 <td className="p-3 font-bold text-center text-gray-800">{p.quantity.toLocaleString()}</td>
@@ -794,20 +855,16 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                     onChange={e => {
                                         const whId = e.target.value;
                                         const wh = warehouses.find(w => w.id === whId);
-                                        // Regenerate SKU when warehouse changes (only for new products)
-                                        const newSku = !editingProduct ? generateSku(whId) : productForm.sku;
+                                        const newSku = !editingProduct && !productForm.sku ? generateSku() : productForm.sku;
                                         setProductForm(f => ({ ...f, warehouseId: whId, warehouseName: wh?.name || '', sku: newSku }));
                                     }}
                                     className="w-full p-2.5 border border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-300"
                                 >
                                     <option value="">-- اختر المخزن --</option>
                                     {warehouses.filter(w => w.isActive).map(w => (
-                                        <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
+                                        <option key={w.id} value={w.id}>{w.name}</option>
                                     ))}
                                 </select>
-                                {productForm.warehouseId && (
-                                    <p className="text-xs text-purple-600 mt-1.5">بادئة الكود التلقائية: <span className="font-mono font-bold">{warehouses.find(w => w.id === productForm.warehouseId)?.code}-XXXX</span></p>
-                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
@@ -816,15 +873,15 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                     <input type="text" value={productForm.name} onChange={e => setProductForm(f => ({ ...f, name: e.target.value }))} className="w-full p-2.5 border rounded-lg" placeholder="مثال: ورق A4" autoFocus />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-600 mb-1">كود الصنف (تلقائي)</label>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">كود الصنف (4-5 أرقام)</label>
                                     <input
                                         type="text"
                                         value={productForm.sku}
                                         onChange={e => setProductForm(f => ({ ...f, sku: e.target.value }))}
-                                        className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 focus:bg-white"
-                                        placeholder="يتولد تلقائياً من المخزن"
+                                        className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 focus:bg-white text-blue-700 font-bold"
+                                        placeholder="مثال: 1017"
                                     />
-                                    <p className="text-xs text-gray-400 mt-1">مرتبط بكود المخزن المختار</p>
+                                    <p className="text-xs text-gray-400 mt-1">كود رقمي من 4 أو 5 أرقام يسهل حفظه</p>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-600 mb-1">وحدة القياس</label>
@@ -913,6 +970,17 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Excel Import Modal */}
+            {isImportOpen && (
+                <ExcelImportModal
+                    importType="products"
+                    onClose={() => setIsImportOpen(false)}
+                    onImport={handleImportProducts}
+                    warehouses={warehouses}
+                    existingProducts={products}
+                />
             )}
         </div>
     );
