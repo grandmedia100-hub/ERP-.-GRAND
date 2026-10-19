@@ -165,6 +165,7 @@ export interface PurchaseInvoice {
   discountType?: 'amount' | 'percentage'; // Added for discount support
   total: number;
   paymentMethod: 'نقدي' | 'اجل' | 'شيك';
+  treasuryAccount?: string; // Target treasury account when paymentMethod is cash
   invoiceType?: 'purchase' | 'return'; // New field for returns
   notes?: string;
   status: 'active' | 'voided'; // New field for immutable invoices

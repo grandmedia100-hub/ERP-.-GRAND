@@ -484,11 +484,12 @@ const App: React.FC = () => {
                 invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
                 suppliers={suppliers} products={products} setProducts={setProducts}
                 stockTransactions={stockTransactions} setStockTransactions={setStockTransactions}
-                supplierPayments={supplierPayments}
+                supplierPayments={supplierPayments} setSupplierPayments={setSupplierPayments}
                 createJournalEntry={createJournalEntry} logAction={logAction}
                 currentUser={currentUser}
                 deleteJournalEntryByReference={deleteJournalEntryByReference}
                 accounts={accounts} setAccounts={setAccounts}
+                currentBranchId={currentBranchId}
             />;
         }
         if (activePage === 'inventory' && hasPermission('access_inventory')) {

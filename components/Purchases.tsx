@@ -14,15 +14,17 @@ interface PurchasesProps {
   stockTransactions: StockTransaction[];
   setStockTransactions: React.Dispatch<React.SetStateAction<StockTransaction[]>>;
   supplierPayments: SupplierPayment[];
+  setSupplierPayments?: React.Dispatch<React.SetStateAction<SupplierPayment[]>>;
   createJournalEntry: (params: { description: string, lines: any[], referenceType?: 'SalesInvoice' | 'PurchaseInvoice' | 'Payment' | 'Manual', referenceId?: string, date?: string }) => void;
   logAction: (action: string) => void;
   currentUser: any;
   deleteJournalEntryByReference: (refId: string) => void;
   accounts: Account[];
   setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
+  currentBranchId?: string;
 }
 
-const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers, products, setProducts, stockTransactions, setStockTransactions, supplierPayments, createJournalEntry, logAction, currentUser, deleteJournalEntryByReference, accounts, setAccounts }) => {
+const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers, products, setProducts, stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments, createJournalEntry, logAction, currentUser, deleteJournalEntryByReference, accounts, setAccounts, currentBranchId = 'main' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -117,6 +119,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
 
     let newId = invoiceData.id || '';
     const isEdit = !!invoiceData.id;
+    const originalInvoice = isEdit ? invoices.find(i => i.id === newId) : null;
 
     if (!isEdit) {
       const currentYear = new Date().getFullYear();
@@ -134,9 +137,15 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
       newId = `${prefix}-${currentYear}-${(maxId + 1).toString().padStart(3, '0')}`;
     }
 
+    const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
+    const supplierName = supplier?.name || invoiceData.supplierName || 'Unknown Supplier';
+    const companyName = invoiceData.companyName || supplier?.companyName || '';
+
     const newInvoice: PurchaseInvoice = {
       ...invoiceData,
       id: newId,
+      supplierName,
+      companyName,
       invoiceType: type,
       status: 'active'
     } as PurchaseInvoice;
@@ -150,9 +159,6 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
       // CREATE MODE
       setInvoices(prevInvoices => [...prevInvoices, newInvoice]);
     }
-
-    // Automated Journal Entry
-    const supplierName = suppliers.find(s => s.id === newInvoice.supplierId)?.name || 'Unknown Supplier';
 
     // Calculate Splits (Inventory vs Expenses)
     const inventoryItems = newInvoice.items.filter(i => i.itemType !== 'expense');
@@ -185,11 +191,21 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
       for (const [cat, amt] of Object.entries(expenseGroups)) {
         lines.push({ accountId: getOrCreateExpenseAccount(cat), accountName: cat, debit: amt, credit: 0 });
       }
-      // Credit Supplier
-      lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: newInvoice.total });
+
+      if (newInvoice.paymentMethod === 'نقدي') {
+        // Credit Supplier and then clear with Treasury for full audit trail
+        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: newInvoice.total });
+        const treasuryAccountName = newInvoice.treasuryAccount || 'الخزينة الرئيسية';
+        const treasuryAcc = accounts.find(a => a.name === treasuryAccountName) || { id: '1101', name: treasuryAccountName };
+        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: newInvoice.total, credit: 0 });
+        lines.push({ accountId: treasuryAcc.id, accountName: treasuryAccountName, debit: 0, credit: newInvoice.total });
+      } else {
+        // Credit Supplier
+        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: newInvoice.total });
+      }
 
       createJournalEntry({
-        description: `فاتورة مشتريات رقم ${newId} - ${supplierName} ${isEdit ? '(تعديل)' : ''}`,
+        description: `فاتورة مشتريات رقم ${newId} - ${supplierName} (${newInvoice.paymentMethod}) ${isEdit ? '(تعديل)' : ''}`,
         lines: lines,
         referenceType: 'PurchaseInvoice',
         referenceId: newId,
@@ -221,53 +237,103 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
       if (!isEdit) logAction(`إضافة فاتورة مرتجع مشتريات رقم ${newId} من المورد ${supplierName}`);
     }
 
-    // ── Perpetual Inventory: Record Stock Movements ──
-    if (!isEdit) {
-      const newTxs: any[] = [];
-      const productUpdates: { id: string; qtyDelta: number; unitCost: number }[] = [];
+    // ── Perpetual Inventory & Cost Calculations (BOTH Add and Edit) ──
+    const isIn = type === 'purchase';
+    const newTxs: StockTransaction[] = [];
 
+    setProducts(prevProducts => {
+      let updatedProducts = [...prevProducts];
+
+      // 1. If Editing, first revert the quantities from the original invoice
+      if (originalInvoice && originalInvoice.status !== 'voided') {
+        const origIsIn = originalInvoice.invoiceType === 'purchase';
+        originalInvoice.items
+          .filter(item => item.itemType !== 'expense' && item.productId && !item.productId.startsWith('MANUAL'))
+          .forEach(item => {
+            const pIdx = updatedProducts.findIndex(p => p.id === item.productId);
+            if (pIdx !== -1) {
+              const oldQtyDelta = origIsIn ? item.quantity : -item.quantity;
+              updatedProducts[pIdx] = {
+                ...updatedProducts[pIdx],
+                quantity: Math.max(0, updatedProducts[pIdx].quantity - oldQtyDelta)
+              };
+            }
+          });
+      }
+
+      // 2. Apply new invoice quantities & unit costs
       newInvoice.items
         .filter(item => item.itemType !== 'expense' && item.productId && !item.productId.startsWith('MANUAL'))
         .forEach(item => {
-          const product = products.find(p => p.id === item.productId);
-          if (!product) return;
+          const pIdx = updatedProducts.findIndex(p => p.id === item.productId);
+          if (pIdx === -1) return;
+          const product = updatedProducts[pIdx];
 
-          const qty = item.quantity;
-          const unitCost = item.price;
-          // Purchase = stock IN; purchase return = stock OUT
-          const isIn = type === 'purchase';
+          const qty = Number(item.quantity) || 0;
+          // Calculate effective unit cost (e.g. Total / Qty handles Price per Ton or any price type accurately)
+          const effectiveUnitCost = qty > 0 ? (item.total / qty) : (Number(item.price) || 0);
           const qtyDelta = isIn ? qty : -qty;
-          const balanceAfter = Math.max(0, product.quantity + qtyDelta);
+          const newBalance = Math.max(0, product.quantity + qtyDelta);
 
           newTxs.push({
-            id: `ST-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+            id: `ST-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             date: newInvoice.date,
             productId: product.id,
             productName: product.name,
             type: isIn ? 'purchase' : 'purchase_return',
             quantityIn: isIn ? qty : 0,
             quantityOut: isIn ? 0 : qty,
-            unitCost,
-            totalCost: qty * unitCost,
-            balanceAfter,
+            unitCost: effectiveUnitCost,
+            totalCost: item.total,
+            balanceAfter: newBalance,
             referenceId: newId,
             referenceType: 'PurchaseInvoice',
-            notes: isIn ? 'فاتورة مشتريات' : 'مرتجع مشتريات',
+            notes: isEdit
+              ? (isIn ? 'فاتورة مشتريات (تعديل)' : 'مرتجع مشتريات (تعديل)')
+              : (isIn ? 'فاتورة مشتريات' : 'مرتجع مشتريات'),
             createdAt: new Date().toISOString(),
           });
-          productUpdates.push({ id: product.id, qtyDelta, unitCost });
+
+          updatedProducts[pIdx] = {
+            ...product,
+            quantity: newBalance,
+            costPrice: isIn && effectiveUnitCost > 0 ? effectiveUnitCost : product.costPrice
+          };
         });
 
-      if (newTxs.length > 0) {
-        setStockTransactions(prev => [...prev, ...newTxs]);
-        setProducts(prev => prev.map(p => {
-          const upd = productUpdates.find(u => u.id === p.id);
-          if (!upd) return p;
-          const newQty = Math.max(0, p.quantity + upd.qtyDelta);
-          // Update costPrice with new purchase price (weighted average can be added later)
-          const newCost = upd.qtyDelta > 0 ? upd.unitCost : p.costPrice;
-          return { ...p, quantity: newQty, costPrice: newCost };
-        }));
+      return updatedProducts;
+    });
+
+    // Replace old stock transactions for this invoice with the newly computed ones
+    setStockTransactions(prev => [
+      ...prev.filter(t => t.referenceId !== newId),
+      ...newTxs
+    ]);
+
+    // ── Treasury Impact (Cash Payment Sync) ──
+    const paymentId = `PAY-${newId}`;
+    if (setSupplierPayments) {
+      if (newInvoice.paymentMethod === 'نقدي' && type === 'purchase') {
+        const autoPayment: SupplierPayment = {
+          id: paymentId,
+          supplierId: newInvoice.supplierId,
+          supplierName: supplierName,
+          amount: newInvoice.total,
+          date: newInvoice.date,
+          treasuryAccount: newInvoice.treasuryAccount || 'الخزينة الرئيسية',
+          paymentMethod: 'نقدي',
+          notes: `سداد نقدي تلقائي لفاتورة مشتريات رقم ${newId}`,
+          status: 'active',
+          branchId: currentBranchId || 'main',
+          referenceId: newId,
+        };
+        setSupplierPayments(prev => [
+          ...prev.filter(p => p.id !== paymentId && p.referenceId !== newId),
+          autoPayment
+        ]);
+      } else {
+        // If invoice is credit ('اجل') or return, remove any cash payment recorded for this invoice
+        setSupplierPayments(prev => prev.filter(p => p.id !== paymentId && p.referenceId !== newId));
       }
     }
 
@@ -304,7 +370,53 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
           inv.id === invoiceToVoid ? { ...inv, status: 'voided' } : inv
         ));
 
-        // 2. Create Reversing Entry (Recalculate split)
+        // 2. Revert Stock Movement
+        const isIn = invoice.type === 'purchase';
+        const voidTxs: StockTransaction[] = [];
+        setProducts(prevProducts => {
+          let updated = [...prevProducts];
+          invoice.items
+            .filter(item => item.itemType !== 'expense' && item.productId && !item.productId.startsWith('MANUAL'))
+            .forEach(item => {
+              const pIdx = updated.findIndex(p => p.id === item.productId);
+              if (pIdx !== -1) {
+                const prod = updated[pIdx];
+                const qtyDelta = isIn ? -item.quantity : item.quantity;
+                const newBal = Math.max(0, prod.quantity + qtyDelta);
+                updated[pIdx] = { ...prod, quantity: newBal };
+                voidTxs.push({
+                  id: `ST-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  date: new Date().toISOString().split('T')[0],
+                  productId: prod.id,
+                  productName: prod.name,
+                  type: isIn ? 'purchase_return' : 'purchase',
+                  quantityIn: isIn ? 0 : item.quantity,
+                  quantityOut: isIn ? item.quantity : 0,
+                  unitCost: prod.costPrice,
+                  totalCost: item.total,
+                  balanceAfter: newBal,
+                  referenceId: invoice.id,
+                  referenceType: 'PurchaseInvoice',
+                  notes: `إلغاء فاتورة مشتريات رقم ${invoice.id}`,
+                  createdAt: new Date().toISOString(),
+                });
+              }
+            });
+          return updated;
+        });
+
+        if (voidTxs.length > 0) {
+          setStockTransactions(prev => [...voidTxs, ...prev]);
+        }
+
+        // 3. Void linked cash payment in Treasury if any
+        if (setSupplierPayments) {
+          setSupplierPayments(prev => prev.map(p =>
+            (p.referenceId === invoice.id || p.id === `PAY-${invoice.id}`) ? { ...p, status: 'voided' } : p
+          ));
+        }
+
+        // 4. Create Reversing Entry (Recalculate split)
         const inventoryItems = invoice.items.filter(i => i.itemType !== 'expense');
         const expenseItems = invoice.items.filter(i => i.itemType === 'expense');
 
@@ -332,7 +444,6 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
             const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
             lines.push({ accountId: accId, accountName: accName, debit: 0, credit: amt });
           }
-          // Credit Expenses
           for (const [cat, amt] of Object.entries(expenseGroups)) {
             lines.push({ accountId: getOrCreateExpenseAccount(cat), accountName: cat, debit: 0, credit: amt });
           }
@@ -343,7 +454,6 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
             const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
             lines.push({ accountId: accId, accountName: accName, debit: amt, credit: 0 });
           }
-          // Debit Expenses
           for (const [cat, amt] of Object.entries(expenseGroups)) {
             lines.push({ accountId: getOrCreateExpenseAccount(cat), accountName: cat, debit: amt, credit: 0 });
           }
@@ -356,7 +466,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
           referenceId: invoice.id
         });
 
-        // 3. Log Action
+        // 5. Log Action
         logAction(`إلغاء فاتورة مشتريات رقم ${invoice.id}`);
       }
     }
@@ -659,8 +769,8 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
               {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className={`hover:bg-gray-50 ${invoice.status === 'voided' ? 'bg-red-50' : ''}`}>
                   <td className="p-3 text-sm text-gray-700">{invoice.id}</td>
-                  <td className="p-3 text-sm text-gray-700">{invoice.supplierName}</td>
-                  <td className="p-3 text-sm text-gray-600">{invoice.companyName || '-'}</td>
+                  <td className="p-3 text-sm text-gray-700 font-medium">{invoice.supplierName}</td>
+                  <td className="p-3 text-sm text-gray-600 font-medium">{invoice.companyName || suppliers.find(s => s.id === invoice.supplierId)?.companyName || '-'}</td>
                   <td className="p-3 text-sm text-gray-700" style={{ direction: 'ltr', textAlign: 'right' }}>{invoice.date}</td>
                   <td className="p-3 text-sm text-gray-700">
                     <span className={`p-1.5 text-xs font-medium uppercase tracking-wider rounded-lg bg-opacity-50 ${invoice.paymentMethod === 'نقدي' ? 'text-green-800 bg-green-200' :

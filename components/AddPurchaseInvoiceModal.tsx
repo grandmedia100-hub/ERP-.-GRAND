@@ -20,6 +20,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [items, setItems] = useState<Partial<InvoiceItem>[]>([{ productId: '', productName: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
     const [paymentMethod, setPaymentMethod] = useState<'نقدي' | 'اجل' | 'شيك'>('اجل');
+    const [treasuryAccount, setTreasuryAccount] = useState<string>('الخزينة الرئيسية');
     const [notes, setNotes] = useState('');
     const [discountValue, setDiscountValue] = useState<number>(0);
     const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('percentage');
@@ -35,9 +36,10 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
 
     // Derived State
     const uniqueCompanyNames = useMemo(() => {
-        const names = new Set(existingInvoices.map(inv => inv.companyName).filter(Boolean));
-        return Array.from(names);
-    }, [existingInvoices]);
+        const fromInvoices = existingInvoices.map(inv => inv.companyName).filter(Boolean);
+        const fromSuppliers = suppliers.map(s => s.companyName).filter(Boolean);
+        return Array.from(new Set([...fromInvoices, ...fromSuppliers])) as string[];
+    }, [existingInvoices, suppliers]);
 
     const subTotal = useMemo(() => {
         return items.reduce((sum, item) => sum + (item.total || 0), 0);
@@ -57,7 +59,9 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
     useEffect(() => {
         if (isEditing && invoiceToEdit) {
             setSupplierId(invoiceToEdit.supplierId);
-            setCompanyName(invoiceToEdit.companyName || '');
+            const supplier = suppliers.find(s => s.id === invoiceToEdit.supplierId);
+            const comp = invoiceToEdit.companyName || supplier?.companyName || '';
+            setCompanyName(comp);
             setDate(invoiceToEdit.date);
             setItems((invoiceToEdit.items || []).map(i => {
                 const prod = products.find(p => p.id === i.productId || p.name === i.productName);
@@ -67,12 +71,13 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
                 };
             }));
             setPaymentMethod(invoiceToEdit.paymentMethod);
+            setTreasuryAccount((invoiceToEdit as any).treasuryAccount || 'الخزينة الرئيسية');
             setNotes(invoiceToEdit.notes || '');
             setDiscountValue(invoiceToEdit.discountValue || 0);
             setDiscountType(invoiceToEdit.discountType || 'percentage');
-            // Set search term for supplier
-            const supplier = suppliers.find(s => s.id === invoiceToEdit.supplierId);
-            setSupplierSearchTerm(supplier ? supplier.name : '');
+            // Set search term for supplier with company name if exists
+            const sName = supplier ? (supplier.companyName ? `${supplier.name} (${supplier.companyName})` : supplier.name) : (invoiceToEdit.supplierName || '');
+            setSupplierSearchTerm(sName);
         } else {
             // Reset form for new invoice
             setSupplierId('');
@@ -80,6 +85,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
             setDate(new Date().toISOString().split('T')[0]);
             setItems([{ productId: '', productName: '', productCode: '', quantity: 1, price: 0, unit: 'عدد', priceType: 'سعر الوحدة', itemType: 'product' }]);
             setPaymentMethod('اجل');
+            setTreasuryAccount('الخزينة الرئيسية');
             setNotes('');
             setDiscountValue(0);
             setDiscountType('percentage');
@@ -91,10 +97,6 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
     const showAlert = (msg: string) => {
         setAlertMessage(msg);
         setIsAlertOpen(true);
-    };
-
-    const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setCompanyName(e.target.value);
     };
 
     // Handle Supplier Search Change
@@ -112,7 +114,8 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
     // Handle Supplier Selection from dropdown
     const handleSupplierSelect = (supplier: Supplier) => {
         setSupplierId(supplier.id);
-        setSupplierSearchTerm(supplier.name);
+        setSupplierSearchTerm(supplier.companyName ? `${supplier.name} (${supplier.companyName})` : supplier.name);
+        setCompanyName(supplier.companyName || '');
         setShowSupplierDropdown(false);
     };
 
@@ -261,7 +264,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
             id: invoiceToEdit?.id,
             supplierId,
             supplierName: supplier.name,
-            companyName,
+            companyName: companyName.trim() || supplier.companyName || '',
             date,
             items: finalItems,
             subTotal,
@@ -269,6 +272,7 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
             discountType,
             total,
             paymentMethod,
+            treasuryAccount: paymentMethod === 'نقدي' ? treasuryAccount : undefined,
             notes,
             invoiceType: invoiceToEdit?.invoiceType || 'purchase'
         }, invoiceToEdit?.invoiceType || 'purchase');
@@ -305,25 +309,9 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
 
                 <div className="p-6 overflow-y-auto space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* 1. Company Name */}
-                        <div>
-                            <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">اسم الشركة (اختياري)</label>
-                            <select
-                                id="companyName"
-                                value={companyName}
-                                onChange={handleCompanyChange}
-                                className="w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white"
-                            >
-                                <option value="">-- اختر شركة --</option>
-                                {uniqueCompanyNames.map(name => (
-                                    <option key={name} value={name}>{name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* 2. Supplier */}
+                        {/* 1. Supplier */}
                         <div className="relative">
-                            <label htmlFor="supplier" className="block text-sm font-medium text-gray-700 mb-1">المورد</label>
+                            <label htmlFor="supplier" className="block text-sm font-bold text-gray-700 mb-1">المورد <span className="text-red-500">*</span></label>
                             <input
                                 id="supplier"
                                 type="text"
@@ -331,8 +319,8 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
                                 onChange={handleSupplierSearchChange}
                                 onFocus={() => setShowSupplierDropdown(true)}
                                 onBlur={() => setTimeout(() => setShowSupplierDropdown(false), 200)}
-                                placeholder="ابحث عن مورد..."
-                                className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                placeholder="ابحث بالاسم أو الشركة..."
+                                className="w-full p-2 border border-gray-300 rounded-md shadow-sm font-semibold text-gray-800 focus:ring-2 focus:ring-green-500"
                             />
                             {showSupplierDropdown && filteredSuppliers.length > 0 && (
                                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
@@ -343,24 +331,62 @@ const AddPurchaseInvoiceModal: React.FC<AddPurchaseInvoiceModalProps> = ({ onClo
                                             className="p-2 hover:bg-green-50 cursor-pointer border-b last:border-b-0"
                                         >
                                             <div className="font-semibold text-gray-800">{s.name}</div>
-                                            {s.companyName && <div className="text-xs text-gray-500">{s.companyName}</div>}
+                                            {s.companyName && <div className="text-xs text-green-700 font-bold">🏢 {s.companyName}</div>}
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
 
+                        {/* 2. Company Name */}
+                        <div>
+                            <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">اسم الشركة</label>
+                            <input
+                                id="companyName"
+                                type="text"
+                                value={companyName}
+                                onChange={e => setCompanyName(e.target.value)}
+                                placeholder="تلقائي مع المورد أو اكتبها..."
+                                list="companies-datalist"
+                                className="w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white font-medium text-gray-800"
+                            />
+                            <datalist id="companies-datalist">
+                                {uniqueCompanyNames.map(name => (
+                                    <option key={name} value={name} />
+                                ))}
+                            </datalist>
+                        </div>
+
+                        {/* 3. Date */}
                         <div>
                             <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
-                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm font-medium" />
                         </div>
+
+                        {/* 4. Payment Method & Treasury */}
                         <div>
                             <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">طريقة السداد</label>
-                            <select id="paymentMethod" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm">
-                                <option value="اجل">اجل</option>
-                                <option value="نقدي">نقدي</option>
+                            <select id="paymentMethod" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm font-bold text-gray-800">
+                                <option value="اجل">اجل (على الحساب - لا يخصم من الخزينة)</option>
+                                <option value="نقدي">نقدي (خصم فوري من الخزينة)</option>
                                 <option value="شيك">شيك</option>
                             </select>
+                            {paymentMethod === 'نقدي' && (
+                                <div className="mt-2">
+                                    <label className="block text-xs font-bold text-green-700 mb-1">الخصم من حساب:</label>
+                                    <select
+                                        value={treasuryAccount}
+                                        onChange={e => setTreasuryAccount(e.target.value)}
+                                        className="w-full p-1.5 border border-green-500 bg-green-50 text-green-900 rounded-md text-xs font-bold shadow-sm"
+                                    >
+                                        <option value="الخزينة الرئيسية">الخزينة الرئيسية</option>
+                                        <option value="انستاباى">انستاباى</option>
+                                        <option value="فودافون كاش">فودافون كاش</option>
+                                        <option value="بنك فيصل">بنك فيصل</option>
+                                        <option value="البنك الاهلى">البنك الاهلى</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     </div>
 
