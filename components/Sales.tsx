@@ -355,7 +355,10 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
           inv.id === invoiceToVoid ? { ...inv, status: 'voided' } : inv
         ));
 
-        // 2. Create Reversing Entry
+        // 2. CRITICAL: Reverse inventory movements (return stock to warehouse)
+        recordStockMovements(invoice, invoice.invoiceType === 'return', true /* isVoid=true */);
+
+        // 3. Create Reversing Journal Entry
         const calculateTotalCost = (items: any[]) => {
           let cost = 0;
           items.forEach(item => {
@@ -387,8 +390,9 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
           inventoryGroups[accId] = (inventoryGroups[accId] || 0) + itemCost;
         });
 
+        // Use contra-revenue account 4102 for sales returns/voids
         const lines = [
-          { accountId: '4101', accountName: 'مرتجعات مبيعات (إلغاء)', debit: invoice.total, credit: 0 },
+          { accountId: '4102', accountName: 'مرتجعات ومخصومات المبيعات (إلغاء)', debit: invoice.total, credit: 0 },
           { accountId: '1103', accountName: 'العملاء (المدينون)', debit: 0, credit: invoice.total }
         ];
 
@@ -403,11 +407,11 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
         createJournalEntry({
           description: `إلغاء (عكس) فاتورة مبيعات رقم ${invoice.id}`,
           lines: lines,
-          referenceType: 'SalesInvoice', // Tracking ID remains same or explicitly Void
-          referenceId: invoice.id
+          referenceType: 'SalesInvoice',
+          referenceId: `VOID-${invoice.id}`
         });
 
-        // 3. Log Action
+        // 4. Log Action
         logAction(`إلغاء فاتورة بيع رقم ${invoice.id}`);
       }
     }
@@ -421,7 +425,14 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
   };
 
   const handleDeleteInvoice = (id: string) => {
+    const invoice = invoices.find(inv => inv.id === id);
     if (window.confirm('هل أنت متأكد من رغبتك في حذف هذه الفاتورة نهائياً؟\nسيتم حذفها بالكامل مع حذف أي فاتورة مشتريات مقابلة لها في الكيان الشقيق تلقائياً.')) {
+      // CRITICAL: Reverse stock movements before deleting (if invoice is still active)
+      if (invoice && invoice.status !== 'voided') {
+        recordStockMovements(invoice, invoice.invoiceType === 'return', true /* isVoid=true */);
+      }
+      // Also remove the stock transaction records for this invoice
+      setStockTransactions(prev => prev.filter(t => t.referenceId !== id));
       setInvoices(prev => prev.filter(inv => inv.id !== id));
       deleteJournalEntryByReference(id);
       logAction(`حذف فاتورة مبيعات رقم ${id} نهائياً`);

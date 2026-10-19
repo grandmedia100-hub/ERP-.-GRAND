@@ -64,16 +64,22 @@ const Treasury: React.FC<TreasuryProps> = ({
   const getAccountId = (name: string): string => {
     switch (name) {
       case 'الخزينة الرئيسية': return '1101';
-      case 'البنك الاهلى': return '1102';
-      case 'بنك فيصل': return '1102';
-      case 'فودافون كاش': return '1102';
-      case 'انستاباى': return '1102';
-      default: return '1101'; // Fallback
+      case 'البنك الاهلى':     return '1102';
+      case 'بنك فيصل':        return '1105'; // separate from 1102 to avoid mixing
+      case 'فودافون كاش':     return '1106';
+      case 'انستاباى':        return '1107';
+      default: return '1101'; // Fallback to main treasury
     }
   };
 
-  const getOrCreateExpenseAccount = (name) => '5201';
-  const expenses = [];
+  const getOrCreateExpenseAccount = (name: string): string => {
+    // Look up existing expense account first
+    const existing = accounts.find(a => a.name === name && (a.parentId === '52' || a.id.startsWith('52')));
+    if (existing) return existing.id;
+    // Fallback to general operating expenses
+    return '5201';
+  };
+  const expenses: any[] = []; // Treasury doesn't hold expenses directly — they come via Expenses module
   const handleAddAutoExpense = () => {};
 
   // Receipt Handlers

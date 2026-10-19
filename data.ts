@@ -39,13 +39,17 @@ export const accounts: Account[] = [
   { id: '1', code: '1', name: 'الأصول', type: 'مدين', statementType: 'balance_sheet', isGroup: true, parentId: null, isSystem: true },
   
   { id: '11', code: '11', name: 'الأصول المتداولة', type: 'مدين', statementType: 'balance_sheet', isGroup: true, parentId: '1', isSystem: true },
-  { id: '1101', code: '1101', name: 'الخزينة (النقدية)', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
-  { id: '1102', code: '1102', name: 'البنوك', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
+  { id: '1101', code: '1101', name: 'الخزينة الرئيسية (النقدية)', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
+  { id: '1102', code: '1102', name: 'البنك الأهلي', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
   { id: '1103', code: '1103', name: 'العملاء (المدينون)', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
   { id: '1104', code: '1104', name: 'المخزون', type: 'مدين', statementType: 'balance_sheet', isGroup: true, parentId: '11', isSystem: true },
-  { id: '110401', code: '110401', name: 'مخزون - المخزن الرئيسي', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0001' },
-  { id: '110402', code: '110402', name: 'مخزون - المنتجات النهائية', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0002' },
-  { id: '110403', code: '110403', name: 'مخزون - المواد الخام', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0003' },
+  { id: '110401', code: '110401', name: 'مخزون الخامات', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0003' },
+  { id: '110402', code: '110402', name: 'حساب التصنيع (WIP)', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false },
+  { id: '110403', code: '110403', name: 'مخزون الإنتاج التام', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0002' },
+  { id: '110404', code: '110404', name: 'المخزون الرئيسي', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '1104', isSystem: false, linkedWarehouseId: 'WH-0001' },
+  { id: '1105', code: '1105', name: 'بنك فيصل', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
+  { id: '1106', code: '1106', name: 'فودافون كاش', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
+  { id: '1107', code: '1107', name: 'انستاباى', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '11', isSystem: true },
 
   { id: '12', code: '12', name: 'الأصول الثابتة', type: 'مدين', statementType: 'balance_sheet', isGroup: true, parentId: '1', isSystem: true },
   { id: '1201', code: '1201', name: 'حساب الأصول الثابتة', type: 'مدين', statementType: 'balance_sheet', isGroup: false, parentId: '12', isSystem: true },
@@ -69,15 +73,19 @@ export const accounts: Account[] = [
   
   { id: '41', code: '41', name: 'إيرادات المبيعات', type: 'دائن', statementType: 'income_statement', isGroup: true, parentId: '4', isSystem: true },
   { id: '4101', code: '4101', name: 'حساب إيرادات المبيعات', type: 'دائن', statementType: 'income_statement', isGroup: false, parentId: '41', isSystem: true },
+  { id: '4102', code: '4102', name: 'مرتجعات ومخصومات المبيعات', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '41', isSystem: true },
 
   // 5. Expenses (المصروفات) - Income Statement
   { id: '5', code: '5', name: 'المصروفات', type: 'مدين', statementType: 'income_statement', isGroup: true, parentId: null, isSystem: true },
   
   { id: '51', code: '51', name: 'تكلفة المبيعات', type: 'مدين', statementType: 'income_statement', isGroup: true, parentId: '5', isSystem: true },
-  { id: '5101', code: '5101', name: 'تكلفة البضاعة المباعة', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '51', isSystem: true },
+  { id: '5101', code: '5101', name: 'تكلفة البضاعة المباعة (COGS)', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '51', isSystem: true },
+  { id: '5102', code: '5102', name: 'تكلفة التصنيع والمصنعيات', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '51', isSystem: true },
   
   { id: '52', code: '52', name: 'مصروفات التشغيل', type: 'مدين', statementType: 'income_statement', isGroup: true, parentId: '5', isSystem: true },
-  { id: '5201', code: '5201', name: 'مصروفات عامة', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '52', isSystem: true },
+  { id: '5201', code: '5201', name: 'مصروفات عامة وإدارية', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '52', isSystem: true },
+  { id: '5202', code: '5202', name: 'مصاريف وعمولات بنكية', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '52', isSystem: true },
+  { id: '5203', code: '5203', name: 'خسائر هالك الإنتاج', type: 'مدين', statementType: 'income_statement', isGroup: false, parentId: '52', isSystem: true },
 ];
 
 export const users: User[] = [

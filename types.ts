@@ -105,8 +105,10 @@ export type StockTransactionType =
   | 'purchase_return'    // مرتجع مشتريات
   | 'sale'               // بيع (من فاتورة مبيعات)
   | 'sale_return'        // مرتجع مبيعات
-  | 'adjustment_in'      // إذن إضافة (تسوية)
-  | 'adjustment_out'     // إذن صرف (تسوية/هالك)
+  | 'adjustment_in'      // إذن إضافة (تسوية يدوية)
+  | 'adjustment_out'     // إذن صرف (تسوية يدوية / هالك)
+  | 'production_in'      // وارد إنتاج (منتج تام من أمر تصنيع)
+  | 'production_out'     // صادر خامات لإنتاج (صرف خامات لأمر تصنيع)
   | 'count_adjustment';  // تسوية جردية
 
 export interface StockTransaction {
@@ -264,6 +266,8 @@ export interface SupplierPayment {
   amount: number;
   notes?: string;
   treasuryAccount?: TreasuryAccountType;
+  paymentMethod?: string;      // Added: payment method (e.g. 'نقدي', 'تحويل')
+  referenceId?: string;        // Added: links to source invoice (for auto-payments from purchase invoices)
   isExpense?: boolean;
   expenseCategory?: string;
   fee?: number; // New field for transaction fees

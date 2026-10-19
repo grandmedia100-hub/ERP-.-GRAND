@@ -37,12 +37,12 @@ const IncomeStatementModal: React.FC<IncomeStatementModalProps> = ({ onClose, sa
             journalEntries.forEach(entry => {
                 if (isInRange(entry.date)) {
                     entry.lines.forEach(line => {
-                        // COGS Account 51
-                        if (line.accountId === '5101') {
+                        // COGS Account 5101
+                        if (line.accountId === '5101' || line.accountId.startsWith('51')) {
                             costOfGoodsSold += (line.debit - line.credit);
                         }
-                        // Operating Expenses Accounts (6xxx)
-                        if (line.accountId.startsWith('6')) {
+                        // Operating Expenses Accounts (52xx) - مصروفات التشغيل
+                        if (line.accountId.startsWith('52')) {
                             totalExpenses += (line.debit - line.credit);
                         }
                     });

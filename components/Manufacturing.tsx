@@ -281,44 +281,76 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     const bom = billsOfMaterials.find(b => b.id === executingOrder.bomId);
     if (!bom) return;
 
-    const ratio = actualQty / bom.outputQuantity;
+    // BUG FIX: executingOrder.bomItems are already scaled by plannedQuantity at creation time.
+    // So ratio = actualQty / plannedQuantity (not actualQty / bom.outputQuantity which causes double-scaling).
+    // If bomItems is empty (edge case), fall back to bom.items with ratio = actualQty / bom.outputQuantity.
+    const useBomItems = executingOrder.bomItems.length > 0;
+    const ratio = useBomItems
+      ? (actualQty / executingOrder.plannedQuantity)   // bomItems already scaled → just scale to actual ratio
+      : (actualQty / bom.outputQuantity);              // bom.items are base quantities → scale normally
+
+    // BUG FIX: Prorate expenses and operations for partial production
+    const productionRatio = actualQty / executingOrder.plannedQuantity; // 0..1 for partial, >1 for over-production
+    const proratedExpensesCost = executingOrder.expensesTotalCost * productionRatio;
+    const proratedOperationsCost = executingOrder.operationsTotalCost * productionRatio;
+
     let totalRawCost = 0;
     const stockUpdates: StockTransaction[] = [];
     const productUpdates = [...products];
     let hasError = false;
+    const warnings: string[] = [];
 
     // 1. Deduct raw materials
-    (executingOrder.bomItems.length > 0 ? executingOrder.bomItems : bom.items).forEach(item => {
+    (useBomItems ? executingOrder.bomItems : bom.items).forEach(item => {
       const requiredQty = item.quantity * ratio;
       const pIdx = productUpdates.findIndex(p => p.id === item.productId);
       if (pIdx === -1) { hasError = true; return; }
       const prod = productUpdates[pIdx];
+
+      // BUG FIX: Warn if insufficient stock (don't silently go negative)
+      if (prod.quantity < requiredQty) {
+        warnings.push(`⚠️ تحذير: ${prod.name} - المتاح ${prod.quantity.toFixed(2)} والمطلوب ${requiredQty.toFixed(2)}`);
+      }
+
       const itemCost = requiredQty * prod.costPrice;
       totalRawCost += itemCost;
-      productUpdates[pIdx] = { ...prod, quantity: prod.quantity - requiredQty };
+      const newQty = prod.quantity - requiredQty; // Allow negative to be recorded (for investigation)
+      productUpdates[pIdx] = { ...prod, quantity: newQty };
       stockUpdates.push({
         id: `ST-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
         date: executingOrder.date, productId: prod.id, productName: prod.name,
-        type: 'adjustment_out', quantityOut: requiredQty, quantityIn: 0, balanceAfter: productUpdates[pIdx].quantity,
+        type: 'production_out', quantityOut: requiredQty, quantityIn: 0, balanceAfter: newQty,
         referenceId: executingOrder.id, notes: `صرف خامات لأمر إنتاج ${executingOrder.id}`,
         unitCost: prod.costPrice, totalCost: itemCost, createdAt: new Date().toISOString()
       });
     });
     if (hasError) return;
 
-    // 2. Add finished goods
-    const totalCostAll = totalRawCost + executingOrder.expensesTotalCost + executingOrder.operationsTotalCost;
-    const unitCost = totalCostAll / actualQty;
+    if (warnings.length > 0) {
+      const proceed = window.confirm(`${warnings.join('\n')}\n\nهل تريد المتابعة مع نقص المواد؟`);
+      if (!proceed) return;
+    }
+
+    // 2. Add finished goods with CORRECT prorated cost
+    const totalCostAll = totalRawCost + proratedExpensesCost + proratedOperationsCost;
+    const unitCost = actualQty > 0 ? totalCostAll / actualQty : 0;
+
     const outIdx = productUpdates.findIndex(p => p.id === executingOrder.outputProductId);
     if (outIdx !== -1) {
       const outProd = productUpdates[outIdx];
-      productUpdates[outIdx] = { ...outProd, quantity: outProd.quantity + actualQty, costPrice: unitCost };
+      // BUG FIX: Use weighted average cost for finished goods (not simple replacement)
+      const existingValue = outProd.quantity * outProd.costPrice;
+      const newValue = actualQty * unitCost;
+      const totalNewQty = outProd.quantity + actualQty;
+      const weightedAvgCost = totalNewQty > 0 ? (existingValue + newValue) / totalNewQty : unitCost;
+
+      productUpdates[outIdx] = { ...outProd, quantity: totalNewQty, costPrice: weightedAvgCost };
       stockUpdates.push({
         id: `ST-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
         date: executingOrder.date, productId: outProd.id, productName: outProd.name,
-        type: 'adjustment_in', quantityIn: actualQty, quantityOut: 0, balanceAfter: productUpdates[outIdx].quantity,
+        type: 'production_in', quantityIn: actualQty, quantityOut: 0, balanceAfter: totalNewQty,
         referenceId: executingOrder.id, notes: `إنتاج تام - أمر ${executingOrder.id}`,
-        unitCost: unitCost, totalCost: actualQty * unitCost, createdAt: new Date().toISOString()
+        unitCost: unitCost, totalCost: totalCostAll, createdAt: new Date().toISOString()
       });
     }
 
@@ -328,45 +360,51 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     // 3. Update order
     const updatedOrder: ProductionOrder = {
       ...executingOrder, status: 'completed', producedQuantity: actualQty,
-      rawMaterialCost: totalRawCost, totalCost: totalCostAll, unitCost
+      rawMaterialCost: totalRawCost,
+      expensesTotalCost: proratedExpensesCost,
+      operationsTotalCost: proratedOperationsCost,
+      totalCost: totalCostAll, unitCost
     };
     setProductionOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 
-    // 4. Journal Entry
+    // 4. Journal Entry - Correct accounting flow for manufacturing
     const jLines: any[] = [
-      // Credit raw materials inventory
-      { accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: totalRawCost },
-      // Debit WIP / Production account
+      // Debit WIP with full incoming cost
       { accountId: '110402', accountName: 'حساب التصنيع (WIP)', debit: totalCostAll, credit: 0 },
+      // Credit raw materials inventory for raw material cost
+      { accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: totalRawCost },
     ];
-    // Expenses
+    // Credit each expense account
     executingOrder.expenses.forEach(e => {
-      jLines.push({ accountId: e.accountId, accountName: e.accountName, debit: 0, credit: e.amount });
+      const proratedAmt = e.amount * productionRatio;
+      if (proratedAmt > 0) {
+        jLines.push({ accountId: e.accountId, accountName: e.accountName, debit: 0, credit: proratedAmt });
+      }
     });
-    // Operations
-    if (executingOrder.operationsTotalCost > 0) {
-      jLines.push({ accountId: '510000', accountName: 'مصروفات عمليات التصنيع', debit: 0, credit: executingOrder.operationsTotalCost });
+    // Credit operations (subcontractors/manufacturing services)
+    if (proratedOperationsCost > 0) {
+      jLines.push({ accountId: '2101', accountName: 'الموردين - مصنعيات الغير', debit: 0, credit: proratedOperationsCost });
     }
-    // Debit finished goods
+    // Transfer from WIP to Finished Goods
     jLines.push({ accountId: '110403', accountName: 'مخزون الإنتاج التام', debit: totalCostAll, credit: 0 });
     jLines.push({ accountId: '110402', accountName: 'حساب التصنيع (WIP)', debit: 0, credit: totalCostAll });
 
-    // Scrap loss
+    // Scrap loss (if any) - only if separate from BOM deductions
     if (executingOrder.scrapTotalCost > 0) {
       jLines.push({ accountId: '520000', accountName: 'خسائر هالك الإنتاج', debit: executingOrder.scrapTotalCost, credit: 0 });
       jLines.push({ accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: executingOrder.scrapTotalCost });
     }
 
     createJournalEntry({
-      description: `تنفيذ أمر تصنيع ${updatedOrder.code} - ${updatedOrder.outputProductName}`,
+      description: `تنفيذ أمر تصنيع ${updatedOrder.code} - ${updatedOrder.outputProductName} (${actualQty} وحدة)`,
       date: new Date().toISOString().split('T')[0],
       referenceType: 'Manual', referenceId: updatedOrder.id, lines: jLines
     });
 
-    logAction(`تنفيذ أمر تصنيع: ${updatedOrder.code}`);
+    logAction(`تنفيذ أمر تصنيع: ${updatedOrder.code} - إنتاج ${actualQty} وحدة - تكلفة الوحدة: ${unitCost.toFixed(2)} ج.م`);
     setShowExecuteModal(false);
     setExecutingOrder(null);
-    alert('✅ تم تنفيذ أمر التصنيع بنجاح وتسجيل القيود المحاسبية والحركات المخزنية!');
+    alert(`✅ تم تنفيذ أمر التصنيع بنجاح!\n📦 ${actualQty} وحدة تامة بتكلفة ${unitCost.toFixed(2)} ج.م/وحدة\n💰 إجمالي التكلفة: ${totalCostAll.toFixed(2)} ج.م`);
   };
 
   // ---- Render ----

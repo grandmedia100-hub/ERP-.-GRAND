@@ -294,10 +294,22 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
             createdAt: new Date().toISOString(),
           });
 
+          // Calculate weighted average cost (المتوسط المرجح):
+          // new_avg = (existingQty × existingCost + newQty × newCost) / (existingQty + newQty)
+          let newCostPrice = product.costPrice;
+          if (isIn && effectiveUnitCost > 0) {
+            const existingQty = Math.max(0, product.quantity); // current balance before this purchase
+            const existingValue = existingQty * product.costPrice;
+            const newValue = qty * effectiveUnitCost;
+            newCostPrice = (existingQty + qty) > 0
+              ? (existingValue + newValue) / (existingQty + qty)
+              : effectiveUnitCost;
+          }
+
           updatedProducts[pIdx] = {
             ...product,
             quantity: newBalance,
-            costPrice: isIn && effectiveUnitCost > 0 ? effectiveUnitCost : product.costPrice
+            costPrice: newCostPrice
           };
         });
 
@@ -371,7 +383,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
         ));
 
         // 2. Revert Stock Movement
-        const isIn = invoice.type === 'purchase';
+        const isIn = invoice.invoiceType === 'purchase';
         const voidTxs: StockTransaction[] = [];
         setProducts(prevProducts => {
           let updated = [...prevProducts];
@@ -437,7 +449,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
 
         const lines = [];
 
-        if (invoice.type === 'purchase') {
+        if (invoice.invoiceType === 'purchase') {
           // Reverse Purchase (Credit Inventory/Expense, Debit Supplier)
           lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: invoice.total, credit: 0 });
           for (const [accId, amt] of Object.entries(inventoryGroups)) {

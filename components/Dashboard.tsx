@@ -30,10 +30,28 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [isLoading, setIsLoading] = useState(true);
 
     const stats = useMemo(() => {
-        const totalSales = salesInvoices.reduce((sum, inv) => sum + inv.total, 0);
-        const totalPurchases = purchaseInvoices.reduce((sum, inv) => sum + inv.total, 0);
-        const grossProfit = totalSales - totalPurchases;
-        return { totalSales, totalPurchases, grossProfit };
+        // Filter out voided invoices for all KPI calculations
+        const activeSales = salesInvoices.filter(inv => inv.status !== 'voided');
+        const activePurchases = purchaseInvoices.filter(inv => inv.status !== 'voided');
+
+        const totalSales = activeSales
+            .filter(inv => inv.invoiceType !== 'return')
+            .reduce((sum, inv) => sum + inv.total, 0);
+
+        const totalReturns = activeSales
+            .filter(inv => inv.invoiceType === 'return')
+            .reduce((sum, inv) => sum + inv.total, 0);
+
+        const netSales = totalSales - totalReturns;
+
+        const totalPurchases = activePurchases
+            .filter(inv => inv.invoiceType !== 'return')
+            .reduce((sum, inv) => sum + inv.total, 0);
+
+        // Gross profit = Net Sales - Total Purchases (approximation until COGS is tracked separately)
+        const grossProfit = netSales - totalPurchases;
+
+        return { totalSales: netSales, totalPurchases, grossProfit };
     }, [salesInvoices, purchaseInvoices]);
 
     // Chart Data Preparation
