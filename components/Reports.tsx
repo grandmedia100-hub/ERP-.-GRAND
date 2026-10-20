@@ -41,6 +41,10 @@ interface ReportsProps {
   products: Product[];
   journalEntries: JournalEntry[];
   logs: LogEntry[];
+  accounts?: any[];
+  partners?: any[];
+  partnerTransactions?: any[];
+  expenses?: any[];
 }
 
 const Reports: React.FC<ReportsProps> = (props) => {
@@ -239,6 +243,9 @@ const Reports: React.FC<ReportsProps> = (props) => {
           purchaseInvoices={props.purchaseInvoices}
           customerPayments={props.customerPayments}
           supplierPayments={props.supplierPayments}
+          expenses={props.expenses || []}
+          partners={props.partners || []}
+          partnerTransactions={props.partnerTransactions || []}
         />
       )}
 
@@ -252,6 +259,11 @@ const Reports: React.FC<ReportsProps> = (props) => {
           purchaseInvoices={props.purchaseInvoices}
           customerPayments={props.customerPayments}
           supplierPayments={props.supplierPayments}
+          expenses={props.expenses || []}
+          partners={props.partners || []}
+          partnerTransactions={props.partnerTransactions || []}
+          journalEntries={props.journalEntries || []}
+          accounts={props.accounts || []}
         />
       )}
 

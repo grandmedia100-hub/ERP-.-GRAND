@@ -326,6 +326,35 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     });
     if (hasError) return;
 
+    // 1b. Deduct scrap items from warehouse stock if recorded
+    if (executingOrder.scraps && executingOrder.scraps.length > 0) {
+      executingOrder.scraps.forEach(scrap => {
+        if (!scrap.productId || scrap.quantity <= 0) return;
+        const pIdx = productUpdates.findIndex(p => p.id === scrap.productId);
+        if (pIdx !== -1) {
+          const prod = productUpdates[pIdx];
+          const newQty = prod.quantity - scrap.quantity;
+          productUpdates[pIdx] = { ...prod, quantity: newQty };
+          const itemCost = scrap.quantity * (prod.costPrice || scrap.unitCost || 0);
+          stockUpdates.push({
+            id: `ST-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            date: executingOrder.date,
+            productId: prod.id,
+            productName: prod.name,
+            type: 'adjustment_out',
+            quantityIn: 0,
+            quantityOut: scrap.quantity,
+            balanceAfter: newQty,
+            referenceId: executingOrder.id,
+            notes: `هالك إنتاج - أمر تصنيع ${executingOrder.id}`,
+            unitCost: prod.costPrice || scrap.unitCost || 0,
+            totalCost: itemCost,
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+    }
+
     if (warnings.length > 0) {
       const proceed = window.confirm(`${warnings.join('\n')}\n\nهل تريد المتابعة مع نقص المواد؟`);
       if (!proceed) return;
@@ -391,7 +420,7 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
 
     // Scrap loss (if any) - only if separate from BOM deductions
     if (executingOrder.scrapTotalCost > 0) {
-      jLines.push({ accountId: '520000', accountName: 'خسائر هالك الإنتاج', debit: executingOrder.scrapTotalCost, credit: 0 });
+      jLines.push({ accountId: '5203', accountName: 'هالك إنتاج', debit: executingOrder.scrapTotalCost, credit: 0 });
       jLines.push({ accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: executingOrder.scrapTotalCost });
     }
 

@@ -119,6 +119,7 @@ const Treasury: React.FC<TreasuryProps> = ({
     if (receiptData.id) {
       // EDIT Mode
       deleteJournalEntryByReference(receiptData.id);
+      deleteJournalEntryByReference(`FEE-${receiptData.id}`);
 
       // Re-Create Journal Entry for Updated Amount
       createJournalEntry({
@@ -129,8 +130,25 @@ const Treasury: React.FC<TreasuryProps> = ({
         lines: [
           { accountId: getAccountId(receiptData.treasuryAccount || 'الخزينة الرئيسية'), accountName: receiptData.treasuryAccount || 'الخزينة الرئيسية', debit: receiptData.amount, credit: 0 },
           { accountId: '1103', accountName: `عميل - ${receiptData.customerName}`, debit: 0, credit: receiptData.amount }
-        ]
+        ],
+        branchId: currentBranchId
       });
+
+      // Handle Fee on Edit if present
+      if (receiptData.fee && receiptData.fee > 0) {
+        const feeAccountId = getOrCreateExpenseAccount('مصاريف وعمولات بنكية');
+        createJournalEntry({
+          date: receiptData.date,
+          description: `عمولة معاملة سند قبض رقم: ${receiptData.id}`,
+          referenceType: 'Manual',
+          referenceId: `FEE-${receiptData.id}`,
+          lines: [
+            { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: receiptData.fee, credit: 0 },
+            { accountId: getAccountId(receiptData.treasuryAccount || 'الخزينة الرئيسية'), accountName: receiptData.treasuryAccount || 'الخزينة الرئيسية', debit: 0, credit: receiptData.fee }
+          ],
+          branchId: currentBranchId
+        });
+      }
 
       setCustomerPayments(prev => prev.map(p => p.id === receiptData.id ? { ...p, ...receiptData } as CustomerPayment : p));
       logAction(`تعديل سند قبض: ${receiptData.id}`);
@@ -248,6 +266,7 @@ const Treasury: React.FC<TreasuryProps> = ({
     if (paymentData.id) {
       // EDIT Mode
       deleteJournalEntryByReference(paymentData.id);
+      deleteJournalEntryByReference(`FEE-${paymentData.id}`);
 
       const supplier = suppliers.find(s => s.id === paymentData.supplierId);
       const isActuallyExpense = paymentData.isExpense || !supplier;
@@ -273,6 +292,22 @@ const Treasury: React.FC<TreasuryProps> = ({
         ],
         branchId: currentBranchId
       });
+
+      // Handle Fee on Edit if present
+      if (paymentData.fee && paymentData.fee > 0) {
+        const feeAccountId = getOrCreateExpenseAccount('مصاريف وعمولات بنكية');
+        createJournalEntry({
+          date: paymentData.date,
+          description: `عمولة معاملة سند صرف رقم: ${paymentData.id}`,
+          referenceType: 'Manual',
+          referenceId: `FEE-${paymentData.id}`,
+          lines: [
+            { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: paymentData.fee, credit: 0 },
+            { accountId: getAccountId(paymentData.treasuryAccount || 'الخزينة الرئيسية'), accountName: paymentData.treasuryAccount || 'الخزينة الرئيسية', debit: 0, credit: paymentData.fee }
+          ],
+          branchId: currentBranchId
+        });
+      }
 
       setSupplierPayments(prev => prev.map(p => p.id === paymentData.id ? { ...p, ...paymentData } as SupplierPayment : p));
       logAction(`تعديل سند صرف: ${paymentData.id}`);
@@ -491,6 +526,23 @@ const Treasury: React.FC<TreasuryProps> = ({
             ],
             branchId: currentBranchId
           });
+
+          // Reverse Fee if present
+          if (receipt.fee && receipt.fee > 0) {
+            const feeAccountId = getOrCreateExpenseAccount('مصاريف وعمولات بنكية');
+            createJournalEntry({
+              date: new Date().toISOString().split('T')[0],
+              description: `إلغاء عمولة سند قبض رقم ${receipt.id}`,
+              referenceType: 'Manual',
+              referenceId: `VOID-FEE-${receipt.id}`,
+              lines: [
+                { accountId: getAccountId(receipt.treasuryAccount || 'الخزينة الرئيسية'), accountName: receipt.treasuryAccount || 'الخزينة الرئيسية', debit: receipt.fee, credit: 0 },
+                { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: 0, credit: receipt.fee }
+              ],
+              branchId: currentBranchId
+            });
+          }
+
           logAction(`إلغاء سند قبض: ${receipt.id}`);
         }
       } else if (itemToDelete.type === 'payment') {
@@ -525,6 +577,23 @@ const Treasury: React.FC<TreasuryProps> = ({
             ],
             branchId: currentBranchId
           });
+
+          // Reverse Fee if present
+          if (payment.fee && payment.fee > 0) {
+            const feeAccountId = getOrCreateExpenseAccount('مصاريف وعمولات بنكية');
+            createJournalEntry({
+              date: new Date().toISOString().split('T')[0],
+              description: `إلغاء عمولة سند صرف رقم ${payment.id}`,
+              referenceType: 'Manual',
+              referenceId: `VOID-FEE-${payment.id}`,
+              lines: [
+                { accountId: getAccountId(payment.treasuryAccount || 'الخزينة الرئيسية'), accountName: payment.treasuryAccount || 'الخزينة الرئيسية', debit: payment.fee, credit: 0 },
+                { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: 0, credit: payment.fee }
+              ],
+              branchId: currentBranchId
+            });
+          }
+
           logAction(`إلغاء سند صرف: ${payment.id}`);
         }
       } else if (itemToDelete.type === 'transfer') {

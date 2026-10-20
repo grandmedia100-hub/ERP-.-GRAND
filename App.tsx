@@ -290,6 +290,8 @@ const App: React.FC = () => {
     const [productionOrders, setProductionOrders] = useKVServerState<ProductionOrder>([], branchKey('productionOrders'));
     const [productionPlans, setProductionPlans] = useKVServerState<ProductionPlan>([], branchKey('productionPlans'));
     const [partners, setPartners] = useServerState<any>(initialData.partners || [], branchKey('partners'), 'partners', currentBranchId);
+    const [partnerTransactions, setPartnerTransactions] = useServerState<any>(initialData.partnerTransactions || [], branchKey('partnerTransactions'), 'partner_transactions', currentBranchId);
+    const [expenses, setExpenses] = useServerState<any>(initialData.expenses || [], branchKey('expenses'), 'expenses', currentBranchId);
 
     // Auto-seed accounts for new branch if empty
     useEffect(() => {
@@ -546,7 +548,22 @@ const App: React.FC = () => {
             return <Suppliers supplierList={suppliers} setSupplierList={setSuppliers} purchaseInvoices={purchaseInvoices} supplierPayments={supplierPayments} />;
         }
         if (activePage === 'reports' && hasPermission('access_reports')) {
-            return <Reports currentUser={currentUser} salesInvoices={salesInvoices} purchaseInvoices={purchaseInvoices} customers={customers} suppliers={suppliers} customerPayments={customerPayments} supplierPayments={supplierPayments} products={products} journalEntries={journalEntries} logs={logs} />;
+            return <Reports
+                currentUser={currentUser}
+                salesInvoices={salesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                customers={customers}
+                suppliers={suppliers}
+                customerPayments={customerPayments}
+                supplierPayments={supplierPayments}
+                products={products}
+                journalEntries={journalEntries}
+                logs={logs}
+                accounts={accounts}
+                partners={partners}
+                partnerTransactions={partnerTransactions}
+                expenses={expenses}
+            />;
         }
         if (activePage === 'backup' && hasPermission('manage_backup')) {
             return <BackupSettings />;

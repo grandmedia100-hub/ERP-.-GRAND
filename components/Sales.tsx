@@ -97,6 +97,54 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
     setIsModalOpen(false);
   };
 
+  // ── Perpetual Inventory: Record Stock Movements ──
+  const recordStockMovements = (invoice: SalesInvoice, isReturn: boolean, isVoid: boolean = false) => {
+    const newTxs: StockTransaction[] = [];
+    const productUpdates: { id: string; qtyDelta: number; cost: number }[] = [];
+
+    invoice.items
+      .filter(item => item.itemType !== 'expense' && item.productId && !item.productId.startsWith('MANUAL'))
+      .forEach(item => {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) return;
+
+        // isReturn XOR isVoid means stock comes back, otherwise stock goes out
+        const isIncoming = isReturn !== isVoid;
+        const qty = item.quantity;
+        const cost = product.costPrice || item.price;
+        const qtyDelta = isIncoming ? qty : -qty;
+        const balanceAfter = product.quantity + qtyDelta;
+
+        newTxs.push({
+          id: `ST-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          date: invoice.date,
+          productId: product.id,
+          productName: product.name,
+          type: isReturn ? 'sale_return' : 'sale',
+          quantityIn: isIncoming ? qty : 0,
+          quantityOut: isIncoming ? 0 : qty,
+          unitCost: cost,
+          totalCost: qty * cost,
+          balanceAfter: Math.max(0, balanceAfter),
+          referenceId: invoice.id,
+          referenceType: 'SalesInvoice',
+          notes: isVoid
+            ? (isReturn ? 'إلغاء مرتجع مبيعات (خصم من المخزن)' : 'إلغاء مبيعات (إرجاع للمخزن)')
+            : (isReturn ? 'مرتجع مبيعات' : 'فاتورة مبيعات'),
+          createdAt: new Date().toISOString(),
+        });
+        productUpdates.push({ id: product.id, qtyDelta, cost });
+      });
+
+    if (newTxs.length > 0) {
+      setStockTransactions(prev => [...prev, ...newTxs]);
+      setProducts(prev => prev.map(p => {
+        const upd = productUpdates.find(u => u.id === p.id);
+        return upd ? { ...p, quantity: Math.max(0, p.quantity + upd.qtyDelta) } : p;
+      }));
+    }
+  };
+
   const handleSaveInvoice = (invoiceData: Omit<SalesInvoice, 'id'> & { id?: string }, type: 'sale' | 'return' = 'sale') => {
     // Check Financial Lock
     const companyInfoString = localStorage.getItem('companyInfo');
@@ -124,6 +172,7 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
 
     let newId = invoiceData.id || '';
     const isEdit = !!invoiceData.id;
+    const originalInvoice = isEdit ? invoices.find(i => i.id === newId) : null;
 
     if (!isEdit) {
       // Generate ID only if creating new
@@ -271,56 +320,13 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
       if (!isEdit) logAction(`إضافة فاتورة مرتجع مبيعات رقم ${newId} للعميل ${customerName}`);
     }
 
-    // ── Perpetual Inventory: Record Stock Movements ──
-    const recordStockMovements = (invoice: SalesInvoice, isReturn: boolean, isVoid: boolean = false) => {
-      const newTxs: StockTransaction[] = [];
-      const productUpdates: { id: string; qtyDelta: number; cost: number }[] = [];
-
-      invoice.items
-        .filter(item => item.itemType !== 'expense' && item.productId && !item.productId.startsWith('MANUAL'))
-        .forEach(item => {
-          const product = products.find(p => p.id === item.productId);
-          if (!product) return;
-
-          // isReturn XOR isVoid means stock comes back, otherwise stock goes out
-          const isIncoming = isReturn !== isVoid;
-          const qty = item.quantity;
-          const cost = product.costPrice || item.price;
-          const qtyDelta = isIncoming ? qty : -qty;
-          const balanceAfter = product.quantity + qtyDelta;
-
-          newTxs.push({
-            id: `ST-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-            date: invoice.date,
-            productId: product.id,
-            productName: product.name,
-            type: isReturn ? 'sale_return' : 'sale',
-            quantityIn: isIncoming ? qty : 0,
-            quantityOut: isIncoming ? 0 : qty,
-            unitCost: cost,
-            totalCost: qty * cost,
-            balanceAfter: Math.max(0, balanceAfter),
-            referenceId: invoice.id,
-            referenceType: 'SalesInvoice',
-            notes: isReturn ? 'مرتجع مبيعات' : 'فاتورة مبيعات',
-            createdAt: new Date().toISOString(),
-          });
-          productUpdates.push({ id: product.id, qtyDelta, cost });
-        });
-
-      if (newTxs.length > 0) {
-        setStockTransactions(prev => [...prev, ...newTxs]);
-        setProducts(prev => prev.map(p => {
-          const upd = productUpdates.find(u => u.id === p.id);
-          return upd ? { ...p, quantity: Math.max(0, p.quantity + upd.qtyDelta) } : p;
-        }));
-      }
-    };
-
-    // Trigger inventory movement for new invoices only (not edits to avoid double counting)
-    if (!isEdit) {
-      recordStockMovements(newInvoice, type === 'return');
+    // Revert old invoice stock movements if editing
+    if (isEdit && originalInvoice && originalInvoice.status !== 'voided') {
+      recordStockMovements(originalInvoice, originalInvoice.invoiceType === 'return', true /* isVoid/revert */);
     }
+
+    // Apply stock movements for the new/updated invoice
+    recordStockMovements(newInvoice, type === 'return');
 
     handleCloseModal();
   };

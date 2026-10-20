@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import type { Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, CompanyInfo } from '../types.ts';
+import type { Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, CompanyInfo, Expense, Partner, PartnerTransaction } from '../types.ts';
 
 interface BalanceSheetModalProps {
   onClose: () => void;
@@ -10,11 +10,15 @@ interface BalanceSheetModalProps {
   purchaseInvoices: PurchaseInvoice[];
   customerPayments: CustomerPayment[];
   supplierPayments: SupplierPayment[];
+  expenses: Expense[];
+  partners: Partner[];
+  partnerTransactions: PartnerTransaction[];
 }
 
 const BalanceSheetModal: React.FC<BalanceSheetModalProps> = ({
   onClose, products, customers, suppliers,
-  salesInvoices, purchaseInvoices, customerPayments, supplierPayments
+  salesInvoices, purchaseInvoices, customerPayments, supplierPayments,
+  expenses, partners, partnerTransactions
 }) => {
   // Date Filter
   const [asOfDate, setAsOfDate] = React.useState<string>(new Date().toISOString().split('T')[0]);
@@ -26,10 +30,6 @@ const BalanceSheetModal: React.FC<BalanceSheetModalProps> = ({
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
-
-  const expenses = [];
-  const partners = [];
-  const partnerTransactions = [];
   const data = useMemo(() => {
     // 1. Assets
     // Cash / Treasury
@@ -91,9 +91,20 @@ const BalanceSheetModal: React.FC<BalanceSheetModalProps> = ({
     // Ideally calculated as: Opening Equity + Net Income - Drawings
     // Here we derive it to ensure balance, but display components
 
-    // Let's calculate Net Profit for display
-    const totalRevenue = salesInvoices.filter(i => i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0);
-    const totalCOGS = purchaseInvoices.filter(i => i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0); // Simplified COGS
+    // True COGS from sales invoices (Cost of goods sold)
+    const totalCOGS = salesInvoices
+      .filter(i => i.status !== 'voided' && isBeforeOrOn(i.date))
+      .reduce((sum, inv) => {
+        const isReturn = inv.invoiceType === 'return';
+        const invCost = (inv.items || []).reduce((iSum, item) => {
+          const cost = item.cost !== undefined && item.cost >= 0
+            ? item.cost
+            : (products.find(p => p.id === item.productId)?.costPrice || 0);
+          return iSum + cost * (item.quantity || 0);
+        }, 0);
+        return sum + (isReturn ? -invCost : invCost);
+      }, 0);
+
     const netProfit = totalRevenue - totalCOGS - cashOutExpenses;
 
     // Calculated Equity to balance

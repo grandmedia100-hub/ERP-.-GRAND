@@ -49,7 +49,12 @@ const AccountNode: React.FC<AccountNodeProps> = ({
   const balance = calculateBalance(account.id);
   const absBalance = Math.abs(balance);
   const balanceType = balance > 0 ? 'مدين' : balance < 0 ? 'دائن' : '-';
-  const displayColor = balance > 0 ? 'text-green-600' : balance < 0 ? 'text-red-600' : 'text-gray-400';
+  const isCreditNormal = account.type === 'خصوم' || account.type === 'حقوق ملكية' || account.type === 'إيرادات';
+  const displayColor = balance === 0
+    ? 'text-gray-400'
+    : isCreditNormal
+      ? (balance < 0 ? 'text-blue-700 font-bold' : 'text-red-600 font-bold')
+      : (balance > 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold');
 
   const indentPx = level * 20;
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import type { Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, CompanyInfo, Expense, Partner, PartnerTransaction } from '../types.ts';
+import type { Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, CompanyInfo, Expense, Partner, PartnerTransaction, JournalEntry, Account } from '../types.ts';
 
 interface TrialBalanceModalProps {
   onClose: () => void;
@@ -13,11 +13,23 @@ interface TrialBalanceModalProps {
   expenses: Expense[];
   partners: Partner[];
   partnerTransactions: PartnerTransaction[];
+  journalEntries?: JournalEntry[];
+  accounts?: Account[];
+}
+
+interface TrialBalanceRow {
+  code: string;
+  account: string;
+  totalDebit: number;
+  totalCredit: number;
+  debit: number;
+  credit: number;
 }
 
 const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
   onClose, products, customers, suppliers, salesInvoices, purchaseInvoices, 
-  customerPayments, supplierPayments, expenses, partners, partnerTransactions
+  customerPayments, supplierPayments, expenses, partners, partnerTransactions,
+  journalEntries = [], accounts = []
 }) => {
   // Date Filter
   const [asOfDate, setAsOfDate] = React.useState<string>(new Date().toISOString().split('T')[0]);
@@ -30,20 +42,69 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const data = useMemo(() => {
-    const rows: { account: string; debit: number; credit: number }[] = [];
+  const isBeforeOrOn = (dateStr: string) => {
+    if (!dateStr) return false;
+    if (!asOfDate) return true;
+    return new Date(dateStr) <= new Date(asOfDate);
+  };
 
-    // 1. Cash (Treasury) - Usually Debit
+  const { rows: data, isFromJournal } = useMemo(() => {
+    // 1. Preferred Method: True double-entry trial balance from Journal Entries
+    if (journalEntries && journalEntries.length > 0) {
+      const accountMap: Record<string, { code: string; name: string; totalDebit: number; totalCredit: number }> = {};
+
+      // Seed with Chart of Accounts
+      if (accounts && accounts.length > 0) {
+        accounts.filter(a => !a.isGroup).forEach(a => {
+          accountMap[a.id] = {
+            code: a.code || a.id,
+            name: a.name,
+            totalDebit: 0,
+            totalCredit: 0
+          };
+        });
+      }
+
+      // Aggregate journal entry lines up to asOfDate
+      journalEntries.filter(je => isBeforeOrOn(je.date)).forEach(je => {
+        (je.lines || []).forEach(line => {
+          const accId = line.accountId;
+          if (!accountMap[accId]) {
+            accountMap[accId] = {
+              code: accId,
+              name: line.accountName || accId,
+              totalDebit: 0,
+              totalCredit: 0
+            };
+          }
+          accountMap[accId].totalDebit += (Number(line.debit) || 0);
+          accountMap[accId].totalCredit += (Number(line.credit) || 0);
+        });
+      });
+
+      const reportRows: TrialBalanceRow[] = [];
+      Object.values(accountMap).forEach(acc => {
+        if (acc.totalDebit === 0 && acc.totalCredit === 0) return;
+        const net = acc.totalDebit - acc.totalCredit;
+        reportRows.push({
+          code: acc.code,
+          account: acc.name,
+          totalDebit: acc.totalDebit,
+          totalCredit: acc.totalCredit,
+          debit: net > 0 ? net : 0,
+          credit: net < 0 ? Math.abs(net) : 0
+        });
+      });
+
+      // Sort by account code
+      reportRows.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      return { rows: reportRows, isFromJournal: true };
+    }
+
+    // 2. Fallback: Entity-based synthesis if no journal entries exist
     const companyInfoString = localStorage.getItem('companyInfo');
     const companyInfo: CompanyInfo = companyInfoString ? JSON.parse(companyInfoString) : { treasuryOpeningBalance: 0 };
 
-    const isBeforeOrOn = (dateStr: string) => {
-      if (!dateStr) return false;
-      if (!asOfDate) return true;
-      return new Date(dateStr) <= new Date(asOfDate);
-    };
-
-    // Calculate current cash
     const cashInSales = salesInvoices.filter(i => i.paymentMethod === 'نقدي' && i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0);
     const cashInPayments = customerPayments.filter(p => p.status !== 'voided' && isBeforeOrOn(p.date)).reduce((sum, p) => sum + p.amount, 0);
     const cashOutPurchases = purchaseInvoices.filter(i => i.paymentMethod === 'نقدي' && i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0);
@@ -53,117 +114,41 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
     const partnersWithdrawals = partnerTransactions.filter(t => t.type === 'سحب' && t.status !== 'voided' && isBeforeOrOn(t.date)).reduce((sum, t) => sum + t.amount, 0);
 
     const cashBalance = (companyInfo.treasuryOpeningBalance || 0) + cashInSales + cashInPayments + partnersDeposits - (cashOutPurchases + cashOutPayments + cashOutExpenses + partnersWithdrawals);
-
-    rows.push({ account: 'الخزينة (النقدية)', debit: cashBalance > 0 ? cashBalance : 0, credit: cashBalance < 0 ? Math.abs(cashBalance) : 0 });
-
-    // 2. Inventory - Debit
     const inventoryValue = products.reduce((sum, p) => sum + (p.quantity * p.costPrice), 0);
-    rows.push({ account: 'المخزون', debit: inventoryValue, credit: 0 });
 
-    // 3. Customers (Receivables) - Debit
     const accountsReceivable = customers.reduce((sum, c) => {
       const invTotal = salesInvoices.filter(i => i.customerId === c.id && i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((s, i) => s + i.total, 0);
       const paidTotal = customerPayments.filter(p => p.customerId === c.id && p.status !== 'voided' && isBeforeOrOn(p.date)).reduce((s, p) => s + p.amount, 0);
       return sum + (c.openingBalance + invTotal - paidTotal);
     }, 0);
-    rows.push({ account: 'العملاء', debit: accountsReceivable, credit: 0 });
 
-    // 4. Suppliers (Payables) - Credit
     const accountsPayable = suppliers.reduce((sum, s) => {
       const invTotal = purchaseInvoices.filter(i => i.supplierId === s.id && i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((s, i) => s + i.total, 0);
       const paidTotal = supplierPayments.filter(p => p.supplierId === s.id && p.status !== 'voided' && isBeforeOrOn(p.date)).reduce((s, p) => s + p.amount, 0);
       return sum + (s.openingBalance + invTotal - paidTotal);
     }, 0);
-    rows.push({ account: 'الموردين', debit: 0, credit: accountsPayable });
 
-    // 5. Partners Capital - Credit
     const partnersCapital = partners.reduce((sum, p) => {
       const pTrans = partnerTransactions.filter(t => t.partnerId === p.id && t.status !== 'voided' && isBeforeOrOn(t.date));
       const deposits = pTrans.filter(t => t.type === 'إيداع').reduce((s, t) => s + t.amount, 0);
       const withdrawals = pTrans.filter(t => t.type === 'سحب').reduce((s, t) => s + t.amount, 0);
       return sum + (p.openingBalance + deposits - withdrawals);
     }, 0);
-    rows.push({ account: 'رأس المال', debit: 0, credit: partnersCapital });
 
-    // 6. Sales (Revenue) - Credit
-    // Note: Revenue is a credit balance account
-    // We already accounted for Cash/AR from sales, but in double entry, Credit Sales increases Revenue.
-    // Wait, Trial balance lists balances of ALL accounts.
-    // Assets = Liabilities + Equity + (Revenue - Expenses)
-    // So we list Assets (Dr), Liabilities (Cr), Equity (Cr), Revenue (Cr), Expenses (Dr).
-
-    // However, the Inventory logic above assumes Asset value.
-    // In a periodic inventory system (simplified), Purchases are Dr, Sales are Cr.
-    // Let's do a simple summary based on what we have tracked.
-
-    // Since we don't have a full double-entry ledger in the backend, we approximate.
-    // To make it balance: Assets(Dr) = Liabilities(Cr) + Equity(Cr) + Profit(Cr)
-    // Profit = Sales - Purchases - Expenses.
-
-    // Instead of forcing balance, let's list the accounts we "know".
-    // Actually, Trial Balance usually lists Revenue and Expenses separately.
-
-    // Adjusting previous rows:
-    // Remove "Cash" and "Inventory" etc from direct calculation if we want strict ledger view,
-    // but here we are synthesizing a report from entity states.
-
-    // To present a balanced view conceptually for the user:
-    // 1. Assets (Dr)
-    // 2. Expenses (Dr)
-    // 3. Liabilities (Cr)
-    // 4. Equity (Cr)
-    // 5. Revenue (Cr)
-
-    // Let's clear rows and rebuild for this structure
-    const reportRows = [];
-
-    // ASSETS
-    reportRows.push({ account: 'الخزينة (النقدية)', debit: cashBalance, credit: 0 });
-    reportRows.push({ account: 'المخزون (بضاعة آخر المدة)', debit: inventoryValue, credit: 0 });
-    reportRows.push({ account: 'العملاء (المدينون)', debit: accountsReceivable, credit: 0 });
-
-    // EXPENSES & PURCHASES (Dr)
-    // Note: If we list Inventory (Asset), we shouldn't list Purchases as Asset, but as Expense (COGS).
-    // Or in periodic: Opening Stock + Purchases - Closing Stock = COGS.
-    // Let's keep it simple: List Purchases as Debit, Sales as Credit. 
-    // BUT Inventory Asset is "Ending Inventory".
-    // If we list Ending Inventory as Asset (Dr), we need to balance it.
-    // Usually "Inventory" account is adjusted at period end.
-
-    // Simplest approach for this app level:
-    // List Operating Expenses
     const totalExpenses = expenses.filter(e => e.status !== 'voided' && isBeforeOrOn(e.date)).reduce((sum, e) => sum + e.amount, 0);
-    reportRows.push({ account: 'المصروفات العمومية', debit: totalExpenses, credit: 0 });
-
-    // LIABILITIES
-    reportRows.push({ account: 'الموردين (الدائنون)', debit: 0, credit: accountsPayable });
-
-    // EQUITY
-    reportRows.push({ account: 'رأس المال', debit: 0, credit: partnersCapital });
-
-    // REVENUE & COGS/Trading
-    // Sales (Cr)
-    // REVENUE & COGS/Trading
-    // Sales (Cr)
     const totalSales = salesInvoices.filter(i => i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0);
-    reportRows.push({ account: 'المبيعات', debit: 0, credit: totalSales });
-
-    // Purchases (Dr) -> Treated as Cost/Expense here
     const totalPurchases = purchaseInvoices.filter(i => i.status !== 'voided' && isBeforeOrOn(i.date)).reduce((sum, i) => sum + i.total, 0);
-    reportRows.push({ account: 'المشتريات', debit: totalPurchases, credit: 0 });
 
-    // NOTE: This won't balance perfectly because:
-    // 1. Inventory value change (Profit/Loss from holding inventory) isn't recorded as income.
-    // 2. "Inventory Value" added to Debit side is the Closing Stock.
-    // To balance: Opening Stock + Purchases + Profit = Sales + Closing Stock.
-    // We don't track Opening Stock historically well here.
-    // So we will add a "Mismatched / Balancing" line if needed, or just show as is.
-    // Actually, (Assets + Expenses) - (Liabilities + Equity + Revenue) = 0?
-    // Let's check:
-    // (Cash + AR + ClosingInv + Expenses + Purchases) - (AP + Capital + Sales)
-    // Cash = OpenCash + Sales + Capital - Purchases - Expenses - AP_Paid + AR_Paid ...
-    // It's complex to balance perfectly without full double entry engine.
-    // We will display "Difference" (الفروقات) to be transparent.
+    const reportRows: TrialBalanceRow[] = [
+      { code: '1101', account: 'الخزينة (النقدية)', totalDebit: cashBalance > 0 ? cashBalance : 0, totalCredit: cashBalance < 0 ? Math.abs(cashBalance) : 0, debit: cashBalance > 0 ? cashBalance : 0, credit: cashBalance < 0 ? Math.abs(cashBalance) : 0 },
+      { code: '1104', account: 'المخزون (بضاعة آخر المدة)', totalDebit: inventoryValue, totalCredit: 0, debit: inventoryValue, credit: 0 },
+      { code: '1103', account: 'العملاء (المدينون)', totalDebit: accountsReceivable, totalCredit: 0, debit: accountsReceivable, credit: 0 },
+      { code: '5201', account: 'المصروفات العمومية والتشغيلية', totalDebit: totalExpenses, totalCredit: 0, debit: totalExpenses, credit: 0 },
+      { code: '2101', account: 'الموردين (الدائنون)', totalDebit: 0, totalCredit: accountsPayable, debit: 0, credit: accountsPayable },
+      { code: '3101', account: 'رأس المال (الشركاء)', totalDebit: 0, totalCredit: partnersCapital, debit: 0, credit: partnersCapital },
+      { code: '4101', account: 'المبيعات', totalDebit: 0, totalCredit: totalSales, debit: 0, credit: totalSales },
+      { code: '5101', account: 'المشتريات / التكلفة', totalDebit: totalPurchases, totalCredit: 0, debit: totalPurchases, credit: 0 }
+    ];
 
     const totalDebit = reportRows.reduce((sum, r) => sum + r.debit, 0);
     const totalCredit = reportRows.reduce((sum, r) => sum + r.credit, 0);
@@ -171,17 +156,19 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
     if (totalDebit !== totalCredit) {
       const diff = totalDebit - totalCredit;
       if (diff > 0) {
-        reportRows.push({ account: 'فروقات ميزان / أرباح مرحلة', debit: 0, credit: diff });
+        reportRows.push({ code: '3201', account: 'فروقات ميزان / أرباح مرحلة', totalDebit: 0, totalCredit: diff, debit: 0, credit: diff });
       } else {
-        reportRows.push({ account: 'فروقات ميزان / خسائر مرحلة', debit: Math.abs(diff), credit: 0 });
+        reportRows.push({ code: '3201', account: 'فروقات ميزان / خسائر مرحلة', totalDebit: Math.abs(diff), totalCredit: 0, debit: Math.abs(diff), credit: 0 });
       }
     }
 
-    return reportRows;
-  }, [products, customers, suppliers, partners, partnerTransactions, salesInvoices, purchaseInvoices, expenses, customerPayments, supplierPayments, asOfDate]);
+    return { rows: reportRows, isFromJournal: false };
+  }, [products, customers, suppliers, partners, partnerTransactions, salesInvoices, purchaseInvoices, expenses, customerPayments, supplierPayments, journalEntries, accounts, asOfDate]);
 
-  const totalDebit = data.reduce((sum, r) => sum + r.debit, 0);
-  const totalCredit = data.reduce((sum, r) => sum + r.credit, 0);
+  const totalSumDebit = data.reduce((sum, r) => sum + r.totalDebit, 0);
+  const totalSumCredit = data.reduce((sum, r) => sum + r.totalCredit, 0);
+  const totalBalanceDebit = data.reduce((sum, r) => sum + r.debit, 0);
+  const totalBalanceCredit = data.reduce((sum, r) => sum + r.credit, 0);
 
   const handlePrint = () => {
     const companyInfoString = localStorage.getItem('companyInfo');
@@ -194,38 +181,51 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
             body { font-family: 'Cairo', sans-serif; direction: rtl; padding: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
             th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
             th { background-color: #f2f2f2; }
             .header { text-align: center; margin-bottom: 20px; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
           </style>
         </head>
         <body>
           <div class="header">
             <h1>${companyInfo.name}</h1>
-            <h2>ميزان المراجعة</h2>
-            <p>التاريخ: ${new Date().toLocaleDateString('ar-EG')}</p>
+            <h2>ميزان المراجعة بالمجاميع والأرصدة</h2>
+            <p>حتى تاريخ: ${asOfDate} | المصدر: ${isFromJournal ? 'دفتر اليومية العامة ودليل الحسابات' : 'تقديري'}</p>
           </div>
           <table>
             <thead>
               <tr>
-                <th>اسم الحساب</th>
-                <th>أرصدة مدينة</th>
-                <th>أرصدة دائنة</th>
+                <th rowspan="2">كود الحساب</th>
+                <th rowspan="2">اسم الحساب</th>
+                <th colspan="2">المجاميع</th>
+                <th colspan="2">الأرصدة</th>
+              </tr>
+              <tr>
+                <th>مدين</th>
+                <th>دائن</th>
+                <th>مدين</th>
+                <th>دائن</th>
               </tr>
             </thead>
             <tbody>
               ${data.map(row => `
                 <tr>
-                  <td style="text-align: right;">${row.account}</td>
-                  <td>${row.debit > 0 ? row.debit.toLocaleString('en-US') : '-'}</td>
-                  <td>${row.credit > 0 ? row.credit.toLocaleString('en-US') : '-'}</td>
+                  <td>${row.code}</td>
+                  <td style="text-align: right; font-weight: bold;">${row.account}</td>
+                  <td>${row.totalDebit > 0 ? row.totalDebit.toLocaleString('en-US') : '-'}</td>
+                  <td>${row.totalCredit > 0 ? row.totalCredit.toLocaleString('en-US') : '-'}</td>
+                  <td style="color: #047857; font-weight: bold;">${row.debit > 0 ? row.debit.toLocaleString('en-US') : '-'}</td>
+                  <td style="color: #1d4ed8; font-weight: bold;">${row.credit > 0 ? row.credit.toLocaleString('en-US') : '-'}</td>
                 </tr>
               `).join('')}
-              <tr style="background-color: #e0f2f1; font-weight: bold;">
-                <td style="text-align: right;">الإجمالي</td>
-                <td>${totalDebit.toLocaleString('en-US')}</td>
-                <td>${totalCredit.toLocaleString('en-US')}</td>
+              <tr style="background-color: #e0f2f1; font-weight: bold; font-size: 14px;">
+                <td colspan="2" style="text-align: right;">الإجمالي العام</td>
+                <td>${totalSumDebit.toLocaleString('en-US')}</td>
+                <td>${totalSumCredit.toLocaleString('en-US')}</td>
+                <td>${totalBalanceDebit.toLocaleString('en-US')}</td>
+                <td>${totalBalanceCredit.toLocaleString('en-US')}</td>
               </tr>
             </tbody>
           </table>
@@ -244,44 +244,78 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
       aria-modal="true" role="dialog" onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">ميزان المراجعة</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-gray-800">ميزان المراجعة بالمجاميع والأرصدة</h2>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${isFromJournal ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {isFromJournal ? '✓ مطابق لقيود اليومية العامة' : 'تقديري'}
+              </span>
+            </div>
             <div className="text-sm text-gray-500 flex items-center space-x-2 space-x-reverse mt-1">
               <span>حتى تاريخ:</span>
-              <input type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className="border rounded px-2 py-1" />
+              <input type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className="border rounded px-2 py-1 text-sm font-semibold" />
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-800 text-3xl font-light">&times;</button>
         </div>
 
         <div className="p-6 overflow-y-auto">
-          <table className="w-full text-right border-collapse">
-            <thead className="bg-gray-100 sticky top-0">
+          <table className="w-full text-right border-collapse text-sm">
+            <thead className="bg-slate-100 sticky top-0 shadow-sm">
               <tr>
-                <th className="p-3 border text-sm font-semibold tracking-wide">اسم الحساب</th>
-                <th className="p-3 border text-sm font-semibold tracking-wide text-center">أرصدة مدينة (Debit)</th>
-                <th className="p-3 border text-sm font-semibold tracking-wide text-center">أرصدة دائنة (Credit)</th>
+                <th rowSpan={2} className="p-3 border text-xs font-bold tracking-wide w-24">كود الحساب</th>
+                <th rowSpan={2} className="p-3 border text-xs font-bold tracking-wide">اسم الحساب</th>
+                <th colSpan={2} className="p-2 border text-xs font-bold tracking-wide text-center bg-slate-200">المجاميع (Totals)</th>
+                <th colSpan={2} className="p-2 border text-xs font-bold tracking-wide text-center bg-blue-100 text-blue-900">الأرصدة (Balances)</th>
+              </tr>
+              <tr>
+                <th className="p-2 border text-xs font-semibold text-center bg-slate-150">مدين</th>
+                <th className="p-2 border text-xs font-semibold text-center bg-slate-150">دائن</th>
+                <th className="p-2 border text-xs font-semibold text-center bg-emerald-50 text-emerald-800">مدين</th>
+                <th className="p-2 border text-xs font-semibold text-center bg-blue-50 text-blue-800">دائن</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {data.map((row, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="p-3 border text-sm font-bold text-gray-700">{row.account}</td>
-                  <td className="p-3 border text-sm text-center text-gray-700">{row.debit > 0 ? row.debit.toLocaleString('en-US') : '-'}</td>
-                  <td className="p-3 border text-sm text-center text-gray-700">{row.credit > 0 ? row.credit.toLocaleString('en-US') : '-'}</td>
+                <tr key={index} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-2.5 border text-xs font-mono font-bold text-gray-500">{row.code}</td>
+                  <td className="p-2.5 border font-semibold text-gray-800">{row.account}</td>
+                  <td className="p-2.5 border text-center text-gray-600">{row.totalDebit > 0 ? row.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}</td>
+                  <td className="p-2.5 border text-center text-gray-600">{row.totalCredit > 0 ? row.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}</td>
+                  <td className="p-2.5 border text-center font-bold text-emerald-700 bg-emerald-50/30">{row.debit > 0 ? row.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}</td>
+                  <td className="p-2.5 border text-center font-bold text-blue-700 bg-blue-50/30">{row.credit > 0 ? row.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-100 font-bold">
+            <tfoot className="bg-slate-100 font-bold sticky bottom-0 border-t-2 border-slate-300">
               <tr>
-                <td className="p-3 border text-left">الإجمالي</td>
-                <td className={`p-3 border text-center ${totalDebit !== totalCredit ? 'text-red-600' : 'text-green-600'}`}>{totalDebit.toLocaleString('en-US')} ج.م</td>
-                <td className={`p-3 border text-center ${totalDebit !== totalCredit ? 'text-red-600' : 'text-green-600'}`}>{totalCredit.toLocaleString('en-US')} ج.م</td>
+                <td colSpan={2} className="p-3 border text-left">الإجمالي العام</td>
+                <td className="p-3 border text-center text-gray-800">{totalSumDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td className="p-3 border text-center text-gray-800">{totalSumCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td className={`p-3 border text-center text-emerald-800 ${totalBalanceDebit !== totalBalanceCredit ? 'text-red-600' : ''}`}>
+                  {totalBalanceDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </td>
+                <td className={`p-3 border text-center text-blue-800 ${totalBalanceDebit !== totalBalanceCredit ? 'text-red-600' : ''}`}>
+                  {totalBalanceCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </td>
               </tr>
+              {totalBalanceDebit === totalBalanceCredit ? (
+                <tr className="bg-emerald-100/60 text-emerald-800 text-xs font-bold">
+                  <td colSpan={6} className="p-2 text-center">
+                    ✓ الميزان متوازن تماماً (الفرق = 0.00 ج.م)
+                  </td>
+                </tr>
+              ) : (
+                <tr className="bg-red-100 text-red-800 text-xs font-bold">
+                  <td colSpan={6} className="p-2 text-center">
+                    ⚠️ يوجد فرق غير متوازن بمقدار {Math.abs(totalBalanceDebit - totalBalanceCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                  </td>
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>
@@ -291,11 +325,21 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
           <button
             onClick={() => {
               const dataToExport = data.map(row => ({
+                'كود الحساب': row.code,
                 'اسم الحساب': row.account,
+                'مجاميع مدينة': row.totalDebit,
+                'مجاميع دائنة': row.totalCredit,
                 'أرصدة مدينة': row.debit,
                 'أرصدة دائنة': row.credit
               }));
-              dataToExport.push({ 'اسم الحساب': 'الإجمالي', 'أرصدة مدينة': totalDebit, 'أرصدة دائنة': totalCredit });
+              dataToExport.push({
+                'كود الحساب': 'TOT',
+                'اسم الحساب': 'الإجمالي',
+                'مجاميع مدينة': totalSumDebit,
+                'مجاميع دائنة': totalSumCredit,
+                'أرصدة مدينة': totalBalanceDebit,
+                'أرصدة دائنة': totalBalanceCredit
+              });
               import('../utils/exportToExcel.ts').then(({ exportToExcel }) => {
                 exportToExcel(dataToExport, 'ميزان_المراجعة');
               });
@@ -307,7 +351,7 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
           </button>
           <button
             onClick={() => {
-              const message = `*ميزان المراجعة*\nإجمالي المدين: ${totalDebit.toLocaleString('en-US')} ج.م\nإجمالي الدائن: ${totalCredit.toLocaleString('en-US')} ج.م\n\n*يرجى إرفاق ملف الـ PDF يدوياً.*`;
+              const message = `*ميزان المراجعة*\nإجمالي المدين: ${totalBalanceDebit.toLocaleString('en-US')} ج.م\nإجمالي الدائن: ${totalBalanceCredit.toLocaleString('en-US')} ج.م\nالحالة: ${totalBalanceDebit === totalBalanceCredit ? 'متوازن تماماً ✓' : 'يوجد فرق'}\n\n*يرجى إرفاق ملف الـ PDF يدوياً.*`;
               window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
             }}
             className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 flex items-center space-x-2 space-x-reverse"
