@@ -1,7 +1,4 @@
-
 import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateFinancialAnalysis = async (
   sales: number,
@@ -9,6 +6,17 @@ export const generateFinancialAnalysis = async (
   expenses: number,
   profit: number
 ): Promise<string> => {
+  // Safely check for API Key without crashing module evaluation in browser
+  const apiKey =
+    (typeof process !== 'undefined' && process.env?.API_KEY) ||
+    (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
+    '';
+
+  if (!apiKey) {
+    return "💡 لتفعيل ميزة التحليل المالي بالذكاء الاصطناعي، يرجى إضافة مفتاح API_KEY في متغيرات البيئة (Environment Variables) في استضافة Vercel.";
+  }
+
   const prompt = `
     أنت مستشار مالي خبير. قم بتحليل البيانات المالية التالية لشركة صغيرة وقدم ملخصًا موجزًا (لا يزيد عن 3-4 جمل) عن صحتها المالية.
     
@@ -22,14 +30,14 @@ export const generateFinancialAnalysis = async (
   `;
 
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    // Fix: Awaited generateContent but did not await the text property which is incorrect. Access text directly.
-    return response.text;
+    return response.text || "تم التحليل بنجاح.";
   } catch (error) {
     console.error("Error generating financial analysis:", error);
-    return "عفواً، حدث خطأ أثناء محاولة تحليل البيانات. يرجى المحاولة مرة أخرى.";
+    return "عفواً، حدث خطأ أثناء محاولة تحليل البيانات. يرجى التحقق من صلاحية مفتاح API.";
   }
 };
