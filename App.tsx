@@ -309,7 +309,28 @@ const App: React.FC = () => {
     const [users, setUsers] = useStickyState<User[]>(initialData.users || [], 'users');
     const [logs, setLogs] = useServerState<any>(initialData.logs || [], 'logs', 'logs');
     const [themeSettings, setThemeSettings] = useStickyState<ThemeSettings>({
-        uiScale: 75, fontFamily: 'Cairo', iconSize: 'normal', theme: 'default'
+        uiScale: 75,
+        fontFamily: 'Cairo',
+        iconSize: 'normal',
+        theme: 'default',
+        backgroundEnabled: true,
+        backgroundOpacity: 90,
+        backgroundBlur: 'sm',
+        backgroundMode: 'per_page',
+        defaultBackgroundUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920',
+        pageBackgrounds: {
+            dashboard: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1920',
+            sales: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920',
+            quotations: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=1920',
+            purchases: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
+            purchaseRequests: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            purchaseOrders: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            manufacturing: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920',
+            inventory: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&q=80&w=1920',
+            warehouse: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            treasury: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
+            reports: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920',
+        }
     }, 'themeSettings');
 
     // Module Accounting Posting Settings
@@ -430,12 +451,28 @@ const App: React.FC = () => {
     }, [setJournalEntries]);
 
     const getBackgroundImage = useCallback((page: Page) => {
-        const map: Record<string, string> = {
+        if (themeSettings.backgroundEnabled === false) return '';
+        if (themeSettings.backgroundMode === 'unified' && themeSettings.defaultBackgroundUrl) {
+            return themeSettings.defaultBackgroundUrl;
+        }
+        if (themeSettings.pageBackgrounds && themeSettings.pageBackgrounds[page]) {
+            return themeSettings.pageBackgrounds[page];
+        }
+        const defaultMap: Record<string, string> = {
             dashboard: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1920',
             sales: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920',
+            quotations: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=1920',
+            purchases: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
+            purchaseRequests: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            purchaseOrders: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            manufacturing: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920',
+            inventory: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&q=80&w=1920',
+            warehouse: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
+            treasury: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
+            reports: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920',
         };
-        return map[page] || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920';
-    }, []);
+        return defaultMap[page] || themeSettings.defaultBackgroundUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920';
+    }, [themeSettings]);
 
     const hasPermission = useCallback((permission: string) => {
         if (!currentUser) return false;
@@ -717,9 +754,25 @@ const App: React.FC = () => {
 
     return (
         <div className={`flex h-screen font-sans relative ${themeSettings.fontFamily === 'Tajawal' ? 'font-tajawal' : 'font-cairo'} theme-${themeSettings.theme || 'default'} bg-main text-main transition-colors duration-300`} dir="rtl">
-            <div className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-700 ease-in-out" style={{ backgroundImage: `url('${getBackgroundImage(activePage)}')` }}>
-                <div className="absolute inset-0 bg-gray-50/90 backdrop-blur-sm"></div>
-            </div>
+            {themeSettings.backgroundEnabled !== false && getBackgroundImage(activePage) && (
+                <div 
+                    className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-700 ease-in-out pointer-events-none" 
+                    style={{ backgroundImage: `url('${getBackgroundImage(activePage)}')` }}
+                >
+                    <div 
+                        className={`absolute inset-0 ${
+                            themeSettings.backgroundBlur === 'none' ? '' :
+                            themeSettings.backgroundBlur === 'md' ? 'backdrop-blur-md' :
+                            themeSettings.backgroundBlur === 'lg' ? 'backdrop-blur-lg' :
+                            'backdrop-blur-sm'
+                        }`}
+                        style={{
+                            backgroundColor: 'var(--bg-main)',
+                            opacity: (themeSettings.backgroundOpacity !== undefined ? themeSettings.backgroundOpacity : 90) / 100
+                        }}
+                    ></div>
+                </div>
+            )}
 
             <div className="z-10 flex h-full w-full">
                 <Sidebar

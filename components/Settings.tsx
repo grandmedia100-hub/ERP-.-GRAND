@@ -5,6 +5,31 @@ import ConfirmationModal from './ConfirmationModal.tsx';
 import OpeningBalancesModal from './OpeningBalancesModal.tsx';
 import ConnectionSettings from './ConnectionSettings.tsx';
 
+const WALLPAPER_PRESETS = [
+  { id: 'office', name: 'أبراج وأعمال حديثة', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'dashboard', name: 'إحصاءات وتحليلات', url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'manufacturing', name: 'مصانع وإنتاج وتغليف', url: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'warehouse', name: 'مستودعات وتخزين', url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'finance', name: 'خزينة وبنوك', url: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'sales', name: 'مبيعات وتجارة', url: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'minimal_marble', name: 'رخام هادئ وراقي', url: 'https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?auto=format&fit=crop&q=80&w=1920' },
+  { id: 'dark_luxury', name: 'تجريدي داكن فاخر', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1920' },
+];
+
+const DEFAULT_PAGE_BACKGROUNDS: Record<string, { label: string; icon: string; defaultUrl: string }> = {
+  dashboard: { label: 'لوحة التحكم', icon: '📊', defaultUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1920' },
+  sales: { label: 'فواتير المبيعات', icon: '💰', defaultUrl: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920' },
+  quotations: { label: 'عروض الأسعار', icon: '📋', defaultUrl: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=1920' },
+  purchases: { label: 'فواتير المشتريات', icon: '🛒', defaultUrl: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920' },
+  purchaseRequests: { label: 'طلبات الشراء', icon: '📝', defaultUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920' },
+  purchaseOrders: { label: 'أوامر الشراء', icon: '📑', defaultUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920' },
+  manufacturing: { label: 'التصنيع والإنتاج', icon: '⚙️', defaultUrl: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920' },
+  inventory: { label: 'المخزون والأصناف', icon: '📦', defaultUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&q=80&w=1920' },
+  warehouse: { label: 'المستودعات والمخازن', icon: '🏬', defaultUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920' },
+  treasury: { label: 'الخزينة والمصارف', icon: '🏦', defaultUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920' },
+  reports: { label: 'الحسابات والتقارير', icon: '📈', defaultUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920' },
+};
+
 interface SettingsProps {
   onClearData: () => void;
   customers: Customer[];
@@ -74,6 +99,58 @@ const Settings: React.FC<SettingsProps> = ({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isOpeningBalancesOpen, setIsOpeningBalancesOpen] = useState(false);
   const [isConnectionSettingsOpen, setIsConnectionSettingsOpen] = useState(false);
+  const [selectedBgPage, setSelectedBgPage] = useState<string>('dashboard');
+
+  const handleBgFileUpload = (e: React.ChangeEvent<HTMLInputElement>, targetPage?: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('حجم الصورة كبير جداً (أكثر من 5 ميجابايت). يرجى اختيار صورة أصغر حجماً.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (!base64) return;
+      if (targetPage) {
+        setThemeSettings(prev => ({
+          ...prev,
+          pageBackgrounds: {
+            ...(prev.pageBackgrounds || {}),
+            [targetPage]: base64,
+          }
+        }));
+      } else {
+        setThemeSettings(prev => ({
+          ...prev,
+          defaultBackgroundUrl: base64,
+        }));
+      }
+      setSuccessMessage('تم تحديث صورة الخلفية بنجاح');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetWallpapers = () => {
+    if (window.confirm('هل تريد استعادة جميع خلفيات النظام ومقاييس العرض الافتراضية؟')) {
+      const defaultPages: Record<string, string> = {};
+      Object.entries(DEFAULT_PAGE_BACKGROUNDS).forEach(([k, v]) => {
+        defaultPages[k] = v.defaultUrl;
+      });
+      setThemeSettings(prev => ({
+        ...prev,
+        backgroundEnabled: true,
+        backgroundOpacity: 90,
+        backgroundBlur: 'sm',
+        backgroundMode: 'per_page',
+        defaultBackgroundUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920',
+        pageBackgrounds: defaultPages,
+      }));
+      setSuccessMessage('تمت استعادة الخلفيات الافتراضية بنجاح');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
+  };
   // fileInputRef was for backup restore, not needed here anymore, removing refs to it if any remain
 
   // --- Load Initial Data ---
@@ -632,6 +709,370 @@ const Settings: React.FC<SettingsProps> = ({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Background Wallpaper Settings Section */}
+      <div className="bg-theme-card p-8 rounded-xl shadow-md max-w-3xl mx-auto mb-8 relative overflow-hidden text-right">
+        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">تخصيص</div>
+        <h2 className="text-xl font-bold text-main mb-2 pb-2 border-b flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            إعدادات خلفيات النظام والصفحات (Wallpapers)
+          </div>
+          <button
+            type="button"
+            onClick={handleResetWallpapers}
+            className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            استعادة الافتراضيات
+          </button>
+        </h2>
+        <p className="text-xs text-gray-500 mb-6">
+          تحكم في تشغيل وإيقاف صور الخلفية لكافة الشاشات أو تخصيص خلفية فريدة لكل موديول، مع ضبط الشفافية والتغبيش لضمان راحة العين ووضوح البيانات.
+        </p>
+
+        {/* Toggle On/Off Switch */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-6 border border-gray-200 dark:border-gray-700">
+          <div>
+            <div className="font-bold text-sm text-gray-800 dark:text-gray-200">تفعيل صور الخلفية في النظام</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {themeSettings.backgroundEnabled !== false ? 'الصور مفعلة وتظهر خلف شاشات البرنامج بتأثير شفاف وناعم.' : 'الخلفيات معطلة، ويعمل النظام بلون موحد هادئ وسريع.'}
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={themeSettings.backgroundEnabled !== false}
+              onChange={(e) => setThemeSettings({ ...themeSettings, backgroundEnabled: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+
+        {themeSettings.backgroundEnabled !== false && (
+          <div className="space-y-6">
+            {/* Visual Adjustments: Opacity & Blur */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
+              {/* Opacity Slider */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <label className="font-bold text-gray-700 dark:text-gray-300">نسبة عتامة الغطاء الشفاف</label>
+                  <span className="font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded text-xs">
+                    {themeSettings.backgroundOpacity ?? 90}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="98"
+                  step="2"
+                  value={themeSettings.backgroundOpacity ?? 90}
+                  onChange={(e) => setThemeSettings({ ...themeSettings, backgroundOpacity: parseInt(e.target.value) })}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <p className="text-[11px] text-gray-400">
+                  موصى به: 90% إلى 95% لقراءة مريحة وواضحة جداً لجميع الجداول.
+                </p>
+              </div>
+
+              {/* Blur Level */}
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">درجة التغبيش والضبابية (Blur)</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'none', label: 'بدون' },
+                    { id: 'sm', label: 'خفيف' },
+                    { id: 'md', label: 'متوسط' },
+                    { id: 'lg', label: 'قوي' },
+                  ].map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setThemeSettings({ ...themeSettings, backgroundBlur: b.id as any })}
+                      className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${(themeSettings.backgroundBlur || 'sm') === b.id
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  تنعيم تفاصيل الخلفية لمنع تشتيت الانتباه أثناء العمل.
+                </p>
+              </div>
+            </div>
+
+            {/* Mode Selector: Unified vs Per-Page */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">نمط الخلفيات</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setThemeSettings({ ...themeSettings, backgroundMode: 'unified' })}
+                  className={`p-3 rounded-xl border text-center transition-all ${themeSettings.backgroundMode === 'unified'
+                    ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  <div className="text-sm">🖼️ صورة موحدة لكافة الصفحات</div>
+                  <div className="text-[11px] font-normal text-gray-500 mt-0.5">صورة واحدة تنطبق على كامل النظام</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThemeSettings({ ...themeSettings, backgroundMode: 'per_page' })}
+                  className={`p-3 rounded-xl border text-center transition-all ${(themeSettings.backgroundMode || 'per_page') === 'per_page'
+                    ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  <div className="text-sm">📑 خلفية مخصصة لكل شاشة</div>
+                  <div className="text-[11px] font-normal text-gray-500 mt-0.5">خلفية خاصة ومناسبة لطبيعة كل موديول</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Unified Mode Settings */}
+            {themeSettings.backgroundMode === 'unified' && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-44 h-24 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 shadow-inner relative flex-shrink-0 bg-gray-200">
+                    <img
+                      src={themeSettings.defaultBackgroundUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920'}
+                      alt="معاينة الخلفية الموحدة"
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                      معاينة الحالية
+                    </span>
+                  </div>
+                  <div className="flex-1 w-full space-y-2">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">رابط صورة الخلفية (URL) أو رفع من جهازك</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={themeSettings.defaultBackgroundUrl || ''}
+                        onChange={(e) => setThemeSettings({ ...themeSettings, defaultBackgroundUrl: e.target.value })}
+                        placeholder="https://images.unsplash.com/... أو رابط الصورة"
+                        className="flex-1 text-xs p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-left"
+                        dir="ltr"
+                      />
+                      <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-lg font-bold flex items-center gap-1 shrink-0 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        رفع صورة
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleBgFileUpload(e)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset Wallpapers Gallery for Unified Mode */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">اختر من المعرض الجاهز السريع:</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {WALLPAPER_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setThemeSettings({ ...themeSettings, defaultBackgroundUrl: preset.url })}
+                        className={`relative rounded-lg overflow-hidden border-2 text-right transition-all group h-16 ${
+                          themeSettings.defaultBackgroundUrl === preset.url ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-transparent hover:border-gray-300'
+                        }`}
+                      >
+                        <img src={preset.url} alt={preset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
+                          <span className="text-[11px] font-bold text-white drop-shadow truncate">{preset.name}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Per-Page Mode Settings */}
+            {(themeSettings.backgroundMode || 'per_page') === 'per_page' && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">اختر الشاشة أو الموديول لتخصيص خلفيته:</label>
+                  {/* Page Selector Tabs */}
+                  <div className="flex flex-wrap gap-1.5 p-1 bg-gray-200/70 dark:bg-gray-700/60 rounded-xl">
+                    {Object.entries(DEFAULT_PAGE_BACKGROUNDS).map(([key, info]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setSelectedBgPage(key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          selectedBgPage === key
+                            ? 'bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                        }`}
+                      >
+                        <span>{info.icon}</span>
+                        <span>{info.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selected Page Editor */}
+                {selectedBgPage && DEFAULT_PAGE_BACKGROUNDS[selectedBgPage] && (
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="font-bold text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <span>{DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].icon}</span>
+                        <span>خلفية صفحة: {DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].label}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defaultUrl = DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].defaultUrl;
+                          setThemeSettings(prev => ({
+                            ...prev,
+                            pageBackgrounds: {
+                              ...(prev.pageBackgrounds || {}),
+                              [selectedBgPage]: defaultUrl,
+                            }
+                          }));
+                        }}
+                        className="text-[11px] text-gray-500 hover:text-indigo-600 font-semibold transition-colors"
+                      >
+                        استعادة الافتراضي لهذه الصفحة
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <div className="w-full sm:w-44 h-24 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 shadow-inner relative flex-shrink-0 bg-gray-200">
+                        <img
+                          src={
+                            (themeSettings.pageBackgrounds && themeSettings.pageBackgrounds[selectedBgPage]) ||
+                            DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].defaultUrl
+                          }
+                          alt={DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].label}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                          معاينة
+                        </span>
+                      </div>
+                      <div className="flex-1 w-full space-y-2">
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">رابط صورة الخلفية أو رفع ملف من جهازك</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={
+                              (themeSettings.pageBackgrounds && themeSettings.pageBackgrounds[selectedBgPage]) ||
+                              DEFAULT_PAGE_BACKGROUNDS[selectedBgPage].defaultUrl
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setThemeSettings(prev => ({
+                                ...prev,
+                                pageBackgrounds: {
+                                  ...(prev.pageBackgrounds || {}),
+                                  [selectedBgPage]: val,
+                                }
+                              }));
+                            }}
+                            placeholder="https://..."
+                            className="flex-1 text-xs p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-left"
+                            dir="ltr"
+                          />
+                          <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-lg font-bold flex items-center gap-1 shrink-0 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            رفع صورة
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleBgFileUpload(e, selectedBgPage)}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick presets for this page */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1.5">أو اختر صورة سريعة من المعرض:</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {WALLPAPER_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setThemeSettings(prev => ({
+                                ...prev,
+                                pageBackgrounds: {
+                                  ...(prev.pageBackgrounds || {}),
+                                  [selectedBgPage]: preset.url,
+                                }
+                              }));
+                            }}
+                            className="relative rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 h-14 group transition-all"
+                          >
+                            <img src={preset.url} alt={preset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <div className="absolute inset-0 bg-black/40 flex items-end p-1">
+                              <span className="text-[10px] font-bold text-white drop-shadow truncate">{preset.name}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mini Grid of All Configured Backgrounds */}
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">نظرة عامة على خلفيات كافة الشاشات:</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {Object.entries(DEFAULT_PAGE_BACKGROUNDS).map(([key, info]) => {
+                      const currentUrl = (themeSettings.pageBackgrounds && themeSettings.pageBackgrounds[key]) || info.defaultUrl;
+                      const isCustom = themeSettings.pageBackgrounds && themeSettings.pageBackgrounds[key] && themeSettings.pageBackgrounds[key] !== info.defaultUrl;
+                      return (
+                        <div
+                          key={key}
+                          onClick={() => setSelectedBgPage(key)}
+                          className={`cursor-pointer rounded-lg border p-1.5 flex flex-col gap-1 transition-all ${
+                            selectedBgPage === key ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30 ring-2 ring-indigo-200' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="h-16 w-full rounded overflow-hidden relative bg-gray-200">
+                            <img src={currentUrl} alt={info.label} className="w-full h-full object-cover" />
+                            {isCustom && (
+                              <span className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1 rounded font-bold">
+                                مخصصة
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300 truncate">
+                            {info.icon} {info.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-10 pt-6 border-t border-red-300 max-w-3xl mx-auto text-center">

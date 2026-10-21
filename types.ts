@@ -47,6 +47,12 @@ export interface ThemeSettings {
   fontFamily: string; // 'Cairo', 'Tajawal', etc.
   iconSize: 'small' | 'normal' | 'large';
   theme: 'default' | 'dark' | 'corporate' | 'emerald'; // Added theme choice
+  backgroundEnabled?: boolean;
+  backgroundOpacity?: number; // 50 to 98, default 90
+  backgroundBlur?: 'none' | 'sm' | 'md' | 'lg'; // default 'sm'
+  backgroundMode?: 'unified' | 'per_page'; // default 'per_page'
+  defaultBackgroundUrl?: string;
+  pageBackgrounds?: Record<string, string>;
 }
 
 export interface CompanyInfo {
