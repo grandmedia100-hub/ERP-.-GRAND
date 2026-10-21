@@ -29,6 +29,7 @@ const DEFAULT_PAGE_BACKGROUNDS: Record<string, { label: string; icon: string; de
   warehouse: { label: 'المستودعات والمخازن', icon: '🏬', defaultUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920' },
   treasury: { label: 'الخزينة والمصارف', icon: '🏦', defaultUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920' },
   reports: { label: 'الحسابات والتقارير', icon: '📈', defaultUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920' },
+  accountingSettings: { label: 'إعدادات التوجيه المحاسبي', icon: '⚖️', defaultUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920' },
 };
 
 interface SettingsProps {

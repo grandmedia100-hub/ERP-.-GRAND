@@ -26,7 +26,6 @@ interface NavModule {
   permission: string;
   targetPage: Page;
   subItems: NavSubItem[];
-  accountingSettingModule?: 'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse';
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -36,7 +35,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   isOpen = false,
   onClose,
-  onOpenAccountingSettings
 }) => {
   // Keep track of which module dropdowns are expanded
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
@@ -69,7 +67,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: '📈',
       permission: 'access_sales',
       targetPage: 'sales',
-      accountingSettingModule: 'sales',
       subItems: [
         { id: 'sales', label: 'فواتير ومرتجعات المبيعات', icon: '📄' },
         { id: 'quotations', label: 'عروض الأسعار', icon: '📝', permission: 'access_quotations' },
@@ -82,7 +79,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: '🛒',
       permission: 'access_purchases',
       targetPage: 'purchases',
-      accountingSettingModule: 'purchases',
       subItems: [
         { id: 'purchaseRequests', label: 'طلبات الشراء (PR)', icon: '📝', permission: 'access_purchase_requests' },
         { id: 'purchaseOrders', label: 'أوامر الشراء (PO)', icon: '📑', permission: 'access_purchase_orders' },
@@ -96,7 +92,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: '🏗️',
       permission: 'access_manufacturing',
       targetPage: 'manufacturing',
-      accountingSettingModule: 'manufacturing',
       subItems: [
         { id: 'manufacturing', label: 'أوامر التصنيع والتشغيل', icon: '📋' },
         { id: 'inventory', label: 'خامات ومستلزمات الإنتاج', icon: '📦', permission: 'access_inventory' },
@@ -108,7 +103,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: '🏭',
       permission: 'access_warehouse',
       targetPage: 'warehouse',
-      accountingSettingModule: 'warehouse',
       subItems: [
         { id: 'warehouse', label: 'إدارة المستودعات والجرد', icon: '🏢' },
         { id: 'inventory', label: 'بطاقات الأصناف والأسعار', icon: '🏷️', permission: 'access_inventory' },
@@ -121,7 +115,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: '🏦',
       permission: 'access_treasury',
       targetPage: 'treasury',
-      accountingSettingModule: 'treasury',
       subItems: [
         { id: 'treasury', label: 'سندات القبض والصرف', icon: '💵' },
       ]
@@ -146,6 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       targetPage: 'settings',
       subItems: [
         { id: 'settings', label: 'الإعدادات العامة والشركة', icon: '🛠️' },
+        { id: 'accountingSettings', label: 'إعدادات التوجيه المحاسبي', icon: '⚖️' },
         { id: 'users', label: 'المستخدمين والصلاحيات', icon: '👤', permission: 'manage_users' },
         { id: 'backup', label: 'النسخ الاحتياطي والأمان', icon: '💾', permission: 'manage_backup' },
         { id: 'auditLog', label: 'سجل العمليات والرقابة', icon: '🔍', permission: 'manage_users' },
@@ -237,19 +231,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {/* Gear button for Accounting Posting Settings */}
-                    {mod.accountingSettingModule && onOpenAccountingSettings && (hasPermission('manage_accounting_settings') || hasPermission('access_settings')) && (
-                      <button
-                        title="إعدادات التوجيه المحاسبي"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenAccountingSettings(mod.accountingSettingModule!);
-                        }}
-                        className={`p-1 rounded-lg transition-colors text-xs ${isModuleActive ? 'hover:bg-blue-700 text-blue-100' : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'}`}
-                      >
-                        ⚙️
-                      </button>
-                    )}
+                    <button
+                      title="فتح هذه الصفحة في نافذة مستقلة جديدة"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`/?page=${mod.targetPage}`, '_blank');
+                      }}
+                      className={`p-1 rounded-lg transition-colors text-xs opacity-0 group-hover:opacity-100 ${
+                        isModuleActive ? 'hover:bg-blue-700 text-blue-100' : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'
+                      }`}
+                    >
+                      ↗
+                    </button>
 
                     {/* Arrow for Dropdown */}
                     {hasSub && (
@@ -269,30 +262,33 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {mod.subItems.filter(s => hasPermission(s.permission)).map(sub => {
                       const isSubActive = activePage === sub.id;
                       return (
-                        <button
+                        <div
                           key={sub.id}
-                          onClick={() => handleSelectPage(sub.id as Page)}
-                          className={`w-full flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-right transition-all ${isSubActive
-                            ? 'bg-blue-100 text-blue-800 font-bold'
-                            : 'text-gray-600 hover:bg-white hover:text-blue-600'
-                          }`}
+                          className="flex items-center group justify-between gap-1"
                         >
-                          <span className="text-xs">{sub.icon}</span>
-                          <span>{sub.label}</span>
-                        </button>
+                          <button
+                            onClick={() => handleSelectPage(sub.id as Page)}
+                            className={`flex-1 flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-right transition-all ${isSubActive
+                              ? 'bg-blue-100 text-blue-800 font-bold'
+                              : 'text-gray-600 hover:bg-white hover:text-blue-600'
+                            }`}
+                          >
+                            <span className="text-xs">{sub.icon}</span>
+                            <span>{sub.label}</span>
+                          </button>
+                          <button
+                            title="فتح في نافذة مستقلة"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/?page=${sub.id}`, '_blank');
+                            }}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-white rounded transition-all text-xs"
+                          >
+                            ↗
+                          </button>
+                        </div>
                       );
                     })}
-
-                    {/* Quick Link to Module Accounting Settings inside dropdown as well */}
-                    {mod.accountingSettingModule && onOpenAccountingSettings && (hasPermission('manage_accounting_settings') || hasPermission('access_settings')) && (
-                      <button
-                        onClick={() => onOpenAccountingSettings(mod.accountingSettingModule!)}
-                        className="w-full flex items-center gap-2 py-1.5 px-3 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-50/80 transition-all border-t border-gray-100 mt-1"
-                      >
-                        <span className="text-xs">⚙️</span>
-                        <span>إعدادات التوجيه المحاسبي...</span>
-                      </button>
-                    )}
                   </div>
                 )}
               </div>

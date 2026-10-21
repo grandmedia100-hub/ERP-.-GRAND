@@ -1,5 +1,5 @@
 
-export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
+export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'accountingSettings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
 
 export type TreasuryAccountType = 'الخزينة الرئيسية' | 'انستاباى' | 'فودافون كاش' | 'بنك فيصل' | 'البنك الاهلى' | (string & {});
 

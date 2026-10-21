@@ -24,7 +24,7 @@ import UsersManagement from './components/UsersManagement.tsx';
 import AuditLog from './components/AuditLog.tsx';
 import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
-import ModuleAccountingSettingsModal from './components/ModuleAccountingSettingsModal.tsx';
+import AccountingSettingsPage from './components/AccountingSettingsPage.tsx';
 
 // Data Imports
 import * as initialData from './data.ts';
@@ -242,7 +242,38 @@ function checkAndFixDuplicates(invoices: any[]): any[] {
 // --- Main Component ---
 const App: React.FC = () => {
     // 1. All State Definitions
-    const [activePage, setActivePage] = useState<Page>('dashboard');
+    const getInitialPage = (): Page => {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pageParam = urlParams.get('page') as Page;
+            if (pageParam) return pageParam;
+            const hash = window.location.hash.replace('#', '') as Page;
+            if (hash) return hash;
+        } catch (e) {
+            // fallback
+        }
+        return 'dashboard';
+    };
+
+    const [activePage, setActivePage] = useState<Page>(getInitialPage);
+
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', activePage);
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {}
+    }, [activePage]);
+
+    useEffect(() => {
+        const handlePopState = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const page = (urlParams.get('page') || 'dashboard') as Page;
+            setActivePage(page);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
 
     // Multi-Branch State (Global)
     const [branches, setBranches] = useStickyState<{id: string, name: string}[]>([
@@ -330,12 +361,12 @@ const App: React.FC = () => {
             warehouse: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             treasury: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
             reports: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920',
+            accountingSettings: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
         }
     }, 'themeSettings');
 
     // Module Accounting Posting Settings
     const [postingSettings, setPostingSettings] = useStickyState<ModulePostingSettings>({}, 'modulePostingSettings');
-    const [activeSettingsModule, setActiveSettingsModule] = useState<'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse' | null>(null);
 
     const [salesInitialData, setSalesInitialData] = useState<Partial<SalesInvoice> | null>(null);
     const [manufacturingInitialOrder, setManufacturingInitialOrder] = useState<Partial<ProductionOrder> | null>(null);
@@ -470,6 +501,7 @@ const App: React.FC = () => {
             warehouse: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             treasury: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
             reports: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920',
+            accountingSettings: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
         };
         return defaultMap[page] || themeSettings.defaultBackgroundUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920';
     }, [themeSettings]);
@@ -561,7 +593,6 @@ const App: React.FC = () => {
                 branches={branches}
                 currentBranchId={currentBranchId}
                 postingSettings={postingSettings}
-                onOpenSettings={() => setActiveSettingsModule('sales')}
             />;
         }
         if (activePage === 'quotations' && hasPermission('access_quotations')) {
@@ -579,7 +610,6 @@ const App: React.FC = () => {
                 products={products}
                 onConvertToOrder={handleConvertPurchaseRequest}
                 onNavigate={(page) => setActivePage(page)}
-                onOpenSettings={() => setActiveSettingsModule('purchases')}
                 logAction={logAction}
             />;
         }
@@ -591,7 +621,6 @@ const App: React.FC = () => {
                 products={products}
                 onConvertToInvoice={handleConvertPurchaseOrder}
                 onNavigate={(page) => setActivePage(page)}
-                onOpenSettings={() => setActiveSettingsModule('purchases')}
                 logAction={logAction}
                 initialOrderData={initialPurchaseOrderData}
                 onClearInitialOrder={() => setInitialPurchaseOrderData(null)}
@@ -609,7 +638,6 @@ const App: React.FC = () => {
                 accounts={accounts} setAccounts={setAccounts}
                 currentBranchId={currentBranchId}
                 postingSettings={postingSettings}
-                onOpenSettings={() => setActiveSettingsModule('purchases')}
                 initialInvoiceData={initialPurchaseInvoiceData}
                 onClearInitialData={() => setInitialPurchaseInvoiceData(null)}
                 onNavigate={(page) => setActivePage(page)}
@@ -632,7 +660,6 @@ const App: React.FC = () => {
                 warehouses={warehouses} setWarehouses={setWarehouses}
                 accounts={accounts}
                 postingSettings={postingSettings}
-                onOpenSettings={() => setActiveSettingsModule('warehouse')}
             />;
         }
         if (activePage === 'journalEntries' && hasPermission('access_journal_entries')) {
@@ -665,7 +692,6 @@ const App: React.FC = () => {
                 initialOrderData={manufacturingInitialOrder}
                 onClearInitialData={() => setManufacturingInitialOrder(null)}
                 postingSettings={postingSettings}
-                onOpenSettings={() => setActiveSettingsModule('manufacturing')}
             />;
         }
         if (activePage === 'customers' && hasPermission('access_customers')) {
@@ -709,7 +735,6 @@ const App: React.FC = () => {
                 branches={branches}
                 currentBranchId={currentBranchId}
                 postingSettings={postingSettings}
-                onOpenSettings={() => setActiveSettingsModule('treasury')}
             />;
         }
         if (activePage === 'settings' && hasPermission('access_settings')) {
@@ -729,6 +754,14 @@ const App: React.FC = () => {
                 journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                 accounts={accounts} setAccounts={setAccounts}
                 postingSettings={postingSettings} setPostingSettings={setPostingSettings}
+            />;
+        }
+        if (activePage === 'accountingSettings' && (hasPermission('access_settings') || hasPermission('manage_accounting_settings'))) {
+            return <AccountingSettingsPage
+                accounts={accounts}
+                postingSettings={postingSettings}
+                setPostingSettings={setPostingSettings}
+                onNavigate={(page) => setActivePage(page)}
             />;
         }
         if (activePage === 'chartOfAccounts' && hasPermission('access_chart_of_accounts')) {
@@ -785,11 +818,20 @@ const App: React.FC = () => {
                     onLogout={() => setCurrentUser(null)}
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
-                    onOpenAccountingSettings={(mod) => setActiveSettingsModule(mod)}
                 />
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto relative flex flex-col">
                     <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-xl font-bold text-gray-800">MediaHive ERP</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-xl font-bold text-gray-800">MediaHive ERP</h1>
+                            <button
+                                onClick={() => window.open(`/?page=${activePage}`, '_blank')}
+                                className="bg-white/90 hover:bg-white text-gray-700 hover:text-blue-700 border border-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+                                title="فتح هذه الشاشة في نافذة جديدة مستقلة للعمل على أكثر من شاشة في نفس الوقت"
+                            >
+                                <span className="text-sm">↗️</span>
+                                <span className="hidden sm:inline">فتح في نافذة جديدة</span>
+                            </button>
+                        </div>
                         <div className="flex items-center gap-4">
                             <select 
                                 value={currentBranchId}
@@ -834,17 +876,6 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {activeSettingsModule && (
-                <ModuleAccountingSettingsModal
-                    isOpen={true}
-                    onClose={() => setActiveSettingsModule(null)}
-                    module={activeSettingsModule}
-                    accounts={accounts}
-                    settings={postingSettings}
-                    onSaveSettings={(newSettings) => setPostingSettings(newSettings)}
-                />
             )}
         </div>
     );
