@@ -779,7 +779,6 @@ const App: React.FC = () => {
                 purchaseInvoices={purchaseInvoices} setPurchaseInvoices={setPurchaseInvoices}
                 journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                 accounts={accounts} setAccounts={setAccounts}
-                postingSettings={postingSettings} setPostingSettings={setPostingSettings}
             />;
         }
         if (activePage === 'accountingSettings' && (hasPermission('access_settings') || hasPermission('manage_accounting_settings'))) {
