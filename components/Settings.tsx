@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { CompanyInfo, Customer, Supplier, Product, User, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, ThemeSettings } from '../types.ts';
+import type { CompanyInfo, Customer, Supplier, Product, User, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, ThemeSettings, ModulePostingSettings } from '../types.ts';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import OpeningBalancesModal from './OpeningBalancesModal.tsx';
 import ConnectionSettings from './ConnectionSettings.tsx';
+import { defaultSettingsValues, moduleTabs } from './ModuleAccountingSettingsModal.tsx';
 
 const WALLPAPER_PRESETS = [
   { id: 'office', name: 'أبراج وأعمال حديثة', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920' },
@@ -61,6 +62,8 @@ interface SettingsProps {
   accounts: Account[];
   setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
   expenses?: any[];
+  postingSettings?: ModulePostingSettings;
+  setPostingSettings?: React.Dispatch<React.SetStateAction<ModulePostingSettings>>;
 }
 
 const Settings: React.FC<SettingsProps> = ({
@@ -83,7 +86,9 @@ const Settings: React.FC<SettingsProps> = ({
   setJournalEntries,
   accounts,
   setAccounts,
-  expenses = []
+  expenses = [],
+  postingSettings = {},
+  setPostingSettings,
 }) => {
   // --- State for Company Info ---
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
@@ -149,6 +154,48 @@ const Settings: React.FC<SettingsProps> = ({
       }));
       setSuccessMessage('تمت استعادة الخلفيات الافتراضية بنجاح');
       setTimeout(() => setSuccessMessage(''), 3000);
+    }
+  };
+
+  // --- Accounting Posting Settings State ---
+  const [postingCurrentTab, setPostingCurrentTab] = useState<'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse' | 'all'>('sales');
+  const [postingFormData, setPostingFormData] = useState<ModulePostingSettings>({
+    ...defaultSettingsValues,
+    ...(postingSettings || {})
+  });
+  const [postingAccountFilter, setPostingAccountFilter] = useState('');
+  const [postingSuccessMessage, setPostingSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (postingSettings && Object.keys(postingSettings).length > 0) {
+      setPostingFormData(prev => ({
+        ...defaultSettingsValues,
+        ...postingSettings
+      }));
+    }
+  }, [postingSettings]);
+
+  const handlePostingChange = (field: keyof ModulePostingSettings, value: string) => {
+    setPostingFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSavePosting = () => {
+    if (setPostingSettings) {
+      setPostingSettings(postingFormData);
+    }
+    setPostingSuccessMessage('تم حفظ وتطبيق توجيهات القيود المحاسبية بنجاح لكافة الصفحات');
+    setTimeout(() => setPostingSuccessMessage(''), 4000);
+  };
+
+  const handleResetPostingDefaults = () => {
+    if (window.confirm('هل تريد استعادة جميع الحسابات المحاسبية الافتراضية للنظام؟')) {
+      const reset = { ...defaultSettingsValues };
+      setPostingFormData(reset);
+      if (setPostingSettings) {
+        setPostingSettings(reset);
+      }
+      setPostingSuccessMessage('تمت استعادة حسابات التوجيه المحاسبي الافتراضية بنجاح');
+      setTimeout(() => setPostingSuccessMessage(''), 4000);
     }
   };
   // fileInputRef was for backup restore, not needed here anymore, removing refs to it if any remain
@@ -534,6 +581,56 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
+  const selectablePostingAccounts = accounts.filter(a => !a.isGroup);
+  const filteredPostingAccounts = postingAccountFilter.trim()
+    ? selectablePostingAccounts.filter(a =>
+        (a.name || '').toLowerCase().includes(postingAccountFilter.toLowerCase()) ||
+        (a.code || '').toLowerCase().includes(postingAccountFilter.toLowerCase())
+      )
+    : selectablePostingAccounts;
+
+  const renderPostingAccountField = (
+    label: string,
+    field: keyof ModulePostingSettings,
+    defaultAccId: string,
+    description: string,
+    badgeColor: string = 'text-blue-600'
+  ) => {
+    const currentValue = postingFormData[field] || defaultAccId;
+    const currentAccount = accounts.find(a => a.id === currentValue);
+
+    return (
+      <div className="bg-slate-50/80 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-colors">
+        <div className="flex justify-between items-center mb-1.5 flex-wrap gap-1">
+          <label className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+            <span>{label}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-gray-700 border font-mono ${badgeColor}`}>
+              الافتراضي: {defaultAccId}
+            </span>
+          </label>
+          {currentAccount && (
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+              {currentAccount.code} - {currentAccount.name}
+            </span>
+          )}
+        </div>
+
+        <select
+          value={currentValue}
+          onChange={e => handlePostingChange(field, e.target.value)}
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-xs font-semibold bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+        >
+          {filteredPostingAccounts.map(a => (
+            <option key={a.id} value={a.id}>
+              {a.code} - {a.name} ({a.type === 'Asset' || a.type === 'مدين' ? 'أصول/مدين' : 'خصوم/دائن'})
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{description}</p>
+      </div>
+    );
+  };
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-main mb-6">الإعدادات والنسخ الاحتياطي</h1>
@@ -626,6 +723,190 @@ const Settings: React.FC<SettingsProps> = ({
           </button>
         </div>
         {successMessage && <p className="text-green-600 mt-2 text-center font-bold">{successMessage}</p>}
+      </div>
+
+      {/* Module Accounting Posting Settings Section */}
+      <div className="bg-theme-card p-8 rounded-xl shadow-md max-w-3xl mx-auto mb-8 relative overflow-hidden text-right border-2 border-blue-500/30">
+        <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs px-2.5 py-1 rounded-bl-lg font-bold">
+          محاسبة متقدمة
+        </div>
+        
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl p-2 bg-blue-100 dark:bg-blue-950 text-blue-700 rounded-xl">⚙️</span>
+            <div>
+              <h2 className="text-xl font-bold text-main">
+                إعدادات التوجيه والترحيل المحاسبي
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                توجيه قيود اليومية التلقائية وتحديد الحسابات لكل موديول في النظام
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleResetPostingDefaults}
+              className="text-xs text-gray-500 hover:text-red-600 border border-gray-300 dark:border-gray-600 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1"
+            >
+              <span>🔄</span>
+              <span>استعادة الافتراضيات</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePosting}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg shadow-sm flex items-center gap-1 transition-all"
+            >
+              <span>💾</span>
+              <span>حفظ التوجيهات</span>
+            </button>
+          </div>
+        </div>
+
+        {postingSuccessMessage && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 px-4 py-2 rounded-xl font-bold text-xs mb-4 text-center">
+            ✓ {postingSuccessMessage}
+          </div>
+        )}
+
+        {/* Module Switcher Tabs */}
+        <div className="flex flex-wrap gap-1.5 mb-4 p-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl">
+          {moduleTabs.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setPostingCurrentTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                postingCurrentTab === t.id
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700'
+              }`}
+            >
+              <span>{t.icon}</span>
+              <span>{t.title}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Quick Search inside Accounts */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="🔍 تصفية الحسابات بالاسم أو الكود لتسهيل الاختيار..."
+            value={postingAccountFilter}
+            onChange={e => setPostingAccountFilter(e.target.value)}
+            className="w-full text-xs p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-right focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+
+        {/* Tab Content Fields */}
+        <div className="space-y-6">
+          {/* Sales Tab */}
+          {(postingCurrentTab === 'sales' || postingCurrentTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-lg">📈</span>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">توجيهات موديول المبيعات (فواتير، عروض، مرتجعات)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderPostingAccountField('حساب العملاء (المدينون)', 'salesReceivablesAccountId', '1103', 'يُسجل مديناً بإجمالي الفاتورة الآجلة أو دائناً بالمرتجع')}
+                {renderPostingAccountField('حساب إيرادات المبيعات', 'salesRevenueAccountId', '4101', 'يُسجل دائناً بقيمة المبيعات المحققة')}
+                {renderPostingAccountField('حساب مرتجعات ومسموحات المبيعات', 'salesReturnsAccountId', '4102', 'يُسجل مديناً عند عمل مرتجع بيع أو إلغاء فاتورة')}
+                {renderPostingAccountField('حساب تكلفة البضاعة المباعة (COGS)', 'salesCogsAccountId', '5101', 'يُسجل مديناً بتكلفة الأصناف المباعة وفق الجرد المستمر')}
+                {renderPostingAccountField('حساب المخزون الافتراضي للمبيعات', 'salesDefaultInventoryAccountId', '1104', 'يُسجل دائناً بتكلفة الأصناف المباعة لخفض المخزون')}
+                {renderPostingAccountField('حساب ضريبة القيمة المضافة المحصلة', 'salesVatAccountId', '2105', 'حساب وسيط لضريبة المبيعات المحصلة لصالح الضرائب')}
+                {renderPostingAccountField('حساب الخصم المسموح به', 'salesDiscountAccountId', '5301', 'يُسجل مديناً عند منح خصم تجاري أو تعجيلي للعميل')}
+              </div>
+            </div>
+          )}
+
+          {/* Purchases Tab */}
+          {(postingCurrentTab === 'purchases' || postingCurrentTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-lg">🛒</span>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">توجيهات موديول المشتريات (فواتير، طلبات، أوامر)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderPostingAccountField('حساب الموردين (الدائنون)', 'purchasePayablesAccountId', '2101', 'يُسجل دائناً بإجمالي فاتورة الشراء الآجلة أو مديناً بالمرتجع')}
+                {renderPostingAccountField('حساب مخزون الخامات والمشتريات', 'purchaseDefaultInventoryAccountId', '110401', 'يُسجل مديناً بقيمة المواد المشتراة لزيادة رصيد المخزون')}
+                {renderPostingAccountField('حساب مصروفات المشتريات والشحن', 'purchaseExpensesAccountId', '5201', 'حساب التكلفة للبنود الخدمية والمصروفات المصاحبة للشراء')}
+                {renderPostingAccountField('حساب ضريبة القيمة المضافة مدخلات', 'purchaseVatAccountId', '1106', 'حساب ضريبة المشتريات القابلة للخصم والاسترداد')}
+                {renderPostingAccountField('حساب الخصم المكتسب من الموردين', 'purchaseDiscountAccountId', '4202', 'يُسجل دائناً بقيمة الخصومات المكتسبة من الموردين')}
+                {renderPostingAccountField('حساب اعتمادات وبضاعة بالطريق', 'purchaseGoodsInTransitAccountId', '110404', 'للتوريدات المؤجلة قبل وصولها الفعلي للمخازن')}
+              </div>
+            </div>
+          )}
+
+          {/* Manufacturing Tab */}
+          {(postingCurrentTab === 'manufacturing' || postingCurrentTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-lg">🏗️</span>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">توجيهات موديول التصنيع والتشغيل والأوامر</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderPostingAccountField('حساب الإنتاج تحت التشغيل (WIP)', 'mfgWipAccountId', '110402', 'يُحمل بجميع تكاليف المواد والمصنعيات والمصروفات أثناء التصنيع')}
+                {renderPostingAccountField('حساب مخزون الخامات المستهلكة', 'mfgRawMaterialAccountId', '110401', 'يُسجل دائناً بتكلفة الخامات المنصرفة لأمر الإنتاج')}
+                {renderPostingAccountField('حساب مخزون الإنتاج التام النهائي', 'mfgFinishedGoodsAccountId', '110403', 'يُسجل مديناً بالتكلفة الإجمالية للمنتج النهائي التام')}
+                {renderPostingAccountField('حساب مصنعيات الغير ومقاولي الباطن', 'mfgSubcontractorAccountId', '2101', 'يُسجل دائناً بتكلفة العمليات الخارجية المنفذة لدى الغير')}
+                {renderPostingAccountField('حساب خسائر وهالك الإنتاج (Scrap)', 'mfgScrapLossAccountId', '5203', 'يُسجل مديناً بتكلفة الهالك والتالف الخارج عن المعدلات الطبيعية')}
+                {renderPostingAccountField('حساب أجور ومصروفات التشغيل المباشرة', 'mfgDirectLaborAccountId', '5102', 'أجور عمال الإنتاج وتكاليف التشغيل المحملة على الأمر')}
+                {renderPostingAccountField('حساب المصروفات الصناعية غير المباشرة', 'mfgDefaultExpenseAccountId', '5201', 'الكهرباء والصيانة والمصروفات الخدمية للمصنع')}
+              </div>
+            </div>
+          )}
+
+          {/* Treasury Tab */}
+          {(postingCurrentTab === 'treasury' || postingCurrentTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-lg">🏦</span>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">توجيهات موديول الخزينة والبنوك وحركات النقدية</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderPostingAccountField('حساب الخزينة النقدية الرئيسية', 'treasuryMainCashAccountId', '1101', 'الحساب النقدي لصندوق النقدية الرئيسي')}
+                {renderPostingAccountField('حساب البنك الرئيسي', 'treasuryBankAccountId', '1102', 'حساب المعاملات البنكية والشيكات')}
+                {renderPostingAccountField('حساب المحافظ الإلكترونية (فودافون كاش)', 'treasuryVodafoneCashAccountId', '1106', 'حساب المعاملات النقدية عبر محافظ الهواتف')}
+                {renderPostingAccountField('حساب شبكة المدفوعات اللحظية (إنستاباي)', 'treasuryInstapayAccountId', '1107', 'حساب التحويلات الفورية اللحظية')}
+                {renderPostingAccountField('حساب مصاريف وعمولات بنكية', 'treasuryBankFeesAccountId', '5201', 'يُحمل بالعمولات والمصاريف الإدارية المقتطعة')}
+                {renderPostingAccountField('حساب جاري الشركاء الافتراضي', 'treasuryPartnerCurrentAccountId', '3102', 'مسحوبات وإيداعات الشركاء والتمويلات الشخصية')}
+              </div>
+            </div>
+          )}
+
+          {/* Warehouse & Assets Tab */}
+          {(postingCurrentTab === 'warehouse' || postingCurrentTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-lg">🏭</span>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">توجيهات المخازن والتسويات الجردية والأصول الثابتة</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderPostingAccountField('حساب عجز الجرد والتسويات السالبة', 'inventoryAdjustmentLossAccountId', '5201', 'يُسجل مديناً بقيمة العجز والتلف المخزني المكتشف أثناء الجرد')}
+                {renderPostingAccountField('حساب فائض الجرد والتسويات الموجبة', 'inventoryAdjustmentGainAccountId', '4201', 'يُسجل دائناً كإيراد رأس مالي ناتج عن الزيادات الجردية')}
+                {renderPostingAccountField('حساب مجمع إهلاك الأصول الثابتة', 'fixedAssetsAccumDepreciationAccountId', '1202', 'حساب الخصوم المقابل للأصول لتراكم الإهلاك السنوي')}
+                {renderPostingAccountField('حساب مصروف إهلاك الأصول الثابتة', 'fixedAssetsDepreciationExpenseAccountId', '5204', 'يُسجل مديناً ضمن مصروفات الفترة بقسط الإهلاك الدفتري')}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section Bottom Button */}
+        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-3">
+          <span className="text-[11px] text-gray-400">
+            * تنطبق هذه الحسابات فوراً على كافة الفواتير وسندات الصرف والقبض والتشغيل التي يتم إنشاؤها لاحقاً.
+          </span>
+          <button
+            type="button"
+            onClick={handleSavePosting}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-all"
+          >
+            <span>💾</span>
+            <span>حفظ وتطبيق التوجيهات المحاسبية</span>
+          </button>
+        </div>
       </div>
 
 

@@ -12,7 +12,7 @@ interface ModuleAccountingSettingsModalProps {
 
 type TabType = 'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse' | 'all';
 
-const moduleTabs: { id: TabType; title: string; icon: string }[] = [
+export const moduleTabs: { id: TabType; title: string; icon: string }[] = [
   { id: 'sales', title: 'المبيعات', icon: '📈' },
   { id: 'purchases', title: 'المشتريات', icon: '🛒' },
   { id: 'manufacturing', title: 'التصنيع والتشغيل', icon: '🏗️' },
@@ -21,7 +21,7 @@ const moduleTabs: { id: TabType; title: string; icon: string }[] = [
   { id: 'all', title: 'شامل كل الصفحات', icon: '📑' }
 ];
 
-const defaultSettingsValues: ModulePostingSettings = {
+export const defaultSettingsValues: ModulePostingSettings = {
   salesReceivablesAccountId: '1103',
   salesRevenueAccountId: '4101',
   salesReturnsAccountId: '4102',

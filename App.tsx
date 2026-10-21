@@ -728,6 +728,7 @@ const App: React.FC = () => {
                 purchaseInvoices={purchaseInvoices} setPurchaseInvoices={setPurchaseInvoices}
                 journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                 accounts={accounts} setAccounts={setAccounts}
+                postingSettings={postingSettings} setPostingSettings={setPostingSettings}
             />;
         }
         if (activePage === 'chartOfAccounts' && hasPermission('access_chart_of_accounts')) {
