@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { SalesInvoice, CompanyInfo, Customer, Product, CustomerPayment, StockTransaction } from '../types.ts';
+import type { SalesInvoice, CompanyInfo, Customer, Product, CustomerPayment, StockTransaction, ModulePostingSettings } from '../types.ts';
 import AddSalesInvoiceModal from './AddSalesInvoiceModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import { exportToExcel } from '../utils/exportToExcel.ts'; // Import
@@ -24,9 +24,11 @@ interface SalesProps {
   accounts: any[];
   branches?: { id: string; name: string }[];
   currentBranchId?: string;
+  postingSettings?: ModulePostingSettings;
+  onOpenSettings?: () => void;
 }
 
-const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, products, setProducts, stockTransactions, setStockTransactions, customerPayments, createJournalEntry, logAction, initialInvoiceData, onClearInitialData, currentUser, deleteJournalEntryByReference, accounts, branches, currentBranchId }) => {
+const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, products, setProducts, stockTransactions, setStockTransactions, customerPayments, createJournalEntry, logAction, initialInvoiceData, onClearInitialData, currentUser, deleteJournalEntryByReference, accounts, branches, currentBranchId, postingSettings, onOpenSettings }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<SalesInvoice | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -266,19 +268,28 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
       const product = products.find(p => p.id === item.productId);
       const whId = product?.warehouseId || 'WH-0001';
       const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-      const accId = whAcc ? whAcc.id : '1104';
+      const accId = whAcc ? whAcc.id : (postingSettings?.salesDefaultInventoryAccountId || '1104');
       
       inventoryGroups[accId] = (inventoryGroups[accId] || 0) + itemCost;
     });
 
+    const recAccountId = postingSettings?.salesReceivablesAccountId || '1103';
+    const recAccountName = accounts.find(a => a.id === recAccountId)?.name || 'العملاء (المدينون)';
+    const revAccountId = postingSettings?.salesRevenueAccountId || '4101';
+    const revAccountName = accounts.find(a => a.id === revAccountId)?.name || 'إيرادات المبيعات';
+    const retAccountId = postingSettings?.salesReturnsAccountId || '4102';
+    const retAccountName = accounts.find(a => a.id === retAccountId)?.name || 'مرتجعات ومسموحات المبيعات';
+    const cogsAccountId = postingSettings?.salesCogsAccountId || '5101';
+    const cogsAccountName = accounts.find(a => a.id === cogsAccountId)?.name || 'تكلفة البضاعة المباعة';
+
     if (type === 'sale') {
       const lines = [
-        { accountId: '1103', accountName: 'العملاء (المدينون)', debit: newInvoice.total, credit: 0 },
-        { accountId: '4101', accountName: 'إيرادات المبيعات', debit: 0, credit: newInvoice.total }
+        { accountId: recAccountId, accountName: recAccountName, debit: newInvoice.total, credit: 0 },
+        { accountId: revAccountId, accountName: revAccountName, debit: 0, credit: newInvoice.total }
       ];
 
       if (totalCost > 0) {
-        lines.push({ accountId: '5101', accountName: 'تكلفة البضاعة المباعة', debit: totalCost, credit: 0 });
+        lines.push({ accountId: cogsAccountId, accountName: cogsAccountName, debit: totalCost, credit: 0 });
         for (const [accId, amt] of Object.entries(inventoryGroups)) {
           const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
           lines.push({ accountId: accId, accountName: accName, debit: 0, credit: amt });
@@ -294,12 +305,12 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
       });
       if (!isEdit) logAction(`إضافة فاتورة بيع جديدة رقم ${newId} للعميل ${customerName}`);
     } else {
-      // Return Logic: Reverse entries (Debit Sales Returns/Revenue, Credit Customer)
+      // Return Logic: Reverse entries (Debit Sales Returns, Credit Customer)
       // AND Reverse COGS (Debit Inventory, Credit COGS)
 
       const lines = [
-        { accountId: '4101', accountName: 'مرتجعات مبيعات', debit: newInvoice.total, credit: 0 },
-        { accountId: '1103', accountName: 'العملاء (المدينون)', debit: 0, credit: newInvoice.total }
+        { accountId: retAccountId, accountName: retAccountName, debit: newInvoice.total, credit: 0 },
+        { accountId: recAccountId, accountName: recAccountName, debit: 0, credit: newInvoice.total }
       ];
 
       if (totalCost > 0) {
@@ -307,7 +318,7 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
           const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
           lines.push({ accountId: accId, accountName: accName, debit: amt, credit: 0 });
         }
-        lines.push({ accountId: '5101', accountName: 'تكلفة البضاعة المباعة', debit: 0, credit: totalCost });
+        lines.push({ accountId: cogsAccountId, accountName: cogsAccountName, debit: 0, credit: totalCost });
       }
 
       createJournalEntry({
@@ -392,14 +403,21 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
           const product = products.find(p => p.id === item.productId);
           const whId = product?.warehouseId || 'WH-0001';
           const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-          const accId = whAcc ? whAcc.id : '1104';
+          const accId = whAcc ? whAcc.id : (postingSettings?.salesDefaultInventoryAccountId || '1104');
           inventoryGroups[accId] = (inventoryGroups[accId] || 0) + itemCost;
         });
 
-        // Use contra-revenue account 4102 for sales returns/voids
+        const recAccountId = postingSettings?.salesReceivablesAccountId || '1103';
+        const recAccountName = accounts.find(a => a.id === recAccountId)?.name || 'العملاء (المدينون)';
+        const retAccountId = postingSettings?.salesReturnsAccountId || '4102';
+        const retAccountName = accounts.find(a => a.id === retAccountId)?.name || 'مرتجعات ومخصومات المبيعات (إلغاء)';
+        const cogsAccountId = postingSettings?.salesCogsAccountId || '5101';
+        const cogsAccountName = accounts.find(a => a.id === cogsAccountId)?.name || 'تكلفة البضاعة المباعة';
+
+        // Use contra-revenue account for sales returns/voids
         const lines = [
-          { accountId: '4102', accountName: 'مرتجعات ومخصومات المبيعات (إلغاء)', debit: invoice.total, credit: 0 },
-          { accountId: '1103', accountName: 'العملاء (المدينون)', debit: 0, credit: invoice.total }
+          { accountId: retAccountId, accountName: retAccountName, debit: invoice.total, credit: 0 },
+          { accountId: recAccountId, accountName: recAccountName, debit: 0, credit: invoice.total }
         ];
 
         if (totalCost > 0) {
@@ -407,7 +425,7 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
             const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
             lines.push({ accountId: accId, accountName: accName, debit: amt, credit: 0 });
           }
-          lines.push({ accountId: '5101', accountName: 'تكلفة البضاعة المباعة', debit: 0, credit: totalCost });
+          lines.push({ accountId: cogsAccountId, accountName: cogsAccountName, debit: 0, credit: totalCost });
         }
 
         createJournalEntry({
@@ -763,7 +781,17 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-main">فواتير المبيعات</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="bg-white border border-gray-300 text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+              title="إعدادات التوجيه المحاسبي لموديول المبيعات"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">إعدادات التوجيه</span>
+            </button>
+          )}
           <button
             onClick={() => handlePrintFilteredReport()}
             className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 flex items-center space-x-2 space-x-reverse shadow-sm"

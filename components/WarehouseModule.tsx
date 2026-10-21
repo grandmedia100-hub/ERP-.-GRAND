@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Product, StockTransaction, Warehouse } from '../types.ts';
+import type { Product, StockTransaction, Warehouse, ModulePostingSettings } from '../types.ts';
 import ExcelImportModal from './ExcelImportModal.tsx';
 
 interface WarehouseModuleProps {
@@ -12,13 +12,15 @@ interface WarehouseModuleProps {
     warehouses: Warehouse[];
     setWarehouses: React.Dispatch<React.SetStateAction<Warehouse[]>>;
     accounts: any[];
+    postingSettings?: ModulePostingSettings;
+    onOpenSettings?: () => void;
 }
 
 type Tab = 'products' | 'stock_card' | 'adjustments' | 'physical_count' | 'warehouses';
 
 const WarehouseModule: React.FC<WarehouseModuleProps> = ({
     products, setProducts, stockTransactions, setStockTransactions, createJournalEntry, logAction,
-    warehouses, setWarehouses, accounts
+    warehouses, setWarehouses, accounts, postingSettings, onOpenSettings
 }) => {
     const [activeTab, setActiveTab] = useState<Tab>('products');
 
@@ -212,15 +214,19 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
         // Journal Entry
         const whId = product.warehouseId || 'WH-0001';
         const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-        const invAccId = whAcc ? whAcc.id : '1104';
+        const invAccId = whAcc ? whAcc.id : (postingSettings?.salesDefaultInventoryAccountId || '1104');
         const invAccName = whAcc ? whAcc.name : 'المخزون';
+        const gainAccId = postingSettings?.inventoryAdjustmentGainAccountId || '4201';
+        const gainAccName = accounts.find(a => a.id === gainAccId)?.name || 'إيرادات أخرى / فروق جرد';
+        const lossAccId = postingSettings?.inventoryAdjustmentLossAccountId || '5201';
+        const lossAccName = accounts.find(a => a.id === lossAccId)?.name || 'خسائر / هالك / فروق جرد';
 
         if (isIn) {
             createJournalEntry({
                 description: `إذن إضافة مخزون - ${product.name} - ${adjForm.notes || ''}`,
                 lines: [
                     { accountId: invAccId, accountName: invAccName, debit: qty * cost, credit: 0 },
-                    { accountId: '4201', accountName: 'إيرادات أخرى / فروق جرد', debit: 0, credit: qty * cost },
+                    { accountId: gainAccId, accountName: gainAccName, debit: 0, credit: qty * cost },
                 ],
                 referenceType: 'Manual', referenceId: txId, date: adjForm.date,
             });
@@ -228,7 +234,7 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
             createJournalEntry({
                 description: `إذن صرف مخزون - ${product.name} - ${adjForm.notes || ''}`,
                 lines: [
-                    { accountId: '5201', accountName: 'خسائر / هالك / فروق جرد', debit: qty * cost, credit: 0 },
+                    { accountId: lossAccId, accountName: lossAccName, debit: qty * cost, credit: 0 },
                     { accountId: invAccId, accountName: invAccName, debit: 0, credit: qty * cost },
                 ],
                 referenceType: 'Manual', referenceId: txId, date: adjForm.date,
@@ -281,15 +287,19 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
 
             const whId = product.warehouseId || 'WH-0001';
             const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-            const invAccId = whAcc ? whAcc.id : '1104';
+            const invAccId = whAcc ? whAcc.id : (postingSettings?.salesDefaultInventoryAccountId || '1104');
             const invAccName = whAcc ? whAcc.name : 'المخزون';
+            const gainAccId = postingSettings?.inventoryAdjustmentGainAccountId || '4201';
+            const gainAccName = accounts.find(a => a.id === gainAccId)?.name || 'فروق جرد دائنة';
+            const lossAccId = postingSettings?.inventoryAdjustmentLossAccountId || '5201';
+            const lossAccName = accounts.find(a => a.id === lossAccId)?.name || 'فروق جرد مدينة';
 
             const value = Math.abs(diffQty) * cost;
             if (diffQty > 0) {
                 journalLines.push({ accountId: invAccId, accountName: invAccName, debit: value, credit: 0 });
-                journalLines.push({ accountId: '4201', accountName: 'فروق جرد دائنة', debit: 0, credit: value });
+                journalLines.push({ accountId: gainAccId, accountName: gainAccName, debit: 0, credit: value });
             } else {
-                journalLines.push({ accountId: '5201', accountName: 'فروق جرد مدينة', debit: value, credit: 0 });
+                journalLines.push({ accountId: lossAccId, accountName: lossAccName, debit: value, credit: 0 });
                 journalLines.push({ accountId: invAccId, accountName: invAccName, debit: 0, credit: value });
             }
         });
@@ -403,7 +413,19 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
         <div className="space-y-4">
             {/* Header */}
             <div className="flex flex-wrap justify-between items-center gap-4">
-                <h1 className="text-3xl font-bold text-gray-800">🏭 إدارة المخازن</h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-3xl font-bold text-gray-800">🏭 إدارة المخازن</h1>
+                    {onOpenSettings && (
+                        <button
+                            onClick={onOpenSettings}
+                            className="bg-white border border-gray-300 text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+                            title="إعدادات التوجيه المحاسبي لموديول المخازن"
+                        >
+                            <span>⚙️</span>
+                            <span className="hidden sm:inline">إعدادات التوجيه</span>
+                        </button>
+                    )}
+                </div>
                 <div className="flex gap-3">
                     <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-2 text-center">
                         <div className="text-xs text-purple-500 font-medium">المخازن النشطة</div>

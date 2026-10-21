@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Page, User } from '../types.ts';
 
 interface SidebarProps {
@@ -8,101 +8,315 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
+  onOpenAccountingSettings?: (module: 'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse') => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentUser, onLogout, isOpen = false, onClose }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'الرئيسية', icon: '🏠', permission: 'access_dashboard' },
-    { id: 'sales', label: 'المبيعات', icon: '📈', permission: 'access_sales' },
-    { id: 'purchases', label: 'المشتريات', icon: '🛒', permission: 'access_purchases' },
-    { id: 'manufacturing', label: 'التصنيع', icon: '🏗️', permission: 'access_manufacturing' },
-    { id: 'warehouse', label: 'إدارة المخازن', icon: '🏭', permission: 'access_warehouse' },
-    { id: 'inventory', label: 'الأصناف', icon: '📦', permission: 'access_inventory' },
-    { id: 'fixedAssets', label: 'الأصول الثابتة', icon: '🏢', permission: 'access_fixed_assets' },
-    { id: 'customers', label: 'العملاء', icon: '👥', permission: 'access_customers' },
-    { id: 'suppliers', label: 'الموردين', icon: '🚛', permission: 'access_suppliers' },
-    { id: 'chartOfAccounts', label: 'شجرة الحسابات', icon: '📂', permission: 'access_chart_of_accounts' },
-    { id: 'journalEntries', label: 'القيود المحاسبية', icon: '📒', permission: 'access_journal_entries' },
-    { id: 'treasury', label: 'الخزينة والبنوك', icon: '🏦', permission: 'access_treasury' },
-    { id: 'reports', label: 'التقارير', icon: '📄', permission: 'access_reports' },
-    { id: 'quotations', label: 'عروض الأسعار', icon: '📝', permission: 'access_quotations' },
-    { id: 'settings', label: 'الإعدادات', icon: '⚙️', permission: 'access_settings' },
-    { id: 'backup', label: 'النسخ الاحتياطي', icon: '💾', permission: 'manage_backup' },
+interface NavSubItem {
+  id: Page | string;
+  label: string;
+  icon: string;
+  permission?: string;
+  onClick?: () => void;
+}
+
+interface NavModule {
+  id: string;
+  label: string;
+  icon: string;
+  permission: string;
+  targetPage: Page;
+  subItems: NavSubItem[];
+  accountingSettingModule?: 'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse';
+}
+
+const Sidebar: React.FC<SidebarProps> = ({
+  activePage,
+  setActivePage,
+  currentUser,
+  onLogout,
+  isOpen = false,
+  onClose,
+  onOpenAccountingSettings
+}) => {
+  // Keep track of which module dropdowns are expanded
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
+    sales: true,
+    purchases: true,
+    manufacturing: true,
+    warehouse: false,
+    treasury: false,
+    finance: false,
+    settings: false,
+  });
+
+  const toggleModule = (modId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
+  };
+
+  const navModules: NavModule[] = [
+    {
+      id: 'dashboard',
+      label: 'الرئيسية',
+      icon: '🏠',
+      permission: 'access_dashboard',
+      targetPage: 'dashboard',
+      subItems: []
+    },
+    {
+      id: 'sales',
+      label: 'المبيعات',
+      icon: '📈',
+      permission: 'access_sales',
+      targetPage: 'sales',
+      accountingSettingModule: 'sales',
+      subItems: [
+        { id: 'sales', label: 'فواتير ومرتجعات المبيعات', icon: '📄' },
+        { id: 'quotations', label: 'عروض الأسعار', icon: '📝', permission: 'access_quotations' },
+        { id: 'customers', label: 'العملاء وحساباتهم', icon: '👥', permission: 'access_customers' },
+      ]
+    },
+    {
+      id: 'purchases',
+      label: 'المشتريات',
+      icon: '🛒',
+      permission: 'access_purchases',
+      targetPage: 'purchases',
+      accountingSettingModule: 'purchases',
+      subItems: [
+        { id: 'purchases', label: 'فواتير المشتريات والمرتجعات', icon: '🧾' },
+        { id: 'suppliers', label: 'الموردين وحساباتهم', icon: '🚛', permission: 'access_suppliers' },
+      ]
+    },
+    {
+      id: 'manufacturing',
+      label: 'التصنيع والتشغيل',
+      icon: '🏗️',
+      permission: 'access_manufacturing',
+      targetPage: 'manufacturing',
+      accountingSettingModule: 'manufacturing',
+      subItems: [
+        { id: 'manufacturing', label: 'أوامر التصنيع والتشغيل', icon: '📋' },
+        { id: 'inventory', label: 'خامات ومستلزمات الإنتاج', icon: '📦', permission: 'access_inventory' },
+      ]
+    },
+    {
+      id: 'warehouse',
+      label: 'المخازن والأصناف',
+      icon: '🏭',
+      permission: 'access_warehouse',
+      targetPage: 'warehouse',
+      accountingSettingModule: 'warehouse',
+      subItems: [
+        { id: 'warehouse', label: 'إدارة المستودعات والجرد', icon: '🏢' },
+        { id: 'inventory', label: 'بطاقات الأصناف والأسعار', icon: '🏷️', permission: 'access_inventory' },
+        { id: 'fixedAssets', label: 'الأصول والآلات الثابتة', icon: '⚙️', permission: 'access_fixed_assets' },
+      ]
+    },
+    {
+      id: 'treasury',
+      label: 'الخزينة والبنوك',
+      icon: '🏦',
+      permission: 'access_treasury',
+      targetPage: 'treasury',
+      accountingSettingModule: 'treasury',
+      subItems: [
+        { id: 'treasury', label: 'سندات القبض والصرف', icon: '💵' },
+      ]
+    },
+    {
+      id: 'finance',
+      label: 'الحسابات العامة',
+      icon: '📂',
+      permission: 'access_chart_of_accounts',
+      targetPage: 'chartOfAccounts',
+      subItems: [
+        { id: 'chartOfAccounts', label: 'دليل شجرة الحسابات', icon: '🌳' },
+        { id: 'journalEntries', label: 'دفتر القيود اليومية', icon: '📒', permission: 'access_journal_entries' },
+        { id: 'reports', label: 'التقارير والقوائم المالية', icon: '📊', permission: 'access_reports' },
+      ]
+    },
+    {
+      id: 'settings',
+      label: 'النظام والإعدادات',
+      icon: '⚙️',
+      permission: 'access_settings',
+      targetPage: 'settings',
+      subItems: [
+        { id: 'settings', label: 'الإعدادات العامة والشركة', icon: '🛠️' },
+        { id: 'users', label: 'المستخدمين والصلاحيات', icon: '👤', permission: 'manage_users' },
+        { id: 'backup', label: 'النسخ الاحتياطي والأمان', icon: '💾', permission: 'manage_backup' },
+        { id: 'auditLog', label: 'سجل العمليات والرقابة', icon: '🔍', permission: 'manage_users' },
+      ]
+    }
   ];
 
-  const filteredMenuItems = menuItems.filter(item =>
-    currentUser?.permissions.includes(item.permission as any) || currentUser?.role === 'admin' || currentUser?.role === 'developer'
-  );
+  const hasPermission = (permission?: string) => {
+    if (!permission) return true;
+    if (currentUser?.role === 'admin' || currentUser?.role === 'developer') return true;
+    return currentUser?.permissions?.includes(permission as any) || false;
+  };
+
+  const filteredModules = navModules.filter(m => hasPermission(m.permission));
+
+  const handleSelectPage = (page: Page) => {
+    setActivePage(page);
+    if (window.innerWidth < 768 && onClose) onClose();
+  };
 
   return (
     <>
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black bg-opacity-50 md:hidden"
+          className="fixed inset-0 z-20 bg-black/50 md:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 right-0 z-30 h-full w-64 bg-white text-gray-800 shadow-lg flex flex-col transition-transform duration-300 ease-in-out
+        fixed top-0 right-0 z-30 h-full w-72 bg-white text-gray-800 shadow-xl flex flex-col transition-transform duration-300 ease-in-out border-l border-gray-100
         md:relative md:translate-x-0
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
-        <div className="p-6 text-center border-b relative">
-          <h1 className="text-2xl font-bold text-blue-600">ERP System</h1>
+        {/* Brand Header */}
+        <div className="p-5 text-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white relative">
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-2xl">⚡</span>
+            <h1 className="text-2xl font-black text-blue-700 tracking-tight">ERP System</h1>
+          </div>
+          <p className="text-[11px] text-gray-400 font-semibold mt-0.5">MediaHive Advanced Edition</p>
+
           {/* Close button for mobile */}
           <button
             onClick={onClose}
-            className="absolute top-4 left-4 p-1 rounded-full hover:bg-gray-100 md:hidden"
+            className="absolute top-4 left-4 p-1.5 rounded-full hover:bg-gray-100 md:hidden text-gray-400"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
 
           {currentUser && (
-            <div className="mt-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-2">
-              مرحباً، <span className="font-bold text-gray-800">{currentUser.fullName}</span>
+            <div className="mt-3 text-xs text-gray-600 bg-white border border-gray-100 shadow-sm rounded-xl p-2.5 flex items-center justify-between">
+              <div className="text-right">
+                <div className="font-bold text-gray-800 truncate max-w-[140px]">{currentUser.fullName}</div>
+                <div className="text-[10px] text-blue-600 font-semibold">{currentUser.role === 'admin' ? 'مدير النظام' : currentUser.role === 'developer' ? 'مطور النظام' : 'مستخدم'}</div>
+              </div>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></span>
             </div>
           )}
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {filteredMenuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActivePage(item.id as Page);
-                if (window.innerWidth < 768 && onClose) onClose();
-              }}
-              className={`w-full flex items-center space-x-3 space-x-reverse p-3 rounded-lg text-right transition-colors ${activePage === item.id
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'hover:bg-blue-50 text-gray-600 hover:text-blue-700'
-                }`}
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span className="font-semibold">{item.label}</span>
-            </button>
-          ))}
+
+        {/* Navigation Modules with Dropdowns */}
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto custom-scrollbar">
+          {filteredModules.map(mod => {
+            const hasSub = mod.subItems.length > 0;
+            const isExpanded = !!expandedModules[mod.id];
+            const isModuleActive = activePage === mod.targetPage || mod.subItems.some(s => s.id === activePage);
+
+            return (
+              <div key={mod.id} className="rounded-xl overflow-hidden transition-all">
+                {/* Module Main Button */}
+                <div
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${isModuleActive
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'hover:bg-slate-50 text-gray-700 hover:text-blue-700'
+                  }`}
+                  onClick={() => {
+                    if (hasSub) {
+                      setExpandedModules(prev => ({ ...prev, [mod.id]: !prev[mod.id] }));
+                    }
+                    handleSelectPage(mod.targetPage);
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg w-7 text-center">{mod.icon}</span>
+                    <span className="font-bold text-sm">{mod.label}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {/* Gear button for Accounting Posting Settings */}
+                    {mod.accountingSettingModule && onOpenAccountingSettings && (
+                      <button
+                        title="إعدادات التوجيه المحاسبي"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenAccountingSettings(mod.accountingSettingModule!);
+                        }}
+                        className={`p-1 rounded-lg transition-colors text-xs ${isModuleActive ? 'hover:bg-blue-700 text-blue-100' : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'}`}
+                      >
+                        ⚙️
+                      </button>
+                    )}
+
+                    {/* Arrow for Dropdown */}
+                    {hasSub && (
+                      <button
+                        onClick={(e) => toggleModule(mod.id, e)}
+                        className={`p-1 rounded-md text-xs transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                      >
+                        ▼
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sub-items Collapsible List */}
+                {hasSub && isExpanded && (
+                  <div className="pr-6 pl-2 py-1.5 space-y-1 border-r-2 border-blue-200 mr-4 mt-1 bg-slate-50/50 rounded-lg">
+                    {mod.subItems.filter(s => hasPermission(s.permission)).map(sub => {
+                      const isSubActive = activePage === sub.id;
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => handleSelectPage(sub.id as Page)}
+                          className={`w-full flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-right transition-all ${isSubActive
+                            ? 'bg-blue-100 text-blue-800 font-bold'
+                            : 'text-gray-600 hover:bg-white hover:text-blue-600'
+                          }`}
+                        >
+                          <span className="text-xs">{sub.icon}</span>
+                          <span>{sub.label}</span>
+                        </button>
+                      );
+                    })}
+
+                    {/* Quick Link to Module Accounting Settings inside dropdown as well */}
+                    {mod.accountingSettingModule && onOpenAccountingSettings && (
+                      <button
+                        onClick={() => onOpenAccountingSettings(mod.accountingSettingModule!)}
+                        className="w-full flex items-center gap-2 py-1.5 px-3 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-50/80 transition-all border-t border-gray-100 mt-1"
+                      >
+                        <span className="text-xs">⚙️</span>
+                        <span>إعدادات التوجيه المحاسبي...</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
-        <div className="p-4 border-t">
+
+        {/* Footer Logout */}
+        <div className="p-3 border-t border-gray-100">
           <button
             onClick={onLogout}
-            className="w-full flex items-center justify-center space-x-2 space-x-reverse p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors font-bold"
+            className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors font-bold text-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
             </svg>
             <span>تسجيل الخروج</span>
           </button>
         </div>
-        <div className="p-2 text-center text-[10px] text-gray-400">
-          <p>&copy; 2024 ERP System - v9.0.0</p>
+
+        <div className="p-2 text-center text-[10px] text-gray-400 bg-gray-50/80 border-t border-gray-100">
+          <p>&copy; 2026 ERP System - v9.1.0</p>
         </div>
       </aside>
     </>
   );
-}; // End of Sidebar component
+};
 
 export default Sidebar;

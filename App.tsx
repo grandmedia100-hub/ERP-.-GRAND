@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan } from './types.ts';
+import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings } from './types.ts';
 
 // Component Imports
 import Sidebar from './components/Sidebar.tsx';
@@ -22,6 +22,7 @@ import UsersManagement from './components/UsersManagement.tsx';
 import AuditLog from './components/AuditLog.tsx';
 import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
+import ModuleAccountingSettingsModal from './components/ModuleAccountingSettingsModal.tsx';
 
 // Data Imports
 import * as initialData from './data.ts';
@@ -307,6 +308,10 @@ const App: React.FC = () => {
         uiScale: 75, fontFamily: 'Cairo', iconSize: 'normal', theme: 'default'
     }, 'themeSettings');
 
+    // Module Accounting Posting Settings
+    const [postingSettings, setPostingSettings] = useStickyState<ModulePostingSettings>({}, 'modulePostingSettings');
+    const [activeSettingsModule, setActiveSettingsModule] = useState<'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse' | null>(null);
+
     const [salesInitialData, setSalesInitialData] = useState<Partial<SalesInvoice> | null>(null);
     const [manufacturingInitialOrder, setManufacturingInitialOrder] = useState<Partial<ProductionOrder> | null>(null);
 
@@ -471,6 +476,8 @@ const App: React.FC = () => {
                 accounts={accounts}
                 branches={branches}
                 currentBranchId={currentBranchId}
+                postingSettings={postingSettings}
+                onOpenSettings={() => setActiveSettingsModule('sales')}
             />;
         }
         if (activePage === 'quotations' && hasPermission('access_quotations')) {
@@ -492,6 +499,8 @@ const App: React.FC = () => {
                 deleteJournalEntryByReference={deleteJournalEntryByReference}
                 accounts={accounts} setAccounts={setAccounts}
                 currentBranchId={currentBranchId}
+                postingSettings={postingSettings}
+                onOpenSettings={() => setActiveSettingsModule('purchases')}
             />;
         }
         if (activePage === 'inventory' && hasPermission('access_inventory')) {
@@ -510,6 +519,8 @@ const App: React.FC = () => {
                 createJournalEntry={createJournalEntry} logAction={logAction}
                 warehouses={warehouses} setWarehouses={setWarehouses}
                 accounts={accounts}
+                postingSettings={postingSettings}
+                onOpenSettings={() => setActiveSettingsModule('warehouse')}
             />;
         }
         if (activePage === 'journalEntries' && hasPermission('access_journal_entries')) {
@@ -539,6 +550,8 @@ const App: React.FC = () => {
                 accounts={accounts} customers={customers}
                 initialOrderData={manufacturingInitialOrder}
                 onClearInitialData={() => setManufacturingInitialOrder(null)}
+                postingSettings={postingSettings}
+                onOpenSettings={() => setActiveSettingsModule('manufacturing')}
             />;
         }
         if (activePage === 'customers' && hasPermission('access_customers')) {
@@ -581,6 +594,8 @@ const App: React.FC = () => {
                 treasuryTransfers={treasuryTransfers} setTreasuryTransfers={setTreasuryTransfers}
                 branches={branches}
                 currentBranchId={currentBranchId}
+                postingSettings={postingSettings}
+                onOpenSettings={() => setActiveSettingsModule('treasury')}
             />;
         }
         if (activePage === 'settings' && hasPermission('access_settings')) {
@@ -639,6 +654,7 @@ const App: React.FC = () => {
                     onLogout={() => setCurrentUser(null)}
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
+                    onOpenAccountingSettings={(mod) => setActiveSettingsModule(mod)}
                 />
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto relative flex flex-col">
                     <div className="flex items-center justify-between mb-4">
@@ -687,6 +703,17 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {activeSettingsModule && (
+                <ModuleAccountingSettingsModal
+                    isOpen={true}
+                    onClose={() => setActiveSettingsModule(null)}
+                    module={activeSettingsModule}
+                    accounts={accounts}
+                    settings={postingSettings}
+                    onSaveSettings={(newSettings) => setPostingSettings(newSettings)}
+                />
             )}
         </div>
     );

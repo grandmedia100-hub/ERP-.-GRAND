@@ -525,3 +525,35 @@ export interface ProductionOrder {
   createdAt: string;
 }
 
+// ==================== Module Accounting Settings ====================
+export interface ModulePostingSettings {
+  // Sales Module
+  salesReceivablesAccountId?: string;      // الافتراضي 1103 (العملاء)
+  salesRevenueAccountId?: string;          // الافتراضي 4101 (إيرادات المبيعات)
+  salesReturnsAccountId?: string;          // الافتراضي 4102 (مرتجعات ومسموحات المبيعات)
+  salesCogsAccountId?: string;             // الافتراضي 5101 (تكلفة البضاعة المباعة)
+  salesDefaultInventoryAccountId?: string; // الافتراضي 1104 (المخزون)
+
+  // Purchases Module
+  purchasePayablesAccountId?: string;      // الافتراضي 2101 (الموردين)
+  purchaseDefaultInventoryAccountId?: string; // الافتراضي 1104 / 110401 (المخزون)
+  purchaseExpensesAccountId?: string;      // الافتراضي 5201 (مصروفات مشتريات/تشغيل)
+
+  // Manufacturing Module
+  mfgWipAccountId?: string;                // الافتراضي 110402 (التشغيل تحت التشغيل WIP)
+  mfgRawMaterialAccountId?: string;        // الافتراضي 110401 (مخزون الخامات)
+  mfgFinishedGoodsAccountId?: string;      // الافتراضي 110403 (مخزون الإنتاج التام)
+  mfgSubcontractorAccountId?: string;      // الافتراضي 2101 (الموردين - مصنعيات الغير)
+  mfgScrapLossAccountId?: string;          // الافتراضي 5203 (خسائر هالك إنتاج)
+  mfgDefaultExpenseAccountId?: string;     // الافتراضي 5201 (مصروفات تشغيلية)
+
+  // Treasury Module
+  treasuryMainCashAccountId?: string;      // الافتراضي 1101 (الخزينة الرئيسية)
+  treasuryBankAccountId?: string;          // الافتراضي 1102 (البنك الأهلي)
+  treasuryBankFeesAccountId?: string;      // الافتراضي 5201 / 5202 (عمولات ومصاريف بنكية)
+
+  // Warehouse Module
+  inventoryAdjustmentLossAccountId?: string; // الافتراضي 5203 / 5201 (تسويات جردية عجز)
+  inventoryAdjustmentGainAccountId?: string; // الافتراضي 4101 (تسويات جردية فائض)
+}
+

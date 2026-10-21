@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { PurchaseInvoice, CompanyInfo, Supplier, Product, SupplierPayment, Expense, Account, StockTransaction } from '../types.ts';
+import type { PurchaseInvoice, CompanyInfo, Supplier, Product, SupplierPayment, Expense, Account, StockTransaction, ModulePostingSettings } from '../types.ts';
 import AddPurchaseInvoiceModal from './AddPurchaseInvoiceModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import SupplierStatementModal from './SupplierStatementModal.tsx';
@@ -22,9 +22,11 @@ interface PurchasesProps {
   accounts: Account[];
   setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
   currentBranchId?: string;
+  postingSettings?: ModulePostingSettings;
+  onOpenSettings?: () => void;
 }
 
-const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers, products, setProducts, stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments, createJournalEntry, logAction, currentUser, deleteJournalEntryByReference, accounts, setAccounts, currentBranchId = 'main' }) => {
+const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers, products, setProducts, stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments, createJournalEntry, logAction, currentUser, deleteJournalEntryByReference, accounts, setAccounts, currentBranchId = 'main', postingSettings, onOpenSettings }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -164,12 +166,16 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
     const inventoryItems = newInvoice.items.filter(i => i.itemType !== 'expense');
     const expenseItems = newInvoice.items.filter(i => i.itemType === 'expense');
 
+    const defaultInvAccId = postingSettings?.purchaseDefaultInventoryAccountId || '110401';
+    const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
+    const payablesAccName = accounts.find(a => a.id === payablesAccId)?.name || 'الموردين (الدائنون)';
+
     const inventoryGroups: Record<string, number> = {};
     inventoryItems.forEach(item => {
       const product = products.find(p => p.id === item.productId);
       const whId = product?.warehouseId || 'WH-0001';
       const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-      const accId = whAcc ? whAcc.id : '1104';
+      const accId = whAcc ? whAcc.id : defaultInvAccId;
       inventoryGroups[accId] = (inventoryGroups[accId] || 0) + item.total;
     });
 
@@ -194,14 +200,14 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
 
       if (newInvoice.paymentMethod === 'نقدي') {
         // Credit Supplier and then clear with Treasury for full audit trail
-        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: newInvoice.total });
+        lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: 0, credit: newInvoice.total });
         const treasuryAccountName = newInvoice.treasuryAccount || 'الخزينة الرئيسية';
-        const treasuryAcc = accounts.find(a => a.name === treasuryAccountName) || { id: '1101', name: treasuryAccountName };
-        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: newInvoice.total, credit: 0 });
+        const treasuryAcc = accounts.find(a => a.name === treasuryAccountName) || { id: postingSettings?.treasuryMainCashAccountId || '1101', name: treasuryAccountName };
+        lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: newInvoice.total, credit: 0 });
         lines.push({ accountId: treasuryAcc.id, accountName: treasuryAccountName, debit: 0, credit: newInvoice.total });
       } else {
         // Credit Supplier
-        lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: newInvoice.total });
+        lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: 0, credit: newInvoice.total });
       }
 
       createJournalEntry({
@@ -215,7 +221,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
     } else {
       // Return Logic: Reverse entries (Debit Supplier, Credit Inventory/Expenses)
       const lines = [];
-      lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: newInvoice.total, credit: 0 });
+      lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: newInvoice.total, credit: 0 });
 
       // Credit Inventory
       for (const [accId, amt] of Object.entries(inventoryGroups)) {
@@ -432,12 +438,16 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
         const inventoryItems = invoice.items.filter(i => i.itemType !== 'expense');
         const expenseItems = invoice.items.filter(i => i.itemType === 'expense');
 
+        const defaultInvAccId = postingSettings?.purchaseDefaultInventoryAccountId || '110401';
+        const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
+        const payablesAccName = accounts.find(a => a.id === payablesAccId)?.name || 'الموردين (الدائنون)';
+
         const inventoryGroups: Record<string, number> = {};
         inventoryItems.forEach(item => {
           const product = products.find(p => p.id === item.productId);
           const whId = product?.warehouseId || 'WH-0001';
           const whAcc = accounts.find(a => a.linkedWarehouseId === whId);
-          const accId = whAcc ? whAcc.id : '1104';
+          const accId = whAcc ? whAcc.id : defaultInvAccId;
           inventoryGroups[accId] = (inventoryGroups[accId] || 0) + item.total;
         });
 
@@ -451,7 +461,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
 
         if (invoice.invoiceType === 'purchase') {
           // Reverse Purchase (Credit Inventory/Expense, Debit Supplier)
-          lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: invoice.total, credit: 0 });
+          lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: invoice.total, credit: 0 });
           for (const [accId, amt] of Object.entries(inventoryGroups)) {
             const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
             lines.push({ accountId: accId, accountName: accName, debit: 0, credit: amt });
@@ -461,7 +471,7 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
           }
         } else {
           // Reverse Return (Debit Inventory/Expense, Credit Supplier)
-          lines.push({ accountId: '2101', accountName: 'الموردين (الدائنون)', debit: 0, credit: invoice.total });
+          lines.push({ accountId: payablesAccId, accountName: payablesAccName, debit: 0, credit: invoice.total });
           for (const [accId, amt] of Object.entries(inventoryGroups)) {
             const accName = accounts.find(a => a.id === accId)?.name || 'المخزون';
             lines.push({ accountId: accId, accountName: accName, debit: amt, credit: 0 });
@@ -675,7 +685,17 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">فواتير المشتريات</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="bg-white border border-gray-300 text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+              title="إعدادات التوجيه المحاسبي لموديول المشتريات"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">إعدادات التوجيه</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

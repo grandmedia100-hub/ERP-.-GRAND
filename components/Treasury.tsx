@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { CustomerPayment, SupplierPayment, Customer, Supplier, TreasuryAccountType, CompanyInfo, JournalEntry, Account } from '../types.ts';
+import type { CustomerPayment, SupplierPayment, Customer, Supplier, TreasuryAccountType, CompanyInfo, JournalEntry, Account, ModulePostingSettings } from '../types.ts';
 import AddReceiptModal from './AddReceiptModal.tsx';
 import AddPaymentModal from './AddPaymentModal.tsx';
 import AddTransferModal from './AddTransferModal.tsx';
@@ -25,6 +25,8 @@ interface TreasuryProps {
   setTreasuryTransfers: React.Dispatch<React.SetStateAction<TreasuryTransfer[]>>;
   branches?: { id: string; name: string }[];
   currentBranchId?: string;
+  postingSettings?: ModulePostingSettings;
+  onOpenSettings?: () => void;
 }
 
 const Treasury: React.FC<TreasuryProps> = ({
@@ -35,7 +37,9 @@ const Treasury: React.FC<TreasuryProps> = ({
     { id: 'main', name: 'جراند ميديا' },
     { id: 'branch_1792042133332', name: 'برو باك' }
   ],
-  currentBranchId = 'main'
+  currentBranchId = 'main',
+  postingSettings,
+  onOpenSettings
 }) => {
   const [activeTab, setActiveTab] = useState<'receipts' | 'payments' | 'transfers'>('receipts');
 
@@ -61,23 +65,29 @@ const Treasury: React.FC<TreasuryProps> = ({
 
   const accountOptions: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
 
+  const recAccId = postingSettings?.salesReceivablesAccountId || '1103';
+  const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
+
   const getAccountId = (name: string): string => {
     switch (name) {
-      case 'الخزينة الرئيسية': return '1101';
-      case 'البنك الاهلى':     return '1102';
+      case 'الخزينة الرئيسية': return postingSettings?.treasuryMainCashAccountId || '1101';
+      case 'البنك الاهلى':     return postingSettings?.treasuryBankAccountId || '1102';
       case 'بنك فيصل':        return '1105'; // separate from 1102 to avoid mixing
       case 'فودافون كاش':     return '1106';
       case 'انستاباى':        return '1107';
-      default: return '1101'; // Fallback to main treasury
+      default: return postingSettings?.treasuryMainCashAccountId || '1101'; // Fallback to main treasury
     }
   };
 
   const getOrCreateExpenseAccount = (name: string): string => {
+    if (name.includes('عمول') || name.includes('بنك')) {
+      if (postingSettings?.treasuryBankFeesAccountId) return postingSettings.treasuryBankFeesAccountId;
+    }
     // Look up existing expense account first
     const existing = accounts.find(a => a.name === name && (a.parentId === '52' || a.id.startsWith('52')));
     if (existing) return existing.id;
-    // Fallback to general operating expenses
-    return '5201';
+    // Fallback to configured bank fees or general operating expenses
+    return postingSettings?.treasuryBankFeesAccountId || '5201';
   };
   const expenses: any[] = []; // Treasury doesn't hold expenses directly — they come via Expenses module
   const handleAddAutoExpense = () => {};
@@ -129,7 +139,7 @@ const Treasury: React.FC<TreasuryProps> = ({
         referenceId: receiptData.id,
         lines: [
           { accountId: getAccountId(receiptData.treasuryAccount || 'الخزينة الرئيسية'), accountName: receiptData.treasuryAccount || 'الخزينة الرئيسية', debit: receiptData.amount, credit: 0 },
-          { accountId: '1103', accountName: `عميل - ${receiptData.customerName}`, debit: 0, credit: receiptData.amount }
+          { accountId: recAccId, accountName: `عميل - ${receiptData.customerName}`, debit: 0, credit: receiptData.amount }
         ],
         branchId: currentBranchId
       });
@@ -191,7 +201,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           referenceId: newReceipt.id,
           lines: [
             { accountId: getAccountId(newReceipt.treasuryAccount || 'الخزينة الرئيسية'), accountName: newReceipt.treasuryAccount || 'الخزينة الرئيسية', debit: newReceipt.amount, credit: 0 },
-            { accountId: '1103', accountName: `عميل - ${newReceipt.customerName}`, debit: 0, credit: newReceipt.amount }
+            { accountId: recAccId, accountName: `عميل - ${newReceipt.customerName}`, debit: 0, credit: newReceipt.amount }
           ],
           branchId: currentBranchId
         });
@@ -278,7 +288,7 @@ const Treasury: React.FC<TreasuryProps> = ({
         referenceId: paymentData.id,
         lines: [
           {
-            accountId: isActuallyExpense ? getOrCreateExpenseAccount(paymentData.expenseCategory || 'مصروف عام') : '2101',
+            accountId: isActuallyExpense ? getOrCreateExpenseAccount(paymentData.expenseCategory || 'مصروف عام') : payablesAccId,
             accountName: isActuallyExpense ? (paymentData.expenseCategory || 'مصروف عام') : `مورد - ${paymentData.supplierName}`,
             debit: paymentData.amount,
             credit: 0
@@ -356,7 +366,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           referenceId: newPayment.id,
           lines: [
             {
-              accountId: isActuallyExpense ? getOrCreateExpenseAccount(newPayment.expenseCategory || 'مصروف عام') : '2101',
+              accountId: isActuallyExpense ? getOrCreateExpenseAccount(newPayment.expenseCategory || 'مصروف عام') : payablesAccId,
               accountName: isActuallyExpense ? (newPayment.expenseCategory || 'مصروف عام') : `مورد - ${newPayment.supplierName}`,
               debit: newPayment.amount,
               credit: 0
@@ -521,7 +531,7 @@ const Treasury: React.FC<TreasuryProps> = ({
             referenceType: 'Manual',
             referenceId: receipt.id,
             lines: [
-              { accountId: '1103', accountName: `عميل - ${receipt.customerName}`, debit: receipt.amount, credit: 0 },
+              { accountId: recAccId, accountName: `عميل - ${receipt.customerName}`, debit: receipt.amount, credit: 0 },
               { accountId: isIC ? '2102' : getAccountId(receipt.treasuryAccount || 'الخزينة الرئيسية'), accountName: isIC ? 'جاري الأطراف الشقيقة' : (receipt.treasuryAccount || 'الخزينة الرئيسية'), debit: 0, credit: receipt.amount }
             ],
             branchId: currentBranchId
@@ -573,7 +583,7 @@ const Treasury: React.FC<TreasuryProps> = ({
             referenceId: payment.id,
             lines: [
               { accountId: isIC ? '2102' : getAccountId(payment.treasuryAccount || 'الخزينة الرئيسية'), accountName: isIC ? 'جاري الأطراف الشقيقة' : (payment.treasuryAccount || 'الخزينة الرئيسية'), debit: payment.amount, credit: 0 },
-              { accountId: '2101', accountName: `مورد - ${payment.supplierName}`, debit: 0, credit: payment.amount }
+              { accountId: payablesAccId, accountName: `مورد - ${payment.supplierName}`, debit: 0, credit: payment.amount }
             ],
             branchId: currentBranchId
           });
@@ -1552,7 +1562,18 @@ const Treasury: React.FC<TreasuryProps> = ({
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">الخزينة والبنوك</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="bg-white border border-gray-300 text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+              title="إعدادات التوجيه المحاسبي لموديول الخزينة والبنوك"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">إعدادات التوجيه</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handlePrintStatement()}

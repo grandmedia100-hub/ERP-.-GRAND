@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import type {
   Product, Warehouse, BillOfMaterials, BOMItem, ProductionOrder, ProductionPlan,
-  StockTransaction, ProductionExpense, ProductionOperation, ProductionScrap, ProductionPlanItem
+  StockTransaction, ProductionExpense, ProductionOperation, ProductionScrap, ProductionPlanItem,
+  ModulePostingSettings
 } from '../types.ts';
 
 interface ManufacturingProps {
@@ -22,6 +23,8 @@ interface ManufacturingProps {
   customers?: any[];
   initialOrderData?: Partial<ProductionOrder> | null;
   onClearInitialData?: () => void;
+  postingSettings?: ModulePostingSettings;
+  onOpenSettings?: () => void;
 }
 
 // ==================== Helper ====================
@@ -45,7 +48,7 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
   products, setProducts, warehouses, billsOfMaterials, setBillsOfMaterials,
   productionOrders, setProductionOrders, productionPlans, setProductionPlans,
   stockTransactions, setStockTransactions, createJournalEntry, logAction, accounts, customers = [],
-  initialOrderData, onClearInitialData
+  initialOrderData, onClearInitialData, postingSettings, onOpenSettings
 }) => {
   const [activeTab, setActiveTab] = useState<'bom' | 'plans' | 'orders'>('orders');
 
@@ -396,12 +399,23 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     };
     setProductionOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 
-    // 4. Journal Entry - Correct accounting flow for manufacturing
+    // 4. Journal Entry - Correct accounting flow for manufacturing using module settings
+    const wipAccId = postingSettings?.mfgWipAccountId || '110402';
+    const wipAccName = accounts.find(a => a.id === wipAccId)?.name || 'حساب التصنيع (WIP)';
+    const rawAccId = postingSettings?.mfgRawMaterialAccountId || '110401';
+    const rawAccName = accounts.find(a => a.id === rawAccId)?.name || 'مخزون الخامات';
+    const subAccId = postingSettings?.mfgSubcontractorAccountId || '2101';
+    const subAccName = accounts.find(a => a.id === subAccId)?.name || 'الموردين - مصنعيات الغير';
+    const fgAccId = postingSettings?.mfgFinishedGoodsAccountId || '110403';
+    const fgAccName = accounts.find(a => a.id === fgAccId)?.name || 'مخزون الإنتاج التام';
+    const scrapAccId = postingSettings?.mfgScrapLossAccountId || '5203';
+    const scrapAccName = accounts.find(a => a.id === scrapAccId)?.name || 'هالك إنتاج';
+
     const jLines: any[] = [
       // Debit WIP with full incoming cost
-      { accountId: '110402', accountName: 'حساب التصنيع (WIP)', debit: totalCostAll, credit: 0 },
+      { accountId: wipAccId, accountName: wipAccName, debit: totalCostAll, credit: 0 },
       // Credit raw materials inventory for raw material cost
-      { accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: totalRawCost },
+      { accountId: rawAccId, accountName: rawAccName, debit: 0, credit: totalRawCost },
     ];
     // Credit each expense account
     executingOrder.expenses.forEach(e => {
@@ -412,16 +426,16 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     });
     // Credit operations (subcontractors/manufacturing services)
     if (proratedOperationsCost > 0) {
-      jLines.push({ accountId: '2101', accountName: 'الموردين - مصنعيات الغير', debit: 0, credit: proratedOperationsCost });
+      jLines.push({ accountId: subAccId, accountName: subAccName, debit: 0, credit: proratedOperationsCost });
     }
     // Transfer from WIP to Finished Goods
-    jLines.push({ accountId: '110403', accountName: 'مخزون الإنتاج التام', debit: totalCostAll, credit: 0 });
-    jLines.push({ accountId: '110402', accountName: 'حساب التصنيع (WIP)', debit: 0, credit: totalCostAll });
+    jLines.push({ accountId: fgAccId, accountName: fgAccName, debit: totalCostAll, credit: 0 });
+    jLines.push({ accountId: wipAccId, accountName: wipAccName, debit: 0, credit: totalCostAll });
 
     // Scrap loss (if any) - only if separate from BOM deductions
     if (executingOrder.scrapTotalCost > 0) {
-      jLines.push({ accountId: '5203', accountName: 'هالك إنتاج', debit: executingOrder.scrapTotalCost, credit: 0 });
-      jLines.push({ accountId: '110401', accountName: 'مخزون الخامات', debit: 0, credit: executingOrder.scrapTotalCost });
+      jLines.push({ accountId: scrapAccId, accountName: scrapAccName, debit: executingOrder.scrapTotalCost, credit: 0 });
+      jLines.push({ accountId: rawAccId, accountName: rawAccName, debit: 0, credit: executingOrder.scrapTotalCost });
     }
 
     createJournalEntry({
@@ -449,7 +463,17 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800">التصنيع</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="bg-white border border-gray-300 text-gray-700 hover:text-emerald-700 hover:bg-gray-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+              title="إعدادات التوجيه المحاسبي لموديول التصنيع"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">إعدادات التوجيه</span>
+            </button>
+          )}
           {activeTab === 'bom' && (
             <button onClick={() => { setBomForm(emptyBOM()); setShowBOMModal(true); }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
