@@ -660,6 +660,8 @@ const App: React.FC = () => {
                 stockTransactions={stockTransactions} setStockTransactions={setStockTransactions}
                 createJournalEntry={createJournalEntry} logAction={logAction}
                 accounts={accounts} customers={customers}
+                journalEntries={journalEntries}
+                setJournalEntries={setJournalEntries}
                 initialOrderData={manufacturingInitialOrder}
                 onClearInitialData={() => setManufacturingInitialOrder(null)}
                 postingSettings={postingSettings}
