@@ -1,5 +1,5 @@
 
-export type Page = 'dashboard' | 'sales' | 'purchases' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
+export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
 
 export type TreasuryAccountType = 'الخزينة الرئيسية' | 'انستاباى' | 'فودافون كاش' | 'بنك فيصل' | 'البنك الاهلى' | (string & {});
 
@@ -7,6 +7,8 @@ export type Permission =
   | 'access_dashboard'
   | 'access_sales'
   | 'access_purchases'
+  | 'access_purchase_requests'
+  | 'access_purchase_orders'
   | 'access_inventory'
   | 'access_customers'
   | 'access_suppliers'
@@ -28,7 +30,8 @@ export type Permission =
   | 'access_fixed_assets'
   | 'access_manufacturing'
   | 'access_expenses'
-  | 'access_partners';
+  | 'access_partners'
+  | 'manage_accounting_settings';
 
 export interface User {
   id: string;
@@ -525,19 +528,78 @@ export interface ProductionOrder {
   createdAt: string;
 }
 
+// ==================== Procurement Documentary Cycle ====================
+export type PurchaseRequestStatus = 'pending' | 'approved' | 'rejected' | 'converted';
+
+export interface PurchaseRequestItem {
+  productId: string;
+  productName: string;
+  productCode?: string;
+  quantity: number;
+  unit?: string;
+  estimatedUnitPrice?: number;
+  estimatedTotal?: number;
+  notes?: string;
+}
+
+export interface PurchaseRequest {
+  id: string;
+  date: string;
+  department?: string; // القسم الطالب (الإنتاج، الصيانة، المخزن، إلخ)
+  requesterName?: string; // اسم الموظف/المسؤول مقدم الطلب
+  priority: 'normal' | 'urgent' | 'critical'; // الأولوية: عادي، عاجل، طارئ
+  items: PurchaseRequestItem[];
+  totalEstimatedAmount: number;
+  notes?: string;
+  status: PurchaseRequestStatus;
+  approvedBy?: string;
+  branchId?: string;
+  createdAt?: string;
+}
+
+export type PurchaseOrderStatus = 'draft' | 'sent' | 'partially_received' | 'completed' | 'cancelled';
+
+export interface PurchaseOrder {
+  id: string;
+  date: string;
+  expectedDeliveryDate?: string;
+  supplierId: string;
+  supplierName: string;
+  companyName?: string;
+  requestId?: string; // مرجع طلب الشراء إن وجد
+  items: InvoiceItem[];
+  subTotal?: number;
+  discountValue?: number;
+  discountType?: 'amount' | 'percentage';
+  taxRate?: number;
+  taxAmount?: number;
+  total: number;
+  paymentTerms?: string; // شروط السداد (نقدي / آجل 30 يوم / إلخ)
+  deliveryLocation?: string; // موقع/مخزن الاستلام
+  notes?: string;
+  status: PurchaseOrderStatus;
+  branchId?: string;
+  createdAt?: string;
+}
+
 // ==================== Module Accounting Settings ====================
 export interface ModulePostingSettings {
   // Sales Module
   salesReceivablesAccountId?: string;      // الافتراضي 1103 (العملاء)
   salesRevenueAccountId?: string;          // الافتراضي 4101 (إيرادات المبيعات)
   salesReturnsAccountId?: string;          // الافتراضي 4102 (مرتجعات ومسموحات المبيعات)
+  salesVatAccountId?: string;              // الافتراضي 2105 (ضريبة القيمة المضافة المحصلة)
+  salesDiscountAccountId?: string;         // الافتراضي 5301 (خصم مسموح به)
   salesCogsAccountId?: string;             // الافتراضي 5101 (تكلفة البضاعة المباعة)
   salesDefaultInventoryAccountId?: string; // الافتراضي 1104 (المخزون)
 
   // Purchases Module
-  purchasePayablesAccountId?: string;      // الافتراضي 2101 (الموردين)
-  purchaseDefaultInventoryAccountId?: string; // الافتراضي 1104 / 110401 (المخزون)
-  purchaseExpensesAccountId?: string;      // الافتراضي 5201 (مصروفات مشتريات/تشغيل)
+  purchasePayablesAccountId?: string;          // الافتراضي 2101 (الموردين)
+  purchaseDefaultInventoryAccountId?: string; // الافتراضي 110401 (مخزون الخامات والمشتريات)
+  purchaseVatAccountId?: string;              // الافتراضي 1106 (ضريبة القيمة المضافة مدخلات)
+  purchaseDiscountAccountId?: string;         // الافتراضي 4202 (خصم مكتسب)
+  purchaseExpensesAccountId?: string;         // الافتراضي 5201 (مصروفات مشتريات/تشغيل)
+  purchaseGoodsInTransitAccountId?: string;   // الافتراضي 110404 (بضاعة بالطريق / اعتمادات مستندية)
 
   // Manufacturing Module
   mfgWipAccountId?: string;                // الافتراضي 110402 (التشغيل تحت التشغيل WIP)
@@ -545,15 +607,21 @@ export interface ModulePostingSettings {
   mfgFinishedGoodsAccountId?: string;      // الافتراضي 110403 (مخزون الإنتاج التام)
   mfgSubcontractorAccountId?: string;      // الافتراضي 2101 (الموردين - مصنعيات الغير)
   mfgScrapLossAccountId?: string;          // الافتراضي 5203 (خسائر هالك إنتاج)
+  mfgDirectLaborAccountId?: string;        // الافتراضي 5102 (أجور ومصروفات تشغيل مباشرة)
   mfgDefaultExpenseAccountId?: string;     // الافتراضي 5201 (مصروفات تشغيلية)
 
   // Treasury Module
   treasuryMainCashAccountId?: string;      // الافتراضي 1101 (الخزينة الرئيسية)
   treasuryBankAccountId?: string;          // الافتراضي 1102 (البنك الأهلي)
+  treasuryVodafoneCashAccountId?: string;  // الافتراضي 1106 (فودافون كاش)
+  treasuryInstapayAccountId?: string;      // الافتراضي 1107 (إنستاباي)
   treasuryBankFeesAccountId?: string;      // الافتراضي 5201 / 5202 (عمولات ومصاريف بنكية)
+  treasuryPartnerCurrentAccountId?: string;// الافتراضي 3102 (جاري الشركاء)
 
-  // Warehouse Module
+  // Warehouse & Fixed Assets Module
   inventoryAdjustmentLossAccountId?: string; // الافتراضي 5203 / 5201 (تسويات جردية عجز)
   inventoryAdjustmentGainAccountId?: string; // الافتراضي 4101 (تسويات جردية فائض)
+  fixedAssetsAccumDepreciationAccountId?: string; // الافتراضي 1202 (مجمع الإهلاك)
+  fixedAssetsDepreciationExpenseAccountId?: string; // الافتراضي 5204 (مصروف إهلاك الأصول)
 }
 

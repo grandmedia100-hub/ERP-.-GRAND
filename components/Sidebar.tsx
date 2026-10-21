@@ -84,7 +84,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       targetPage: 'purchases',
       accountingSettingModule: 'purchases',
       subItems: [
-        { id: 'purchases', label: 'فواتير المشتريات والمرتجعات', icon: '🧾' },
+        { id: 'purchaseRequests', label: 'طلبات الشراء (PR)', icon: '📝', permission: 'access_purchase_requests' },
+        { id: 'purchaseOrders', label: 'أوامر الشراء (PO)', icon: '📑', permission: 'access_purchase_orders' },
+        { id: 'purchases', label: 'فواتير ومرتجعات المشتريات', icon: '🧾', permission: 'access_purchases' },
         { id: 'suppliers', label: 'الموردين وحساباتهم', icon: '🚛', permission: 'access_suppliers' },
       ]
     },
@@ -236,7 +238,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                   <div className="flex items-center gap-1">
                     {/* Gear button for Accounting Posting Settings */}
-                    {mod.accountingSettingModule && onOpenAccountingSettings && (
+                    {mod.accountingSettingModule && onOpenAccountingSettings && (hasPermission('manage_accounting_settings') || hasPermission('access_settings')) && (
                       <button
                         title="إعدادات التوجيه المحاسبي"
                         onClick={(e) => {
@@ -282,7 +284,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     })}
 
                     {/* Quick Link to Module Accounting Settings inside dropdown as well */}
-                    {mod.accountingSettingModule && onOpenAccountingSettings && (
+                    {mod.accountingSettingModule && onOpenAccountingSettings && (hasPermission('manage_accounting_settings') || hasPermission('access_settings')) && (
                       <button
                         onClick={() => onOpenAccountingSettings(mod.accountingSettingModule!)}
                         className="w-full flex items-center gap-2 py-1.5 px-3 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-50/80 transition-all border-t border-gray-100 mt-1"

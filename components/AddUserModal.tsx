@@ -123,107 +123,289 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onSave, userToEdit
 
           {/* Permissions Section */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">صلاحيات الوصول</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-semibold text-gray-700">صلاحيات الوصول حسب الموديول</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allPerms: Permission[] = [
+                      'access_dashboard', 'access_sales', 'access_quotations', 'access_customers',
+                      'access_purchases', 'access_purchase_requests', 'access_purchase_orders', 'access_suppliers',
+                      'access_manufacturing', 'access_inventory',
+                      'access_warehouse', 'access_fixed_assets',
+                      'access_treasury', 'access_chart_of_accounts', 'access_journal_entries', 'access_expenses', 'access_partners',
+                      'view_reports_sales', 'view_reports_purchases', 'view_reports_customers', 'view_reports_suppliers', 'view_reports_treasury', 'view_reports_profits', 'access_reports',
+                      'manage_accounting_settings', 'access_settings', 'manage_backup', 'manage_users'
+                    ];
+                    setPermissions(allPerms);
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-bold"
+                >
+                  تحديد الكل
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setPermissions(['access_dashboard'])}
+                  className="text-xs text-red-500 hover:text-red-700 font-bold"
+                >
+                  إلغاء التحديد
+                </button>
+              </div>
+            </div>
 
-            <div className="space-y-4 max-h-60 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-
-              {/* Main Sections */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-500 mb-2 border-b pb-1">الأقسام الرئيسية</h4>
+            <div className="space-y-4 max-h-72 overflow-y-auto p-3 border rounded-xl bg-gray-50/70">
+              {/* Purchases Module */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>🛒</span>
+                    <span>موديول المشتريات والدورة المستندية</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_purchases', 'access_purchase_requests', 'access_purchase_orders', 'access_suppliers'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_dashboard')} onChange={() => togglePermission('access_dashboard')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">لوحة التحكم</span>
+                    <input type="checkbox" checked={permissions.includes('access_purchase_requests')} onChange={() => togglePermission('access_purchase_requests')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">طلبات الشراء (PR)</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_sales')} onChange={() => togglePermission('access_sales')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">المبيعات</span>
+                    <input type="checkbox" checked={permissions.includes('access_purchase_orders')} onChange={() => togglePermission('access_purchase_orders')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">أوامر الشراء (PO)</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('access_purchases')} onChange={() => togglePermission('access_purchases')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">المشتريات</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_inventory')} onChange={() => togglePermission('access_inventory')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">المخزون</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_expenses')} onChange={() => togglePermission('access_expenses')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">المصروفات</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_customers')} onChange={() => togglePermission('access_customers')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">العملاء</span>
+                    <span className="text-xs text-gray-700 font-medium">فواتير ومرتجعات المشتريات</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('access_suppliers')} onChange={() => togglePermission('access_suppliers')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">الموردين</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_treasury')} onChange={() => togglePermission('access_treasury')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">الخزينة</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_partners')} onChange={() => togglePermission('access_partners')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">الشركاء</span>
+                    <span className="text-xs text-gray-700 font-medium">دليل وحسابات الموردين</span>
                   </label>
                 </div>
               </div>
 
-              {/* Reports & Charts */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-500 mb-2 border-b pb-1">التقارير والمحاسبة</h4>
+              {/* Sales Module */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>📈</span>
+                    <span>موديول المبيعات</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_sales', 'access_quotations', 'access_customers'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('access_reports')} onChange={() => togglePermission('access_reports')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">التقارير العامة</span>
+                    <input type="checkbox" checked={permissions.includes('access_sales')} onChange={() => togglePermission('access_sales')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">فواتير ومرتجعات المبيعات</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_quotations')} onChange={() => togglePermission('access_quotations')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">عروض الأسعار</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_customers')} onChange={() => togglePermission('access_customers')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">دليل وحسابات العملاء</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_dashboard')} onChange={() => togglePermission('access_dashboard')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">لوحة التحكم الرئيسية</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Manufacturing Module */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>🏗️</span>
+                    <span>التصنيع والتشغيل</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_manufacturing', 'access_inventory'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_manufacturing')} onChange={() => togglePermission('access_manufacturing')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">أوامر وخطط وقوائم التصنيع</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_inventory')} onChange={() => togglePermission('access_inventory')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">خامات ومستلزمات الإنتاج</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Warehouse & Assets */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>🏭</span>
+                    <span>المخازن والأصول الثابتة</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_warehouse', 'access_fixed_assets'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_warehouse')} onChange={() => togglePermission('access_warehouse')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">إدارة المخازن والجرد والأصناف</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_fixed_assets')} onChange={() => togglePermission('access_fixed_assets')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">الأصول الثابتة والإهلاك</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Treasury & Finance */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>🏦</span>
+                    <span>الخزينة والمالية والحسابات</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_treasury', 'access_chart_of_accounts', 'access_journal_entries', 'access_expenses', 'access_partners'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_treasury')} onChange={() => togglePermission('access_treasury')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">الخزينة وحركات النقدية والبنوك</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('access_chart_of_accounts')} onChange={() => togglePermission('access_chart_of_accounts')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">دليل الحسابات</span>
+                    <span className="text-xs text-gray-700 font-medium">شجرة الحسابات العامة</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_sales')} onChange={() => togglePermission('view_reports_sales')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير المبيعات</span>
+                    <input type="checkbox" checked={permissions.includes('access_journal_entries')} onChange={() => togglePermission('access_journal_entries')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">قيود اليومية المحاسبية</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_purchases')} onChange={() => togglePermission('view_reports_purchases')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير المشتريات</span>
+                    <input type="checkbox" checked={permissions.includes('access_expenses')} onChange={() => togglePermission('access_expenses')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">المصروفات العامة</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_customers')} onChange={() => togglePermission('view_reports_customers')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير العملاء</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_suppliers')} onChange={() => togglePermission('view_reports_suppliers')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير الموردين</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_treasury')} onChange={() => togglePermission('view_reports_treasury')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير الخزينة</span>
-                  </label>
-                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                    <input type="checkbox" checked={permissions.includes('view_reports_profits')} onChange={() => togglePermission('view_reports_profits')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">تقارير الأرباح</span>
+                    <input type="checkbox" checked={permissions.includes('access_partners')} onChange={() => togglePermission('access_partners')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">حسابات الشركاء</span>
                   </label>
                 </div>
               </div>
 
-              {/* Management & Admin */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-500 mb-2 border-b pb-1">الإدارة والإعدادات</h4>
+              {/* Reports */}
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>📊</span>
+                    <span>التقارير المالية والتحليلية</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p: Permission[] = ['access_reports', 'view_reports_sales', 'view_reports_purchases', 'view_reports_customers', 'view_reports_suppliers', 'view_reports_treasury', 'view_reports_profits'];
+                      const hasAll = p.every(k => permissions.includes(k));
+                      setPermissions(hasAll ? permissions.filter(x => !p.includes(x)) : Array.from(new Set([...permissions, ...p])));
+                    }}
+                    className="text-[11px] text-blue-600 font-semibold"
+                  >
+                    تبديل الكل
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('access_reports')} onChange={() => togglePermission('access_reports')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">مركز التقارير العامة</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('view_reports_sales')} onChange={() => togglePermission('view_reports_sales')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">تقارير المبيعات والأرباح</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('view_reports_purchases')} onChange={() => togglePermission('view_reports_purchases')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">تقارير المشتريات والموردين</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('view_reports_treasury')} onChange={() => togglePermission('view_reports_treasury')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">تقارير الخزينة والتدفقات</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('view_reports_profits')} onChange={() => togglePermission('view_reports_profits')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
+                    <span className="text-xs text-gray-700 font-medium">قوائم الدخل والميزانية</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Administration & Posting Settings */}
+              <div className="bg-white p-3 rounded-lg border border-purple-200">
+                <div className="flex justify-between items-center mb-2 border-b pb-1.5">
+                  <h4 className="text-xs font-bold text-purple-800 flex items-center gap-1.5">
+                    <span>⚙️</span>
+                    <span>الإدارة وتوجيه الترحيلات المحاسبية</span>
+                  </h4>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                    <input type="checkbox" checked={permissions.includes('manage_accounting_settings')} onChange={() => togglePermission('manage_accounting_settings')} className="form-checkbox h-4 w-4 text-purple-600 rounded" />
+                    <span className="text-xs font-bold text-purple-700">التحكم في إعدادات التوجيه المحاسبي</span>
+                  </label>
+                  <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('access_settings')} onChange={() => togglePermission('access_settings')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">الإعدادات العامة</span>
+                    <span className="text-xs text-gray-700 font-medium">إعدادات النظام والشركة</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('manage_backup')} onChange={() => togglePermission('manage_backup')} className="form-checkbox h-4 w-4 text-blue-600 rounded" />
-                    <span className="text-sm text-gray-700">النسخ الاحتياطي</span>
+                    <span className="text-xs text-gray-700 font-medium">إدارة النسخ الاحتياطي</span>
                   </label>
                   <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                     <input type="checkbox" checked={permissions.includes('manage_users')} onChange={() => togglePermission('manage_users')} className="form-checkbox h-4 w-4 text-purple-600 rounded" />
-                    <span className="text-sm font-bold text-purple-700">إدارة المستخدمين</span>
+                    <span className="text-xs font-bold text-purple-700">إدارة المستخدمين والصلاحيات</span>
                   </label>
                 </div>
               </div>

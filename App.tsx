@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings } from './types.ts';
+import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings, PurchaseRequest, PurchaseOrder } from './types.ts';
 
 // Component Imports
 import Sidebar from './components/Sidebar.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import Sales from './components/Sales.tsx';
 import Purchases from './components/Purchases.tsx';
+import PurchaseRequests from './components/PurchaseRequests.tsx';
+import PurchaseOrders from './components/PurchaseOrders.tsx';
 import Inventory from './components/Inventory.tsx';
 import WarehouseModule from './components/WarehouseModule.tsx';
 import JournalEntries from './components/JournalEntries.tsx';
@@ -290,6 +292,8 @@ const App: React.FC = () => {
     const [billsOfMaterials, setBillsOfMaterials] = useKVServerState<BillOfMaterials>([], branchKey('billsOfMaterials'));
     const [productionOrders, setProductionOrders] = useKVServerState<ProductionOrder>([], branchKey('productionOrders'));
     const [productionPlans, setProductionPlans] = useKVServerState<ProductionPlan>([], branchKey('productionPlans'));
+    const [purchaseRequests, setPurchaseRequests] = useKVServerState<PurchaseRequest>([], branchKey('purchaseRequests'));
+    const [purchaseOrders, setPurchaseOrders] = useKVServerState<PurchaseOrder>([], branchKey('purchaseOrders'));
     const [partners, setPartners] = useServerState<any>(initialData.partners || [], branchKey('partners'), 'partners', currentBranchId);
     const [partnerTransactions, setPartnerTransactions] = useServerState<any>(initialData.partnerTransactions || [], branchKey('partnerTransactions'), 'partner_transactions', currentBranchId);
     const [expenses, setExpenses] = useServerState<any>(initialData.expenses || [], branchKey('expenses'), 'expenses', currentBranchId);
@@ -314,6 +318,8 @@ const App: React.FC = () => {
 
     const [salesInitialData, setSalesInitialData] = useState<Partial<SalesInvoice> | null>(null);
     const [manufacturingInitialOrder, setManufacturingInitialOrder] = useState<Partial<ProductionOrder> | null>(null);
+    const [initialPurchaseOrderData, setInitialPurchaseOrderData] = useState<Partial<PurchaseOrder> | null>(null);
+    const [initialPurchaseInvoiceData, setInitialPurchaseInvoiceData] = useState<Partial<PurchaseInvoice> | null>(null);
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [showNewBranchModal, setShowNewBranchModal] = useState(false);
@@ -454,6 +460,47 @@ const App: React.FC = () => {
         setActivePage('manufacturing');
     };
 
+    const handleConvertPurchaseRequest = (request: PurchaseRequest) => {
+        const initialOrder: Partial<PurchaseOrder> = {
+            requestId: request.id,
+            date: new Date().toISOString().split('T')[0],
+            items: request.items.map(item => ({
+                productId: item.productId,
+                productName: item.productName,
+                productCode: item.productCode,
+                quantity: item.quantity,
+                price: item.estimatedUnitPrice || 0,
+                total: (item.quantity || 1) * (item.estimatedUnitPrice || 0),
+                unit: (item.unit as any) || 'عدد'
+            })),
+            notes: `مُحول من طلب شراء رقم ${request.id}${request.notes ? ` - ${request.notes}` : ''}`,
+        };
+        setPurchaseRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: 'converted' } : r));
+        setInitialPurchaseOrderData(initialOrder);
+        setActivePage('purchaseOrders');
+    };
+
+    const handleConvertPurchaseOrder = (order: PurchaseOrder) => {
+        const initialInvoice: Partial<PurchaseInvoice> = {
+            supplierId: order.supplierId,
+            supplierName: order.supplierName,
+            companyName: order.companyName,
+            date: new Date().toISOString().split('T')[0],
+            items: order.items,
+            subTotal: order.subTotal,
+            discountValue: order.discountValue,
+            discountType: order.discountType,
+            total: order.total,
+            paymentMethod: 'اجل',
+            notes: `عن أمر شراء رقم ${order.id}${order.notes ? ` - ${order.notes}` : ''}`,
+            invoiceType: 'purchase',
+            status: 'active'
+        };
+        setPurchaseOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' } : o));
+        setInitialPurchaseInvoiceData(initialInvoice);
+        setActivePage('purchases');
+    };
+
     // Render Logic
     if (!currentUser) {
         return <Login users={users} onLogin={setCurrentUser} />;
@@ -488,6 +535,31 @@ const App: React.FC = () => {
                 onConvertToWorkOrder={handleConvertToWorkOrder}
             />;
         }
+        if (activePage === 'purchaseRequests' && hasPermission('access_purchase_requests')) {
+            return <PurchaseRequests
+                requests={purchaseRequests}
+                setRequests={setPurchaseRequests}
+                products={products}
+                onConvertToOrder={handleConvertPurchaseRequest}
+                onNavigate={(page) => setActivePage(page)}
+                onOpenSettings={() => setActiveSettingsModule('purchases')}
+                logAction={logAction}
+            />;
+        }
+        if (activePage === 'purchaseOrders' && hasPermission('access_purchase_orders')) {
+            return <PurchaseOrders
+                orders={purchaseOrders}
+                setOrders={setPurchaseOrders}
+                suppliers={suppliers}
+                products={products}
+                onConvertToInvoice={handleConvertPurchaseOrder}
+                onNavigate={(page) => setActivePage(page)}
+                onOpenSettings={() => setActiveSettingsModule('purchases')}
+                logAction={logAction}
+                initialOrderData={initialPurchaseOrderData}
+                onClearInitialOrder={() => setInitialPurchaseOrderData(null)}
+            />;
+        }
         if (activePage === 'purchases' && hasPermission('access_purchases')) {
             return <Purchases
                 invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
@@ -501,6 +573,9 @@ const App: React.FC = () => {
                 currentBranchId={currentBranchId}
                 postingSettings={postingSettings}
                 onOpenSettings={() => setActiveSettingsModule('purchases')}
+                initialInvoiceData={initialPurchaseInvoiceData}
+                onClearInitialData={() => setInitialPurchaseInvoiceData(null)}
+                onNavigate={(page) => setActivePage(page)}
             />;
         }
         if (activePage === 'inventory' && hasPermission('access_inventory')) {

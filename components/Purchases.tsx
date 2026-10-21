@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { PurchaseInvoice, CompanyInfo, Supplier, Product, SupplierPayment, Expense, Account, StockTransaction, ModulePostingSettings } from '../types.ts';
+import type { PurchaseInvoice, CompanyInfo, Supplier, Product, SupplierPayment, Expense, Account, StockTransaction, ModulePostingSettings, Page } from '../types.ts';
 import AddPurchaseInvoiceModal from './AddPurchaseInvoiceModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import SupplierStatementModal from './SupplierStatementModal.tsx';
@@ -24,11 +24,29 @@ interface PurchasesProps {
   currentBranchId?: string;
   postingSettings?: ModulePostingSettings;
   onOpenSettings?: () => void;
+  initialInvoiceData?: Partial<PurchaseInvoice> | null;
+  onClearInitialData?: () => void;
+  onNavigate?: (page: Page) => void;
 }
 
-const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers, products, setProducts, stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments, createJournalEntry, logAction, currentUser, deleteJournalEntryByReference, accounts, setAccounts, currentBranchId = 'main', postingSettings, onOpenSettings }) => {
+const Purchases: React.FC<PurchasesProps> = ({
+  invoices, setInvoices, suppliers, products, setProducts,
+  stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments,
+  createJournalEntry, logAction, currentUser, deleteJournalEntryByReference,
+  accounts, setAccounts, currentBranchId = 'main', postingSettings, onOpenSettings,
+  initialInvoiceData, onClearInitialData, onNavigate
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
+
+  // Handle incoming converted data (e.g. from PO)
+  React.useEffect(() => {
+    if (initialInvoiceData) {
+      setEditingInvoice(initialInvoiceData as PurchaseInvoice);
+      setIsModalOpen(true);
+      if (onClearInitialData) onClearInitialData();
+    }
+  }, [initialInvoiceData, onClearInitialData]);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [invoiceToVoid, setInvoiceToVoid] = useState<string | null>(null);
 
@@ -682,9 +700,39 @@ const Purchases: React.FC<PurchasesProps> = ({ invoices, setInvoices, suppliers,
   };
 
   return (
-    <div>
+    <div className="space-y-6">
+      {/* Top Documentary Cycle Navigation Tabs */}
+      {onNavigate && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onNavigate('purchaseRequests')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-gray-50 hover:bg-gray-100 text-gray-700 transition-all border border-gray-200"
+            >
+              <span>📝</span>
+              <span>طلبات الشراء (PR)</span>
+            </button>
+            <button
+              onClick={() => onNavigate('purchaseOrders')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-gray-50 hover:bg-gray-100 text-gray-700 transition-all border border-gray-200"
+            >
+              <span>📑</span>
+              <span>أوامر الشراء (PO)</span>
+            </button>
+            <button
+              onClick={() => onNavigate('purchases')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-green-600 text-white shadow-sm transition-all"
+            >
+              <span>🧾</span>
+              <span>فواتير ومرتجعات المشتريات</span>
+              <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">{invoices.length}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">فواتير المشتريات</h1>
+        <h1 className="text-3xl font-bold text-gray-800">فواتير المشتريات والمرتجعات</h1>
         <div className="flex flex-wrap gap-2 items-center">
           {onOpenSettings && (
             <button

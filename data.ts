@@ -95,7 +95,13 @@ export const users: User[] = [
     password: '123',
     fullName: 'المدير العام',
     role: 'admin',
-    permissions: ['access_dashboard', 'access_sales', 'access_purchases', 'access_inventory', 'access_expenses', 'access_customers', 'access_treasury', 'access_partners', 'access_reports', 'access_settings', 'manage_users', 'access_chart_of_accounts']
+    permissions: [
+      'access_dashboard', 'access_sales', 'access_quotations', 'access_customers',
+      'access_purchases', 'access_purchase_requests', 'access_purchase_orders', 'access_suppliers',
+      'access_manufacturing', 'access_inventory', 'access_warehouse', 'access_fixed_assets',
+      'access_treasury', 'access_chart_of_accounts', 'access_journal_entries', 'access_expenses',
+      'access_partners', 'access_reports', 'access_settings', 'manage_users', 'manage_backup', 'manage_accounting_settings'
+    ]
   },
   {
     id: 'dev1',
@@ -103,6 +109,12 @@ export const users: User[] = [
     password: '123',
     fullName: 'مطور النظام',
     role: 'developer',
-    permissions: ['access_dashboard', 'access_sales', 'access_purchases', 'access_inventory', 'access_expenses', 'access_customers', 'access_treasury', 'access_partners', 'access_reports', 'access_settings', 'manage_users', 'access_chart_of_accounts']
+    permissions: [
+      'access_dashboard', 'access_sales', 'access_quotations', 'access_customers',
+      'access_purchases', 'access_purchase_requests', 'access_purchase_orders', 'access_suppliers',
+      'access_manufacturing', 'access_inventory', 'access_warehouse', 'access_fixed_assets',
+      'access_treasury', 'access_chart_of_accounts', 'access_journal_entries', 'access_expenses',
+      'access_partners', 'access_reports', 'access_settings', 'manage_users', 'manage_backup', 'manage_accounting_settings'
+    ]
   }
 ];
