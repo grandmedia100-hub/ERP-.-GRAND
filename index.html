@@ -3,7 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>برنامج المحاسبة المالية</title>
+    <title>MediaHive ERP</title>
+    <script>
+      (function() {
+        try {
+          var titles = {
+            dashboard: 'لوحة التحكم الرئيسية',
+            sales: 'فواتير ومرتجعات المبيعات',
+            quotations: 'عروض الأسعار',
+            purchaseRequests: 'طلبات الشراء (PR)',
+            purchaseOrders: 'أوامر الشراء (PO)',
+            purchases: 'فواتير المشتريات والموردين',
+            inventory: 'إدارة المخزون والأصناف',
+            warehouse: 'إدارة المستودعات والجرد',
+            manufacturing: 'أوامر التصنيع والتشغيل',
+            customers: 'حسابات العملاء والتحصيلات',
+            suppliers: 'حسابات الموردين والمدفوعات',
+            treasury: 'الخزينة والمصارف',
+            reports: 'التقارير والقوائم المالية',
+            journalEntries: 'القيود اليومية',
+            chartOfAccounts: 'دليل الحسابات',
+            fixedAssets: 'الأصول الثابتة والإهلاك',
+            settings: 'الإعدادات العامة والشركة',
+            accountingSettings: 'إعدادات التوجيه المحاسبي',
+            users: 'المستخدمين والصلاحيات',
+            backup: 'النسخ الاحتياطي والأمان',
+            auditLog: 'سجل العمليات والرقابة'
+          };
+          var p = new URLSearchParams(window.location.search).get('page');
+          if (p && titles[p]) {
+            document.title = titles[p] + ' | MediaHive ERP';
+          }
+        } catch(e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">

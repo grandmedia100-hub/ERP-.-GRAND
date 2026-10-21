@@ -239,6 +239,30 @@ function checkAndFixDuplicates(invoices: any[]): any[] {
     return fixedInvoices;
 }
 
+const PAGE_TITLES: Record<Page, string> = {
+    dashboard: 'لوحة التحكم الرئيسية',
+    sales: 'فواتير ومرتجعات المبيعات',
+    quotations: 'عروض الأسعار',
+    purchaseRequests: 'طلبات الشراء (PR)',
+    purchaseOrders: 'أوامر الشراء (PO)',
+    purchases: 'فواتير المشتريات والموردين',
+    inventory: 'إدارة المخزون والأصناف',
+    warehouse: 'إدارة المستودعات والجرد',
+    manufacturing: 'أوامر التصنيع والتشغيل',
+    customers: 'حسابات العملاء والتحصيلات',
+    suppliers: 'حسابات الموردين والمدفوعات',
+    treasury: 'الخزينة والمصارف',
+    reports: 'التقارير والقوائم المالية',
+    journalEntries: 'القيود اليومية',
+    chartOfAccounts: 'دليل الحسابات',
+    fixedAssets: 'الأصول الثابتة والإهلاك',
+    settings: 'الإعدادات العامة والشركة',
+    accountingSettings: 'إعدادات التوجيه المحاسبي',
+    users: 'المستخدمين والصلاحيات',
+    backup: 'النسخ الاحتياطي والأمان',
+    auditLog: 'سجل العمليات والرقابة',
+};
+
 // --- Main Component ---
 const App: React.FC = () => {
     // 1. All State Definitions
@@ -258,6 +282,8 @@ const App: React.FC = () => {
     const [activePage, setActivePage] = useState<Page>(getInitialPage);
 
     useEffect(() => {
+        const pageTitle = PAGE_TITLES[activePage] || 'MediaHive ERP';
+        document.title = `${pageTitle} | MediaHive ERP`;
         try {
             const url = new URL(window.location.href);
             url.searchParams.set('page', activePage);
