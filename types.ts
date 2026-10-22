@@ -63,6 +63,30 @@ export interface CompanyInfo {
   treasuryOpeningBalance: number; // Keep for backward compatibility (Main Treasury)
   treasuryBreakdown?: Record<string, number>; // New field for specific account opening balances
   financialYearLockDate?: string; // New: Lock date for financial period (YYYY-MM-DD)
+  taxNumber?: string; // الرقم الضريبي
+  commercialRegister?: string; // السجل التجاري
+}
+
+export interface PrintSettings {
+  paperSize: 'A4' | 'A5' | 'thermal80';
+  orientation: 'portrait' | 'landscape';
+  margins: 'normal' | 'compact' | 'minimal';
+  primaryColor: string;
+  fontFamily: 'Cairo' | 'Tajawal' | 'Almarai' | 'Amiri';
+  fontSize: 'sm' | 'base' | 'lg';
+  showLogo: boolean;
+  logoSize: 'sm' | 'md' | 'lg';
+  showCompanyDetails: boolean;
+  headerLayout: 'standard' | 'centered' | 'modern';
+  taxNumber?: string;
+  commercialRegister?: string;
+  footerNotes?: string;
+  footerGreeting?: string;
+  showSignatures: boolean;
+  signature1?: string;
+  signature2?: string;
+  signature3?: string;
+  showQrCode?: boolean;
 }
 
 export interface Account {

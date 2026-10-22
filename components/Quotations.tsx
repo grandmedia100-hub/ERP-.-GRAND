@@ -3,6 +3,7 @@ import type { Quotation, Customer, Product, SalesInvoice, CompanyInfo } from '..
 import AddQuotationModal from './AddQuotationModal.tsx';
 import AddSalesInvoiceModal from './AddSalesInvoiceModal.tsx';
 import QuoteCalculatorModal from './QuoteCalculatorModal.tsx';
+import { getPrintSettings } from '../utils/printEngine.ts';
 
 interface QuotationsProps {
     quotations: Quotation[];
@@ -122,6 +123,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
     const handlePrint = (quote: Quotation) => {
         const companyInfoString = localStorage.getItem('companyInfo');
         const companyInfo: CompanyInfo = companyInfoString ? JSON.parse(companyInfoString) : { name: 'Company', logo: '', address: '', phone: '' };
+        const printSettings = getPrintSettings();
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
@@ -136,7 +138,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
                
                :root {
-                   --primary-color: #1e40af;
+                   --primary-color: ${printSettings.primaryColor || '#1e40af'};
                    --secondary-color: #f3f4f6;
                    --border-color: #e5e7eb;
                }
@@ -148,7 +150,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                }
 
                body {
-                   font-family: 'Cairo', sans-serif;
+                   font-family: '${printSettings.fontFamily || 'Cairo'}', sans-serif;
                    margin: 0;
                    padding: 0;
                    background-color: #525659;
@@ -157,7 +159,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                }
 
                @page {
-                   size: A4;
+                   size: ${printSettings.paperSize === 'thermal80' ? '80mm auto' : (printSettings.paperSize || 'A4')};
                    margin: 0;
                }
 

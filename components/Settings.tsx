@@ -4,6 +4,7 @@ import type { CompanyInfo, Customer, Supplier, Product, User, SalesInvoice, Purc
 import ConfirmationModal from './ConfirmationModal.tsx';
 import OpeningBalancesModal from './OpeningBalancesModal.tsx';
 import ConnectionSettings from './ConnectionSettings.tsx';
+import PrintSettingsModal from './PrintSettingsModal.tsx';
 
 const WALLPAPER_PRESETS = [
   { id: 'office', name: 'أبراج وأعمال حديثة', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920' },
@@ -100,6 +101,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isOpeningBalancesOpen, setIsOpeningBalancesOpen] = useState(false);
   const [isConnectionSettingsOpen, setIsConnectionSettingsOpen] = useState(false);
+  const [isPrintSettingsOpen, setIsPrintSettingsOpen] = useState(false);
   const [selectedBgPage, setSelectedBgPage] = useState<string>('dashboard');
 
   const handleBgFileUpload = (e: React.ChangeEvent<HTMLInputElement>, targetPage?: string) => {
@@ -620,12 +622,42 @@ const Settings: React.FC<SettingsProps> = ({
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
               إعدادات الخادم
             </button>
+
+            <button
+              onClick={() => setIsPrintSettingsOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+            >
+              <span>🖨️</span>
+              إعدادات وتنسيق الطباعة
+            </button>
           </div>
           <button onClick={handleSaveSettings} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 shadow-md">
             حفظ الكل
           </button>
         </div>
         {successMessage && <p className="text-green-600 mt-2 text-center font-bold">{successMessage}</p>}
+      </div>
+
+      {/* Dedicated Card for Print & Document Templates Customizer */}
+      <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white p-6 rounded-2xl shadow-lg max-w-3xl mx-auto mb-8 border border-indigo-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-3xl backdrop-blur-sm border border-white/20">
+            🖨️
+          </div>
+          <div>
+            <h3 className="text-lg font-bold">تنسيق قوالب ونماذج الطباعة (A4 / A5 / رول حراري)</h3>
+            <p className="text-xs text-indigo-200 mt-1 max-w-lg leading-relaxed">
+              تحكم كامل في مقاسات الورق، الألوان، الخطوط العربية، حجم الشعار، الترويسة، الشروط والأحكام، وخانات التوقيع لجميع فواتير وتقارير ومستندات النظام.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsPrintSettingsOpen(true)}
+          className="whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all active:scale-95"
+        >
+          <span>⚙️</span>
+          <span>تخصيص نماذج الطباعة</span>
+        </button>
       </div>
 
       {
@@ -1121,6 +1153,12 @@ const Settings: React.FC<SettingsProps> = ({
         isOpen={isConnectionSettingsOpen}
         onClose={() => setIsConnectionSettingsOpen(false)}
       />
+
+      {isPrintSettingsOpen && (
+        <PrintSettingsModal
+          onClose={() => setIsPrintSettingsOpen(false)}
+        />
+      )}
     </div >
   );
 };
