@@ -63,20 +63,43 @@ const Treasury: React.FC<TreasuryProps> = ({
   const [endDate, setEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const accountOptions: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
+  // Dynamic treasury, bank, and electronic wallet accounts extracted from the active branch's Chart of Accounts
+  const accountOptions: TreasuryAccountType[] = useMemo(() => {
+    const list = (accounts || []).filter(a =>
+      !a.isGroup && (
+        ['1101', '1102', '1105', '1106', '1107'].includes(a.id) ||
+        ['1101', '1102', '1105', '1106', '1107'].includes(a.code) ||
+        a.name.includes('خزينة') ||
+        a.name.includes('صندوق') ||
+        a.name.includes('بنك') ||
+        a.name.includes('كاش') ||
+        a.name.includes('محفظ') ||
+        a.name.includes('انستاباي') ||
+        a.name.includes('انستاباى')
+      )
+    );
+    if (list.length > 0) {
+      return list.map(a => a.name);
+    }
+    return ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
+  }, [accounts]);
 
   const recAccId = postingSettings?.salesReceivablesAccountId || '1103';
   const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
 
   const getAccountId = (name: string): string => {
-    switch (name) {
-      case 'الخزينة الرئيسية': return postingSettings?.treasuryMainCashAccountId || '1101';
-      case 'البنك الاهلى':     return postingSettings?.treasuryBankAccountId || '1102';
-      case 'بنك فيصل':        return '1105'; // separate from 1102 to avoid mixing
-      case 'فودافون كاش':     return '1106';
-      case 'انستاباى':        return '1107';
-      default: return postingSettings?.treasuryMainCashAccountId || '1101'; // Fallback to main treasury
-    }
+    // 1. Direct match by account name in branch accounts
+    const match = (accounts || []).find(a => a.name === name);
+    if (match) return match.id;
+
+    // 2. Keyword fallback or posting settings
+    if (name.includes('الرئيسية') || name.includes('صندوق')) return postingSettings?.treasuryMainCashAccountId || '1101';
+    if (name.includes('الاهلى') || name.includes('الأهلي')) return postingSettings?.treasuryBankAccountId || '1102';
+    if (name.includes('فيصل')) return '1105';
+    if (name.includes('فودافون') || name.includes('كاش')) return '1106';
+    if (name.includes('انستاباي') || name.includes('انستاباى')) return '1107';
+
+    return postingSettings?.treasuryMainCashAccountId || '1101';
   };
 
   const getOrCreateExpenseAccount = (name: string): string => {
@@ -731,10 +754,10 @@ const Treasury: React.FC<TreasuryProps> = ({
       }
     }
 
-    const accounts: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
+    const treasuryAccountList: TreasuryAccountType[] = accountOptions;
     const result: Record<string, number> = {};
 
-    accounts.forEach(acc => {
+    treasuryAccountList.forEach(acc => {
       // Opening Balance for this branch
       let opening = 0;
       if (acc === 'الخزينة الرئيسية') {
@@ -782,7 +805,7 @@ const Treasury: React.FC<TreasuryProps> = ({
 
     return result;
 
-  }, [customerPayments, supplierPayments, treasuryTransfers, accounts, currentBranchId]);
+  }, [customerPayments, supplierPayments, treasuryTransfers, accountOptions, currentBranchId]);
 
   // Filtering Logic
   const filteredReceipts = useMemo(() => {
@@ -2078,6 +2101,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           onAddExpense={handleAddAutoExpense}
           branches={branches}
           currentBranchId={currentBranchId}
+          accountOptions={accountOptions}
         />
       )}
 
@@ -2091,6 +2115,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           onAddExpense={handleAddAutoExpense}
           branches={branches}
           currentBranchId={currentBranchId}
+          accountOptions={accountOptions}
         />
       )}
 
@@ -2100,6 +2125,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           onSave={handleSaveTransfer}
           branches={branches}
           currentBranchId={currentBranchId}
+          accountOptions={accountOptions}
         />
       )}
 

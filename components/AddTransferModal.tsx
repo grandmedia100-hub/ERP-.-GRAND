@@ -8,6 +8,7 @@ interface AddTransferModalProps {
     onSave: (transfer: Omit<TreasuryTransfer, 'id'>) => void;
     branches?: { id: string; name: string }[];
     currentBranchId?: string;
+    accountOptions?: TreasuryAccountType[];
 }
 
 const AddTransferModal: React.FC<AddTransferModalProps> = ({
@@ -17,7 +18,8 @@ const AddTransferModal: React.FC<AddTransferModalProps> = ({
         { id: 'main', name: 'جراند ميديا' },
         { id: 'branch_1792042133332', name: 'برو باك' }
     ],
-    currentBranchId = 'main'
+    currentBranchId = 'main',
+    accountOptions: propAccountOptions
 }) => {
     const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [isIntercompany, setIsIntercompany] = useState(false);
@@ -81,7 +83,9 @@ const AddTransferModal: React.FC<AddTransferModalProps> = ({
         onClose();
     };
 
-    const accountOptions: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
+    const accountOptions: TreasuryAccountType[] = (propAccountOptions && propAccountOptions.length > 0)
+        ? propAccountOptions
+        : ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>

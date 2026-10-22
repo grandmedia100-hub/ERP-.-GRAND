@@ -13,6 +13,7 @@ interface AddReceiptModalProps {
     onAddExpense?: (expense: Expense) => void;
     branches?: { id: string; name: string }[];
     currentBranchId?: string;
+    accountOptions?: TreasuryAccountType[];
 }
 
 const AddReceiptModal: React.FC<AddReceiptModalProps> = ({
@@ -26,7 +27,8 @@ const AddReceiptModal: React.FC<AddReceiptModalProps> = ({
         { id: 'main', name: 'جراند ميديا' },
         { id: 'branch_1792042133332', name: 'برو باك' }
     ],
-    currentBranchId = 'main'
+    currentBranchId = 'main',
+    accountOptions: propAccountOptions
 }) => {
     const isEditing = !!receiptToEdit;
 
@@ -185,7 +187,9 @@ const AddReceiptModal: React.FC<AddReceiptModalProps> = ({
         handleAutoExpense(paymentId);
     };
 
-    const accountOptions: TreasuryAccountType[] = ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
+    const accountOptions: TreasuryAccountType[] = (propAccountOptions && propAccountOptions.length > 0)
+        ? propAccountOptions
+        : ['الخزينة الرئيسية', 'انستاباى', 'فودافون كاش', 'بنك فيصل', 'البنك الاهلى'];
 
     return (
         <div
