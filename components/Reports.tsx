@@ -58,6 +58,141 @@ const Reports: React.FC<ReportsProps> = (props) => {
     return props.currentUser.permissions ? props.currentUser.permissions.includes(permission as any) : false;
   };
 
+  const handlePrintJournal = () => {
+    const savedInfo = localStorage.getItem('companyInfo');
+    const companyInfo = savedInfo ? JSON.parse(savedInfo) : { name: 'اسم الشركة' };
+    const entries = (props.journalEntries || []).slice().reverse();
+
+    const rowsHtml = entries.map(entry => {
+      const rawLines = Array.isArray(entry.lines)
+        ? entry.lines
+        : (typeof entry.lines === 'string' ? (() => { try { return JSON.parse(entry.lines); } catch { return []; } })() : []);
+      const debitLines = rawLines.filter((l: any) => Number(l.debit) > 0);
+      const creditLines = rawLines.filter((l: any) => Number(l.credit) > 0);
+      const totalDebit = debitLines.reduce((sum: number, l: any) => sum + (Number(l.debit) || 0), 0);
+      const totalCredit = creditLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0), 0);
+
+      const debitDetails = debitLines.map((l: any) => `<div>${l.accountName || l.accountId}: <b>${Number(l.debit).toLocaleString()}</b></div>`).join('');
+      const creditDetails = creditLines.map((l: any) => `<div>${l.accountName || l.accountId}: <b>${Number(l.credit).toLocaleString()}</b></div>`).join('');
+
+      return `
+        <tr>
+          <td>${entry.id}</td>
+          <td style="direction: ltr;">${entry.date}</td>
+          <td>${entry.description}</td>
+          <td>${debitDetails}</td>
+          <td style="font-weight: bold; color: green;">${totalDebit.toLocaleString()}</td>
+          <td>${creditDetails}</td>
+          <td style="font-weight: bold; color: red;">${totalCredit.toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const printContent = `
+      <html dir="rtl" lang="ar">
+        <head>
+          <title>سجل القيود اليومية</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+            body { font-family: 'Cairo', sans-serif; direction: rtl; padding: 25px; margin: 0; }
+            .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #9333ea; padding-bottom: 15px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+            th { background-color: #f3e8ff; color: #581c87; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${companyInfo.name || 'MediaHive ERP'}</h1>
+            <h2>سجل القيود اليومية</h2>
+            <p>تاريخ الطباعة: ${new Date().toLocaleDateString('ar-EG')}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>رقم القيد</th>
+                <th>التاريخ</th>
+                <th>البيان</th>
+                <th>الحسابات المدينة</th>
+                <th>إجمالي المدين</th>
+                <th>الحسابات الدائنة</th>
+                <th>إجمالي الدائن</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+    }
+  };
+
+  const handlePrintLogs = () => {
+    const savedInfo = localStorage.getItem('companyInfo');
+    const companyInfo = savedInfo ? JSON.parse(savedInfo) : { name: 'اسم الشركة' };
+    const logs = props.logs || [];
+
+    const rowsHtml = logs.map(log => `
+      <tr>
+        <td>${log.userName} (${log.userId})</td>
+        <td>${log.action}</td>
+        <td style="direction: ltr;">${new Date(log.timestamp).toLocaleString('ar-EG')}</td>
+      </tr>
+    `).join('');
+
+    const printContent = `
+      <html dir="rtl" lang="ar">
+        <head>
+          <title>سجل عمليات النظام</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+            body { font-family: 'Cairo', sans-serif; direction: rtl; padding: 25px; margin: 0; }
+            .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+            th { background-color: #f1f5f9; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${companyInfo.name || 'MediaHive ERP'}</h1>
+            <h2>سجل عمليات النظام (Audit Log)</h2>
+            <p>تاريخ الطباعة: ${new Date().toLocaleDateString('ar-EG')}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>المستخدم</th>
+                <th>الإجراء</th>
+                <th>التوقيت</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-6">التقارير المالية</h1>
@@ -274,7 +409,18 @@ const Reports: React.FC<ReportsProps> = (props) => {
         <div className="bg-white p-6 rounded-xl shadow-md fixed inset-0 z-50 overflow-y-auto m-8 border-2 border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-800">سجل القيود اليومية (الآلية)</h2>
-            <button onClick={handleCloseModal} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">إغلاق</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrintJournal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-lg flex items-center gap-1.5 transition-colors text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>طباعة القيود</span>
+              </button>
+              <button onClick={handleCloseModal} className="bg-red-500 text-white px-4 py-1.5 rounded-lg hover:bg-red-600 text-sm font-bold">إغلاق</button>
+            </div>
           </div>
           <div className="text-sm text-gray-500 mb-4">عدد القيود: {props.journalEntries ? props.journalEntries.length : 0}</div>
 
@@ -343,11 +489,22 @@ const Reports: React.FC<ReportsProps> = (props) => {
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">سجل عمليات النظام (Audit Log)</h2>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrintLogs}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-lg flex items-center gap-1.5 transition-colors text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>طباعة السجل</span>
+                </button>
+                <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700 p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-right">

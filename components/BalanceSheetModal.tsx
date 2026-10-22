@@ -91,16 +91,23 @@ const BalanceSheetModal: React.FC<BalanceSheetModalProps> = ({
     // Ideally calculated as: Opening Equity + Net Income - Drawings
     // Here we derive it to ensure balance, but display components
 
-    // True COGS from sales invoices (Cost of goods sold)
+    // True Revenue and COGS from sales invoices
+    const totalRevenue = salesInvoices
+      .filter(i => i.status !== 'voided' && isBeforeOrOn(i.date))
+      .reduce((sum, inv) => sum + (inv.invoiceType === 'return' ? -inv.total : inv.total), 0);
+
     const totalCOGS = salesInvoices
       .filter(i => i.status !== 'voided' && isBeforeOrOn(i.date))
       .reduce((sum, inv) => {
         const isReturn = inv.invoiceType === 'return';
-        const invCost = (inv.items || []).reduce((iSum, item) => {
+        const rawItems: any[] = Array.isArray(inv.items)
+          ? inv.items
+          : (typeof inv.items === 'string' ? (() => { try { return JSON.parse(inv.items); } catch { return []; } })() : []);
+        const invCost = (rawItems || []).reduce((iSum: number, item: any) => {
           const cost = item.cost !== undefined && item.cost >= 0
             ? item.cost
             : (products.find(p => p.id === item.productId)?.costPrice || 0);
-          return iSum + cost * (item.quantity || 0);
+          return iSum + cost * (Number(item.quantity) || 0);
         }, 0);
         return sum + (isReturn ? -invCost : invCost);
       }, 0);
