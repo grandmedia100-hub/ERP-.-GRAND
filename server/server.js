@@ -159,7 +159,9 @@ function mirrorSalesToPurchase(salesInvoice, sourceBranchId) {
     
     // Auto-detect target branch by name if not specified:
     if (!targetBranchId) {
-        if (custText.includes('برو') || custText.includes('بروباك') || custText.includes('المصنع')) {
+        if (custText.includes('المصنع') || custText.includes('مصنع')) {
+            targetBranchId = 'factory';
+        } else if (custText.includes('برو') || custText.includes('بروباك')) {
             targetBranchId = 'branch_1792042133332'; // Pro Pack
         } else if (custText.includes('جراند') || custText.includes('ميديا')) {
             targetBranchId = 'main'; // Grand Media
@@ -171,7 +173,7 @@ function mirrorSalesToPurchase(salesInvoice, sourceBranchId) {
         return;
     }
     
-    const sourceBranchName = (sourceBranchId === 'main') ? 'جراند ميديا' : 'برو باك';
+    const sourceBranchName = getBranchName(sourceBranchId);
     const purchaseInvoiceId = 'PUR-IC-' + salesInvoice.id;
     
     const purchaseInvoice = {
@@ -215,7 +217,8 @@ function getAccountId(name) {
 
 function getBranchName(branchId) {
     if (branchId === 'main') return 'جراند ميديا';
-    if (branchId === 'branch_1792042133332' || branchId === 'factory') return 'برو باك';
+    if (branchId === 'factory') return 'المصنع';
+    if (branchId === 'branch_1792042133332') return 'برو باك';
     return branchId || 'الفرع';
 }
 
