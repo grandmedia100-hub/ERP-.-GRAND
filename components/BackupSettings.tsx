@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import apiService from '../services/api.ts';
+import { showNotification } from '../services/notificationService.ts';
 
 interface BackupSettingsProps {
 }
@@ -66,7 +67,15 @@ const BackupSettings: React.FC<BackupSettingsProps> = () => {
         try {
             const res = await apiService.request('/api/backup/create-snapshot', { method: 'POST' });
             if (res && res.success) {
-                setSnapshotMsg({ type: 'success', text: `تم إنشاء نقطة استعادة جديدة بنجاح: ${res.snapshot}` });
+                const snapName = res.filename || res.snapshot;
+                setSnapshotMsg({ type: 'success', text: `تم إنشاء نقطة استعادة جديدة بنجاح: ${snapName}` });
+                showNotification({
+                    type: 'success',
+                    title: 'تم إنشاء نقطة استعادة لقاعدة البيانات',
+                    message: `تم حفظ النسخة بنجاح: ${snapName}`,
+                    sound: 'success',
+                    category: 'system'
+                });
                 fetchSnapshots();
             } else {
                 setSnapshotMsg({ type: 'error', text: res?.error || 'فشل إنشاء نقطة الاستعادة' });

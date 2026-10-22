@@ -4,6 +4,7 @@ import type { PurchaseInvoice, CompanyInfo, Supplier, Product, SupplierPayment, 
 import AddPurchaseInvoiceModal from './AddPurchaseInvoiceModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import SupplierStatementModal from './SupplierStatementModal.tsx';
+import { showNotification } from '../services/notificationService.ts';
 
 interface PurchasesProps {
   invoices: PurchaseInvoice[];
@@ -372,6 +373,14 @@ const Purchases: React.FC<PurchasesProps> = ({
         setSupplierPayments(prev => prev.filter(p => p.id !== paymentId && p.referenceId !== newId));
       }
     }
+
+    showNotification({
+      type: 'success',
+      title: type === 'return' ? 'تم تسجيل مرتجع مشتريات' : 'تم حفظ فاتورة مشتريات بنجاح',
+      message: `فاتورة #${newId} من المورد (${supplierName}) بمبلغ ${(newInvoice.total || 0).toLocaleString()} ج.م`,
+      sound: 'success',
+      category: 'purchases'
+    });
 
     handleCloseModal();
   };

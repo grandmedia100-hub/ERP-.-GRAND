@@ -5,6 +5,7 @@ import ConfirmationModal from './ConfirmationModal.tsx';
 import { exportToExcel } from '../utils/exportToExcel.ts'; // Import
 import DetailedSalesByItemReport from './DetailedSalesByItemReport.tsx';
 import apiService from '../services/api.ts';
+import { showNotification } from '../services/notificationService.ts';
 
 interface SalesProps {
   invoices: SalesInvoice[];
@@ -338,6 +339,14 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
 
     // Apply stock movements for the new/updated invoice
     recordStockMovements(newInvoice, type === 'return');
+
+    showNotification({
+      type: 'cash',
+      title: type === 'return' ? 'تم تسجيل مرتجع مبيعات' : 'تم حفظ فاتورة مبيعات بنجاح',
+      message: `فاتورة #${newId} للعميل (${customerName}) بمبلغ ${(newInvoice.total || 0).toLocaleString()} ج.م`,
+      sound: 'cash',
+      category: 'sales'
+    });
 
     handleCloseModal();
   };

@@ -26,6 +26,9 @@ import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
 import AccountingSettingsPage from './components/AccountingSettingsPage.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
+import ToastContainer from './components/ToastContainer.tsx';
+import NotificationCenter from './components/NotificationCenter.tsx';
+import { showNotification } from './services/notificationService.ts';
 
 // Data Imports
 import * as initialData from './data.ts';
@@ -415,6 +418,27 @@ const App: React.FC = () => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    // Automatic Low Stock Alert Monitor
+    useEffect(() => {
+        if (!products || products.length === 0) return;
+        const lowStockItems = products.filter(p => p.reorderPoint > 0 && p.quantity <= p.reorderPoint);
+        if (lowStockItems.length > 0) {
+            const todayKey = 'erp_low_stock_notified_' + new Date().toISOString().split('T')[0];
+            const alreadyNotified = sessionStorage.getItem(todayKey);
+            if (!alreadyNotified) {
+                sessionStorage.setItem(todayKey, 'true');
+                const sample = lowStockItems[0];
+                showNotification({
+                    type: 'warning',
+                    title: 'تنبيه مخزون: يوجد ' + lowStockItems.length + ' صنف قارب على النفاد',
+                    message: 'الصنف (' + sample.name + ') المتبقي منه: ' + sample.quantity + ' ' + (sample.unit || '') + ' (حد الأمان: ' + sample.reorderPoint + ')',
+                    sound: 'warning',
+                    category: 'inventory'
+                });
+            }
+        }
+    }, [products]);
 
     const handleCreateBranch = () => {
         if (!newBranchName.trim()) return;
@@ -883,7 +907,8 @@ const App: React.FC = () => {
                                 <span className="hidden sm:inline">نافذة جديدة</span>
                             </button>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <NotificationCenter onNavigatePage={(page) => setActivePage(page as Page)} />
                             <select 
                                 value={currentBranchId}
                                 onChange={(e) => {
@@ -941,6 +966,9 @@ const App: React.FC = () => {
                 purchaseInvoices={purchaseInvoices}
                 currentUser={currentUser || undefined}
             />
+
+            {/* Global Toast Notifications & Audio Feedback */}
+            <ToastContainer />
         </div>
     );
 };

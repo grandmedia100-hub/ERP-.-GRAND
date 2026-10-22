@@ -6,6 +6,7 @@ import AddPaymentModal from './AddPaymentModal.tsx';
 import AddTransferModal from './AddTransferModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import { exportToExcel } from '../utils/exportToExcel.ts';
+import { showNotification } from '../services/notificationService.ts';
 import type { TreasuryTransfer } from '../types.ts';
 
 interface TreasuryProps {
@@ -248,6 +249,15 @@ const Treasury: React.FC<TreasuryProps> = ({
         logAction(`إضافة سند قبض جديد: ${newReceipt.id} (${newReceipt.amount})`);
       }
     }
+
+    showNotification({
+      type: 'cash',
+      title: 'تم تسجيل سند قبض بنجاح',
+      message: `سند قبض بقيمة ${(receiptData.amount || 0).toLocaleString()} ج.م - ${receiptData.customerName || ''}`,
+      sound: 'cash',
+      category: 'treasury'
+    });
+
     setIsReceiptModalOpen(false);
     setEditingReceipt(null);
   };
@@ -423,6 +433,15 @@ const Treasury: React.FC<TreasuryProps> = ({
         logAction(`إضافة سند صرف جديد: ${newPayment.id} (${newPayment.amount})`);
       }
     }
+
+    showNotification({
+      type: 'info',
+      title: 'تم تسجيل سند صرف بنجاح',
+      message: `سند صرف بقيمة ${(paymentData.amount || 0).toLocaleString()} ج.م - ${paymentData.supplierName || ''}`,
+      sound: 'cash',
+      category: 'treasury'
+    });
+
     setIsPaymentModalOpen(false);
     setEditingPayment(null);
   };
@@ -512,6 +531,14 @@ const Treasury: React.FC<TreasuryProps> = ({
       }
       logAction(`تحويل رصيد: ${newTransfer.id} (${newTransfer.amount} من ${newTransfer.fromAccount} إلى ${newTransfer.toAccount})`);
     }
+
+    showNotification({
+      type: 'success',
+      title: 'تم تسجيل تحويل نقدية بين الحسابات',
+      message: `تحويل مبلغ ${(transferData.amount || 0).toLocaleString()} ج.م من (${transferData.fromAccount}) إلى (${transferData.toAccount})`,
+      sound: 'success',
+      category: 'treasury'
+    });
 
     setIsTransferModalOpen(false);
   };

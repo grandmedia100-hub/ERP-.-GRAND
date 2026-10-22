@@ -4,6 +4,7 @@ import type {
   StockTransaction, ProductionExpense, ProductionOperation, ProductionScrap, ProductionPlanItem,
   ModulePostingSettings, JournalEntry
 } from '../types.ts';
+import { showNotification } from '../services/notificationService.ts';
 
 interface ManufacturingProps {
   products: Product[];
@@ -782,6 +783,15 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
     setProductionOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 
     logAction(`تنفيذ أمر تصنيع: ${updatedOrder.code} - إنتاج ${actualQty} وحدة - تكلفة الوحدة: ${unitCost.toFixed(2)} ج.م`);
+
+    showNotification({
+      type: 'success',
+      title: 'تم إتمام أمر الإنتاج والتصنيع',
+      message: `أمر #${updatedOrder.code} - إنتاج ${actualQty} من (${updatedOrder.outputProductName}) بتكلفة ${totalCostAll.toLocaleString()} ج.م`,
+      sound: 'success',
+      category: 'manufacturing'
+    });
+
     setShowExecuteModal(false);
     setExecutingOrder(null);
     alert(`✅ تم تنفيذ وترحيل أمر التصنيع بنجاح!\n📦 تم توريد ${actualQty} وحدة تامة إلى المخزن بتكلفة ${unitCost.toFixed(2)} ج.م/وحدة\n💰 إجمالي تكلفة الأمر: ${totalCostAll.toFixed(2)} ج.م\n📝 تم تسجيل القيد المحاسبي وحركات الصرف والإضافة تلقائياً.`);
