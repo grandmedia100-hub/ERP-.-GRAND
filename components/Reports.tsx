@@ -9,6 +9,7 @@ import BalanceSheetModal from './BalanceSheetModal.tsx';
 import AgingReportModal from './AgingReportModal.tsx';
 import BalancesReportModal from './BalancesReportModal.tsx';
 import TrialBalanceModal from './TrialBalanceModal.tsx'; // Ensure this is imported or handled
+import IntercompanyStatementModal from './IntercompanyStatementModal.tsx';
 
 import type { SalesInvoice, PurchaseInvoice, Customer, Supplier, CustomerPayment, SupplierPayment, Product, JournalEntry, LogEntry, User } from '../types.ts';
 
@@ -259,6 +260,13 @@ const Reports: React.FC<ReportsProps> = (props) => {
             onClick={() => setActiveReport('treasury')}
           />
         )}
+        {(hasPermission('access_chart_of_accounts') || hasPermission('view_reports_treasury')) && (
+          <ReportCard
+            title="كشف حساب جاري المصنع (الشركات الشقيقة)"
+            description="عرض تفصيلي لجميع الحركات والتوريدات والتحويلات المالية البينية (حـ/ 2102) ومطابقة الأرصدة."
+            onClick={() => setActiveReport('intercompany')}
+          />
+        )}
         {hasPermission('view_reports_profits') && (
           <>
             <ReportCard
@@ -368,6 +376,14 @@ const Reports: React.FC<ReportsProps> = (props) => {
           expenses={props.expenses}
           customerPayments={props.customerPayments}
           supplierPayments={props.supplierPayments}
+        />
+      )}
+
+      {activeReport === 'intercompany' && (
+        <IntercompanyStatementModal
+          onClose={handleCloseModal}
+          journalEntries={props.journalEntries || []}
+          accounts={props.accounts || []}
         />
       )}
 
