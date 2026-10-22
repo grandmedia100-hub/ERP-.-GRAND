@@ -6,13 +6,13 @@ interface TreasuryStatementModalProps {
     onClose: () => void;
     salesInvoices: SalesInvoice[];
     purchaseInvoices: PurchaseInvoice[];
-
+    expenses?: any[];
     customerPayments: CustomerPayment[];
     supplierPayments: SupplierPayment[];
 }
 
 const TreasuryStatementModal: React.FC<TreasuryStatementModalProps> = ({
-    onClose, salesInvoices, purchaseInvoices, customerPayments, supplierPayments
+    onClose, salesInvoices, purchaseInvoices, expenses = [], customerPayments, supplierPayments
 }) => {
     const [startDate, setStartDate] = useState<string>('2024-01-01');
     const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -65,21 +65,37 @@ const TreasuryStatementModal: React.FC<TreasuryStatementModalProps> = ({
                 credit: p.amount
             }));
 
+        const allExpenses = (expenses || [])
+            .filter(e => e.status !== 'voided')
+            .map(e => ({
+                date: e.date,
+                docId: e.id,
+                description: `مصروف: ${e.category || ''} - ${e.description || ''}`,
+                debit: 0,
+                credit: Number(e.amount) || 0
+            }));
+
         const allTransactions = [
             ...cashSales,
             ...cashPurchases,
             ...allCustomerPayments,
-            ...allSupplierPayments
+            ...allSupplierPayments,
+            ...allExpenses
         ];
 
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+
         const balanceBeforePeriod = allTransactions
-            .filter(t => new Date(t.date) < new Date(startDate))
+            .filter(t => start && new Date(t.date) < start)
             .reduce((balance, t) => balance + t.debit - t.credit, companyInfo.treasuryOpeningBalance);
 
         const transactionsInPeriod = allTransactions
             .filter(t => {
                 const transactionDate = new Date(t.date);
-                return transactionDate >= new Date(startDate) && transactionDate <= new Date(endDate);
+                if (start && transactionDate < start) return false;
+                if (end && transactionDate > end) return false;
+                return true;
             })
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

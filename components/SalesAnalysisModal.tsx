@@ -39,13 +39,16 @@ const SalesAnalysisModal: React.FC<SalesAnalysisModalProps> = ({ onClose, salesI
     const productStats: Record<string, { quantity: number; revenue: number }> = {};
 
     filteredInvoices.forEach(inv => {
-      inv.items.forEach(item => {
+      const rawItems = Array.isArray(inv.items)
+        ? inv.items
+        : (typeof inv.items === 'string' ? (() => { try { return JSON.parse(inv.items); } catch { return []; } })() : []);
+      (rawItems || []).forEach(item => {
         const name = item.productName;
         if (!productStats[name]) {
           productStats[name] = { quantity: 0, revenue: 0 };
         }
-        productStats[name].quantity += item.quantity;
-        productStats[name].revenue += item.total;
+        productStats[name].quantity += (Number(item.quantity) || 0);
+        productStats[name].revenue += (Number(item.total) || 0);
       });
     });
 

@@ -7,6 +7,7 @@ import SalesAnalysisModal from './SalesAnalysisModal.tsx';
 import DetailedSalesByItemReport from './DetailedSalesByItemReport.tsx';
 import BalanceSheetModal from './BalanceSheetModal.tsx';
 import AgingReportModal from './AgingReportModal.tsx';
+import BalancesReportModal from './BalancesReportModal.tsx';
 import TrialBalanceModal from './TrialBalanceModal.tsx'; // Ensure this is imported or handled
 
 import type { SalesInvoice, PurchaseInvoice, Customer, Supplier, CustomerPayment, SupplierPayment, Product, JournalEntry, LogEntry, User } from '../types.ts';
@@ -165,17 +166,19 @@ const Reports: React.FC<ReportsProps> = (props) => {
         />
       )}
 
-      {/* {activeReport === 'balances' && (
+      {activeReport === 'balances' && (
         <BalancesReportModal
           onClose={handleCloseModal}
-          customers={props.customers}
-          suppliers={props.suppliers}
-          salesInvoices={props.salesInvoices}
-          purchaseInvoices={props.purchaseInvoices}
-          customerPayments={props.customerPayments}
-          supplierPayments={props.supplierPayments}
+          customers={props.customers || []}
+          suppliers={props.suppliers || []}
+          salesInvoices={props.salesInvoices || []}
+          purchaseInvoices={props.purchaseInvoices || []}
+          customerPayments={props.customerPayments || []}
+          supplierPayments={props.supplierPayments || []}
+          partners={props.partners || []}
+          partnerTransactions={props.partnerTransactions || []}
         />
-      )} */}
+      )}
 
       {activeReport === 'salesAnalysis' && (
         <SalesAnalysisModal
@@ -290,17 +293,37 @@ const Reports: React.FC<ReportsProps> = (props) => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {props.journalEntries && props.journalEntries.slice().reverse().map((entry) => {
-                  const debitLine = entry.lines.find(l => l.debit > 0);
-                  const creditLine = entry.lines.find(l => l.credit > 0);
+                  const rawLines: any[] = Array.isArray(entry.lines)
+                    ? entry.lines
+                    : (typeof entry.lines === 'string' ? (() => { try { return JSON.parse(entry.lines); } catch { return []; } })() : []);
+                  const debitLines = rawLines.filter(l => Number(l.debit) > 0);
+                  const creditLines = rawLines.filter(l => Number(l.credit) > 0);
+                  const totalDebit = debitLines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
+                  const totalCredit = creditLines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
+
                   return (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="p-3 text-sm text-gray-700 font-medium">{entry.id}</td>
+                    <tr key={entry.id} className="hover:bg-gray-50 border-b">
+                      <td className="p-3 text-sm text-gray-700 font-mono font-medium">{entry.id}</td>
                       <td className="p-3 text-sm text-gray-700" style={{ direction: 'ltr', textAlign: 'right' }}>{entry.date}</td>
-                      <td className="p-3 text-sm text-gray-700">{entry.description}</td>
-                      <td className="p-3 text-sm text-gray-700 text-green-700">{debitLine?.accountName}</td>
-                      <td className="p-3 text-sm text-gray-700 font-bold">{debitLine?.debit.toLocaleString()}</td>
-                      <td className="p-3 text-sm text-gray-700 text-red-700">{creditLine?.accountName}</td>
-                      <td className="p-3 text-sm text-gray-700 font-bold">{creditLine?.credit.toLocaleString()}</td>
+                      <td className="p-3 text-sm text-gray-700 font-medium">{entry.description}</td>
+                      <td className="p-3 text-xs text-green-800 space-y-1">
+                        {debitLines.map((l, i) => (
+                          <div key={i} className="flex justify-between gap-2">
+                            <span>{l.accountName || l.accountId}</span>
+                            <span className="font-bold">{Number(l.debit).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </td>
+                      <td className="p-3 text-sm text-green-700 font-bold text-left">{totalDebit.toLocaleString()}</td>
+                      <td className="p-3 text-xs text-red-800 space-y-1">
+                        {creditLines.map((l, i) => (
+                          <div key={i} className="flex justify-between gap-2">
+                            <span>{l.accountName || l.accountId}</span>
+                            <span className="font-bold">{Number(l.credit).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </td>
+                      <td className="p-3 text-sm text-red-700 font-bold text-left">{totalCredit.toLocaleString()}</td>
                     </tr>
                   );
                 })}

@@ -26,8 +26,11 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
 
         const allTransactions = [
             ...customerInvoices.flatMap(inv => {
+                const rawItems = Array.isArray(inv.items)
+                    ? inv.items
+                    : (typeof inv.items === 'string' ? (() => { try { return JSON.parse(inv.items); } catch { return []; } })() : []);
                 // Create a row for each item in the invoice
-                const rows = inv.items.map((item, index) => ({
+                const rows = (rawItems || []).map((item, index) => ({
                     id: `${inv.id}-item-${index}`,
                     invoiceId: inv.id,
                     date: inv.date,

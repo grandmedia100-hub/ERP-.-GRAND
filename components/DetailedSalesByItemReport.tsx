@@ -37,15 +37,18 @@ const DetailedSalesByItemReport: React.FC<DetailedSalesByItemReportProps> = ({ o
         }
 
         // Flatten items
-        const allItems = filteredInvoices.flatMap(inv =>
-            inv.items.map(item => ({
+        const allItems = filteredInvoices.flatMap(inv => {
+            const rawItems = Array.isArray(inv.items)
+                ? inv.items
+                : (typeof inv.items === 'string' ? (() => { try { return JSON.parse(inv.items); } catch { return []; } })() : []);
+            return (rawItems || []).map(item => ({
                 ...item,
                 invoiceId: inv.id,
                 date: inv.date,
                 customerName: inv.customerName,
                 companyName: inv.companyName
-            }))
-        );
+            }));
+        });
 
         // Filter by product
         const filteredItems = selectedProductId

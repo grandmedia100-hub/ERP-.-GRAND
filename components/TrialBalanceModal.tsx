@@ -67,7 +67,10 @@ const TrialBalanceModal: React.FC<TrialBalanceModalProps> = ({
 
       // Aggregate journal entry lines up to asOfDate
       journalEntries.filter(je => isBeforeOrOn(je.date)).forEach(je => {
-        (je.lines || []).forEach(line => {
+        const rawLines: any[] = Array.isArray(je.lines)
+          ? je.lines
+          : (typeof je.lines === 'string' ? (() => { try { return JSON.parse(je.lines); } catch { return []; } })() : []);
+        rawLines.forEach(line => {
           const accId = line.accountId;
           if (!accountMap[accId]) {
             accountMap[accId] = {

@@ -45,7 +45,7 @@ const AgingReportModal: React.FC<AgingReportModalProps> = ({
 
                 const totalInvoiced = entityInvoices.reduce((sum, inv) => sum + inv.total, 0);
                 const totalPaid = entityPayments.reduce((sum, pay) => sum + pay.amount, 0);
-                const currentBalance = totalInvoiced - totalPaid;
+                const currentBalance = ((entity as any).openingBalance || 0) + totalInvoiced - totalPaid;
 
                 // Bucket Logic
                 // Strategy: We allocate payments to the OLDEST invoices first (FIFO) to determine which invoices are STILL unpaid.
