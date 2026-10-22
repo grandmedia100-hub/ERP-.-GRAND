@@ -46,7 +46,6 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
 
   const handleSave = () => {
     savePrintSettings(settings);
-    // Also save CR & Tax Number to companyInfo if updated
     if (settings.taxNumber !== undefined || settings.commercialRegister !== undefined) {
       try {
         const updatedInfo: CompanyInfo = {
@@ -150,9 +149,19 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
     executePrint(fullHtml, 'نموذج طباعة تجريبي');
   };
 
+  // Preview helper values
+  const isLandscape = settings.orientation === 'landscape';
+  const isThermal = settings.paperSize === 'thermal80';
+  const showTerms = settings.showTerms !== false;
+  const showGreeting = settings.showGreeting !== false;
+  const showSigMaster = settings.showSignatures !== false;
+  const showSig1 = settings.showSignature1 !== false;
+  const showSig2 = settings.showSignature2 !== false;
+  const showSig3 = settings.showSignature3 !== false;
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden border border-gray-100">
         
         {/* Modal Top Header */}
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-6 py-4 flex justify-between items-center shadow-sm">
@@ -168,7 +177,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                 </span>
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
-                تخصيص الهوية البصرية، مقاسات الورق (A4 / A5 / حراري)، الخطوط، الترويسة، والتوقيعات
+                تخصيص الهوية البصرية، مقاسات الورق، الاتجاه (طولي / عرضي)، والتحكم في ظهور الشروط والتوقيعات
               </p>
             </div>
           </div>
@@ -215,7 +224,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
             }`}
           >
             <span>📄</span>
-            <span>مقاس الورق والخطوط</span>
+            <span>مقاس الورق والاتجاه والخطوط</span>
           </button>
           <button
             onClick={() => setActiveTab('colors')}
@@ -237,11 +246,11 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
             }`}
           >
             <span>✍️</span>
-            <span>الشروط والتوقيعات</span>
+            <span>الشروط والتوقيعات (أزرار الاختيار)</span>
           </button>
         </div>
 
-        {/* Content Body: Left is Form, Right is Real-time Visual Preview */}
+        {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/50">
           
           {/* Controls Column (7 Cols) */}
@@ -260,15 +269,17 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                     <div className="text-xs font-bold text-gray-800">إظهار شعار الشركة (Logo)</div>
                     <div className="text-[11px] text-gray-500">طباعة الشعار الرسمي أعلى الفواتير والمستندات</div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.showLogo}
-                      onChange={(e) => handleChange('showLogo', e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('showLogo', !settings.showLogo)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      settings.showLogo
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    {settings.showLogo ? 'ظاهر ✓' : 'مخفي ✕'}
+                  </button>
                 </div>
 
                 {settings.showLogo && (
@@ -329,15 +340,17 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                     <div className="text-xs font-bold text-gray-800">إظهار العنوان والهاتف والبيانات الرسمية</div>
                     <div className="text-[11px] text-gray-500">طباعة العنوان ورقم الهاتف أسفل اسم الشركة</div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.showCompanyDetails}
-                      onChange={(e) => handleChange('showCompanyDetails', e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('showCompanyDetails', !settings.showCompanyDetails)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      settings.showCompanyDetails
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    {settings.showCompanyDetails ? 'ظاهر ✓' : 'مخفي ✕'}
+                  </button>
                 </div>
 
                 {/* CR & Tax fields */}
@@ -370,7 +383,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
             {activeTab === 'layout' && (
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                 <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 pb-2 border-b">
-                  <span>📄</span> مقاسات الورق والهوامش والخطوط
+                  <span>📄</span> مقاسات الورق والاتجاه والخطوط
                 </h3>
 
                 {/* Paper Size */}
@@ -378,8 +391,8 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">حجم الورق (Paper Size):</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: 'A4', label: 'ورق A4 قياسي', desc: 'مناسب لجميع الطابعات المكتبية والتقارير' },
-                      { id: 'A5', label: 'ورق A5 (نصف صفحة)', desc: 'مناسب للإيصالات وسندات القبض' },
+                      { id: 'A4', label: 'ورق A4 قياسي', desc: 'للطابعات المكتبية والتقارير' },
+                      { id: 'A5', label: 'ورق A5 (نصف صفحة)', desc: 'للإيصالات والسندات المدمجة' },
                       { id: 'thermal80', label: 'رول حراري (80mm)', desc: 'طابعات البونات والفواتير المصغرة' },
                     ].map((item) => (
                       <button
@@ -388,7 +401,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                         onClick={() => handleChange('paperSize', item.id as any)}
                         className={`p-2.5 rounded-xl text-right border transition-all ${
                           settings.paperSize === item.id
-                            ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900 shadow-sm'
+                            ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900 shadow-sm ring-1 ring-indigo-400'
                             : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                         }`}
                       >
@@ -399,47 +412,73 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                   </div>
                 </div>
 
-                {/* Orientation & Margins */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">اتجاه الصفحة:</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleChange('orientation', 'portrait')}
-                        className={`py-2 px-3 rounded-lg text-xs font-bold border ${
-                          settings.orientation === 'portrait'
-                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                            : 'border-gray-200 text-gray-600'
-                        }`}
-                      >
-                        طولي (Portrait)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleChange('orientation', 'landscape')}
-                        className={`py-2 px-3 rounded-lg text-xs font-bold border ${
-                          settings.orientation === 'landscape'
-                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                            : 'border-gray-200 text-gray-600'
-                        }`}
-                      >
-                        عرضي (Landscape)
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">هوامش الصفحة (Margins):</label>
-                    <select
-                      value={settings.margins}
-                      onChange={(e) => handleChange('margins', e.target.value as any)}
-                      className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                {/* Orientation Buttons with Visual Icons */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                    اتجاه الصفحة (يظهر فورياً في شاشة المعاينة):
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleChange('orientation', 'portrait')}
+                      className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                        settings.orientation === 'portrait'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm ring-2 ring-indigo-400/20'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
-                      <option value="normal">عادي (15 مم) - مريح وأنيق</option>
-                      <option value="compact">مضغوط (8 مم) - استيعاب بنود أكثر</option>
-                      <option value="minimal">مصغر (4 مم) - أقصى مساحة ممكنة</option>
-                    </select>
+                      <div className="w-7 h-10 border-2 border-current rounded flex items-center justify-center font-bold text-[10px]">
+                        طولي
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-bold">طولي (Portrait)</div>
+                        <div className="text-[10px] text-gray-500">الاتجاه الرأسي القياسي</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleChange('orientation', 'landscape')}
+                      className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                        settings.orientation === 'landscape'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm ring-2 ring-indigo-400/20'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="w-10 h-7 border-2 border-current rounded flex items-center justify-center font-bold text-[10px]">
+                        عرضي
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-bold">عرضي (Landscape)</div>
+                        <div className="text-[10px] text-gray-500">الاتجاه الأفقي لصفحة عريضة</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Margins */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">هوامش الصفحة (Margins):</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'normal', label: 'عادي (15 مم)', desc: 'مريح وأنيق للطباعة الرسمية' },
+                      { id: 'compact', label: 'مضغوط (8 مم)', desc: 'استيعاب بنود أكثر في الصفحة' },
+                      { id: 'minimal', label: 'مصغر (4 مم)', desc: 'أقصى مساحة ممكنة للجدول' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleChange('margins', m.id as any)}
+                        className={`p-2.5 rounded-xl text-right border transition-all ${
+                          settings.margins === m.id
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{m.label}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5">{m.desc}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -457,10 +496,10 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                           className={`py-2 px-2 rounded-lg text-xs font-bold border text-center ${
                             settings.fontFamily === font
                               ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
-                              : 'border-gray-200 text-gray-700'
+                              : 'border-gray-200 text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          {font === 'Cairo' ? 'خط كايرو (Cairo)' : font === 'Tajawal' ? 'خط تجوال (Tajawal)' : font === 'Almarai' ? 'خط المراعي (Almarai)' : 'خط أميري (Amiri)'}
+                          {font === 'Cairo' ? 'كايرو (Cairo)' : font === 'Tajawal' ? 'تجوال (Tajawal)' : font === 'Almarai' ? 'المراعي (Almarai)' : 'أميري (Amiri)'}
                         </button>
                       ))}
                     </div>
@@ -470,9 +509,9 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">حجم الخط الأساسي:</label>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
-                        { id: 'sm', label: 'صغير (11px)' },
-                        { id: 'base', label: 'متوسط (12px)' },
-                        { id: 'lg', label: 'كبير (14px)' },
+                        { id: 'sm', label: 'صغير' },
+                        { id: 'base', label: 'متوسط' },
+                        { id: 'lg', label: 'كبير' },
                       ].map((item) => (
                         <button
                           key={item.id}
@@ -481,7 +520,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                           className={`py-2 px-1 rounded-lg text-xs font-bold border text-center ${
                             settings.fontSize === item.id
                               ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                              : 'border-gray-200 text-gray-600'
+                              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
                         >
                           {item.label}
@@ -554,88 +593,172 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
               </div>
             )}
 
-            {/* TAB 4: Terms & Signatures */}
+            {/* TAB 4: Terms & Signatures (With dedicated optional buttons) */}
             {activeTab === 'terms' && (
-              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-5">
                 <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 pb-2 border-b">
-                  <span>✍️</span> الشروط والأحكام وخانات التوقيع الرسمية
+                  <span>✍️</span> بنود الشروط والتوقيعات (أزرار اختيارية للظهور أو الإخفاء)
                 </h3>
 
-                {/* Signatures Toggle */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-                  <div>
-                    <div className="text-xs font-bold text-gray-800">تفعيل خانات التوقيع والاعتماد</div>
-                    <div className="text-[11px] text-gray-500">إظهار مربعات توقيع المحاسب والمستلم والإدارة أسفل الصفحة</div>
+                {/* 1. Greeting Phrase Toggle & Input */}
+                <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-gray-800">1. عبارة الشكر والترحيب الختامية</span>
+                      <p className="text-[11px] text-gray-500">تظهر في أسفل الصفحة كتحية رسمية للعميل</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleChange('showGreeting', !showGreeting)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        showGreeting
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      <span>{showGreeting ? '✓ ظاهر في الطباعة' : '✕ مخفي'}</span>
+                    </button>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                  {showGreeting && (
                     <input
-                      type="checkbox"
-                      checked={settings.showSignatures}
-                      onChange={(e) => handleChange('showSignatures', e.target.checked)}
-                      className="sr-only peer"
+                      type="text"
+                      value={settings.footerGreeting || ''}
+                      onChange={(e) => handleChange('footerGreeting', e.target.value)}
+                      placeholder="شكراً لتعاملكم معنا ونسعد بخدمتكم دائماً."
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-indigo-500"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
+                  )}
                 </div>
 
-                {settings.showSignatures && (
-                  <div className="grid grid-cols-3 gap-2.5">
+                {/* 2. Terms & Policies Toggle & Textarea */}
+                <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <label className="block text-[11px] font-bold text-gray-700 mb-1">الخانة الأولى:</label>
-                      <input
-                        type="text"
-                        value={settings.signature1 || ''}
-                        onChange={(e) => handleChange('signature1', e.target.value)}
-                        placeholder="إعداد / المحاسب"
-                        className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                      />
+                      <span className="text-xs font-bold text-gray-800">2. الشروط والأحكام وسياسة الاسترجاع</span>
+                      <p className="text-[11px] text-gray-500">ملاحظات العقد والضمان وسياسة التوريد أسفل الفواتير</p>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-700 mb-1">الخانة الثانية:</label>
-                      <input
-                        type="text"
-                        value={settings.signature2 || ''}
-                        onChange={(e) => handleChange('signature2', e.target.value)}
-                        placeholder="المستلم / الطرف الآخر"
-                        className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-700 mb-1">الخانة الثالثة:</label>
-                      <input
-                        type="text"
-                        value={settings.signature3 || ''}
-                        onChange={(e) => handleChange('signature3', e.target.value)}
-                        placeholder="اعتماد الإدارة"
-                        className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleChange('showTerms', !showTerms)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        showTerms
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      <span>{showTerms ? '✓ ظاهر في الطباعة' : '✕ مخفي'}</span>
+                    </button>
                   </div>
-                )}
-
-                {/* Footer Greeting */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">عبارة الشكر والترحيب (في نهاية المستند):</label>
-                  <input
-                    type="text"
-                    value={settings.footerGreeting || ''}
-                    onChange={(e) => handleChange('footerGreeting', e.target.value)}
-                    placeholder="شكراً لتعاملكم معنا ونسعد بخدمتكم دائماً."
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                  />
+                  {showTerms && (
+                    <textarea
+                      rows={3}
+                      value={settings.footerNotes || ''}
+                      onChange={(e) => handleChange('footerNotes', e.target.value)}
+                      placeholder="اكتب الشروط والأحكام الافتراضية هنا..."
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
+                    />
+                  )}
                 </div>
 
-                {/* Footer Notes / Terms */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">الشروط والأحكام وسياسة الاسترجاع المطبوعة:</label>
-                  <textarea
-                    rows={3}
-                    value={settings.footerNotes || ''}
-                    onChange={(e) => handleChange('footerNotes', e.target.value)}
-                    placeholder="اكتب الشروط والأحكام الافتراضية للفواتير وعروض الأسعار هنا..."
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
-                  />
+                {/* 3. Signatures Section & Individual Toggles */}
+                <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                    <div>
+                      <span className="text-xs font-bold text-gray-800">3. قسم التوقيعات والاعتماد الرسمي</span>
+                      <p className="text-[11px] text-gray-500">التحكم في ظهور أو إخفاء كل خانة توقيع على حدة</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleChange('showSignatures', !showSigMaster)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        showSigMaster
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                      }`}
+                    >
+                      {showSigMaster ? 'قسم التوقيعات: مفعّل ✓' : 'قسم التوقيعات: معطّل بالكامل ✕'}
+                    </button>
+                  </div>
+
+                  {showSigMaster && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      
+                      {/* Sig 1 Box */}
+                      <div className={`p-3 rounded-xl border transition-all ${showSig1 ? 'bg-white border-indigo-200 shadow-sm' : 'bg-gray-100 border-gray-200 opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-gray-700">الخانة 1</span>
+                          <button
+                            type="button"
+                            onClick={() => handleChange('showSignature1', !showSig1)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              showSig1 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {showSig1 ? 'ظاهر ✓' : 'مخفي ✕'}
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          disabled={!showSig1}
+                          value={settings.signature1 || ''}
+                          onChange={(e) => handleChange('signature1', e.target.value)}
+                          placeholder="إعداد / المحاسب"
+                          className="w-full text-xs border border-gray-300 rounded-lg p-1.5 disabled:bg-gray-100"
+                        />
+                      </div>
+
+                      {/* Sig 2 Box */}
+                      <div className={`p-3 rounded-xl border transition-all ${showSig2 ? 'bg-white border-indigo-200 shadow-sm' : 'bg-gray-100 border-gray-200 opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-gray-700">الخانة 2</span>
+                          <button
+                            type="button"
+                            onClick={() => handleChange('showSignature2', !showSig2)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              showSig2 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {showSig2 ? 'ظاهر ✓' : 'مخفي ✕'}
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          disabled={!showSig2}
+                          value={settings.signature2 || ''}
+                          onChange={(e) => handleChange('signature2', e.target.value)}
+                          placeholder="المستلم / الطرف الآخر"
+                          className="w-full text-xs border border-gray-300 rounded-lg p-1.5 disabled:bg-gray-100"
+                        />
+                      </div>
+
+                      {/* Sig 3 Box */}
+                      <div className={`p-3 rounded-xl border transition-all ${showSig3 ? 'bg-white border-indigo-200 shadow-sm' : 'bg-gray-100 border-gray-200 opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-gray-700">الخانة 3</span>
+                          <button
+                            type="button"
+                            onClick={() => handleChange('showSignature3', !showSig3)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              showSig3 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {showSig3 ? 'ظاهر ✓' : 'مخفي ✕'}
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          disabled={!showSig3}
+                          value={settings.signature3 || ''}
+                          onChange={(e) => handleChange('signature3', e.target.value)}
+                          placeholder="اعتماد الإدارة"
+                          className="w-full text-xs border border-gray-300 rounded-lg p-1.5 disabled:bg-gray-100"
+                        />
+                      </div>
+
+                    </div>
+                  )}
                 </div>
+
               </div>
             )}
           </div>
@@ -646,120 +769,169 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
               <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                 <span>👁️</span> معاينة حية فورية للنموذج
               </span>
-              <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
-                تحديث فوري
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border font-mono">
+                  {isLandscape ? '📐 عرضي (Landscape)' : '📄 طولي (Portrait)'}
+                </span>
+                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
+                  {settings.paperSize.toUpperCase()}
+                </span>
+              </div>
             </div>
 
-            {/* Simulated Sheet Paper */}
-            <div className="flex-1 bg-white border border-gray-300 rounded-xl shadow-lg p-4 overflow-y-auto max-h-[500px] flex flex-col justify-between text-xs scale-[0.98] origin-top">
+            {/* Simulated Sheet Paper Canvas with Real Landscape / Portrait / Thermal Proportion */}
+            <div className="flex-1 bg-slate-200/60 p-4 rounded-2xl border border-gray-200 overflow-y-auto max-h-[540px] flex items-center justify-center">
               
-              {/* Header Preview */}
               <div
-                className="pb-3 border-b-2"
-                style={{
-                  borderColor: settings.primaryColor,
-                  fontFamily: settings.fontFamily,
-                  textAlign: settings.headerLayout === 'centered' ? 'center' : 'right'
-                }}
+                className={`transition-all duration-300 shadow-xl border flex flex-col justify-between ${
+                  isThermal
+                    ? 'w-[250px] min-h-[440px] bg-[#fffdf9] border-dashed border-gray-400 font-mono text-[9px] p-3'
+                    : isLandscape
+                    ? `w-full max-w-[540px] min-h-[340px] bg-white border-gray-300 rounded-xl text-xs ${
+                        settings.margins === 'minimal' ? 'p-3' : settings.margins === 'compact' ? 'p-4' : 'p-6'
+                      }`
+                    : `w-full max-w-[380px] min-h-[500px] bg-white border-gray-300 rounded-xl text-xs ${
+                        settings.margins === 'minimal' ? 'p-2.5' : settings.margins === 'compact' ? 'p-3.5' : 'p-5'
+                      }`
+                }`}
+                style={{ fontFamily: settings.fontFamily }}
               >
-                <div className={`flex items-center gap-2 mb-1 ${settings.headerLayout === 'centered' ? 'justify-center flex-col' : 'justify-between'}`}>
-                  <div className="flex items-center gap-2">
-                    {settings.showLogo && companyInfo.logo && (
-                      <img
-                        src={companyInfo.logo}
-                        alt="Logo"
-                        style={{
-                          height: settings.logoSize === 'sm' ? '30px' : settings.logoSize === 'lg' ? '50px' : '40px',
-                          objectFit: 'contain'
-                        }}
-                      />
-                    )}
-                    <div>
-                      <h4 className="font-extrabold text-sm" style={{ color: settings.primaryColor }}>
-                        {companyInfo.name || 'جراند ميديا'}
-                      </h4>
-                      {settings.showCompanyDetails && (
-                        <div className="text-[9px] text-gray-500">
-                          {companyInfo.address} | هاتف: {companyInfo.phone}
+                
+                {/* Sawtooth for thermal */}
+                {isThermal && (
+                  <div className="border-t-2 border-dashed border-gray-400 mb-2 text-center text-[8px] text-gray-400">
+                    - - - - بون طباعة حراري 80 مم - - - -
+                  </div>
+                )}
+
+                {/* Header Preview */}
+                <div
+                  className="pb-2.5 border-b-2"
+                  style={{
+                    borderColor: settings.primaryColor,
+                    textAlign: settings.headerLayout === 'centered' ? 'center' : 'right'
+                  }}
+                >
+                  <div className={`flex items-center gap-2 mb-1 ${settings.headerLayout === 'centered' ? 'justify-center flex-col' : 'justify-between'}`}>
+                    <div className="flex items-center gap-2">
+                      {settings.showLogo && companyInfo.logo && (
+                        <img
+                          src={companyInfo.logo}
+                          alt="Logo"
+                          style={{
+                            height: settings.logoSize === 'sm' ? '28px' : settings.logoSize === 'lg' ? '46px' : '36px',
+                            objectFit: 'contain'
+                          }}
+                        />
+                      )}
+                      <div>
+                        <h4 className="font-extrabold text-xs" style={{ color: settings.primaryColor }}>
+                          {companyInfo.name || 'جراند ميديا'}
+                        </h4>
+                        {settings.showCompanyDetails && (
+                          <div className="text-[8.5px] text-gray-500 leading-tight">
+                            {companyInfo.address} | {companyInfo.phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={settings.headerLayout === 'centered' ? 'mt-1' : 'text-left'}>
+                      <span
+                        className="inline-block text-white text-[9px] font-bold px-2 py-0.5 rounded"
+                        style={{ backgroundColor: settings.primaryColor }}
+                      >
+                        فاتورة مبيعات
+                      </span>
+                      <div className="text-[8.5px] font-mono text-gray-600 mt-0.5">#INV-001</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sample Table */}
+                <div className="my-2.5 flex-1">
+                  <table className="w-full text-right text-[9.5px] border-collapse">
+                    <thead>
+                      <tr style={{ backgroundColor: settings.primaryColor, color: '#ffffff' }}>
+                        <th className="p-1 border border-black/10">الصنف والبيان</th>
+                        <th className="p-1 border border-black/10 text-center">الكمية</th>
+                        <th className="p-1 border border-black/10 text-left">السعر</th>
+                        <th className="p-1 border border-black/10 text-left">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-gray-100">
+                        <td className="p-1 font-semibold text-gray-800">كرتون دوبلكس 350 جم</td>
+                        <td className="p-1 text-center font-mono">1,000</td>
+                        <td className="p-1 text-left font-mono">5.00</td>
+                        <td className="p-1 text-left font-mono font-bold">5,000.00</td>
+                      </tr>
+                      <tr className="bg-gray-50/70 border-b border-gray-100">
+                        <td className="p-1 font-semibold text-gray-800">علب شحن مضلعة E-Flute</td>
+                        <td className="p-1 text-center font-mono">2,500</td>
+                        <td className="p-1 text-left font-mono">2.00</td>
+                        <td className="p-1 text-left font-mono font-bold">5,000.00</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Mini Totals */}
+                  <div
+                    className="mt-2 p-1.5 border rounded text-[9.5px] flex justify-between font-bold"
+                    style={{
+                      borderColor: settings.primaryColor,
+                      backgroundColor: '#f8fafc',
+                      color: settings.primaryColor
+                    }}
+                  >
+                    <span>الإجمالي المستحق:</span>
+                    <span className="font-mono">10,000.00 ج.م</span>
+                  </div>
+                </div>
+
+                {/* Footer Preview with Dynamic Buttons Reflection */}
+                <div className="pt-2 border-t border-gray-200 text-[8.5px]">
+                  
+                  {/* Greeting */}
+                  {showGreeting && settings.footerGreeting && (
+                    <div className="text-center font-bold mb-1" style={{ color: settings.primaryColor }}>
+                      {settings.footerGreeting}
+                    </div>
+                  )}
+
+                  {/* Terms */}
+                  {showTerms && settings.footerNotes && (
+                    <div className="p-1 bg-gray-50 border border-dashed border-gray-300 rounded text-gray-500 leading-tight mb-2">
+                      <b>الشروط:</b> {settings.footerNotes}
+                    </div>
+                  )}
+
+                  {/* Signatures */}
+                  {showSigMaster && (showSig1 || showSig2 || showSig3) && !isThermal && (
+                    <div className="flex justify-between items-center text-center text-gray-600 font-semibold mt-2 pt-1 border-t border-gray-100">
+                      {showSig1 && (
+                        <div>
+                          <div>{settings.signature1 || 'المحاسب'}</div>
+                          <div className="border-t border-gray-300 w-16 mx-auto mt-2"></div>
+                        </div>
+                      )}
+                      {showSig2 && (
+                        <div>
+                          <div>{settings.signature2 || 'المستلم'}</div>
+                          <div className="border-t border-gray-300 w-16 mx-auto mt-2"></div>
+                        </div>
+                      )}
+                      {showSig3 && (
+                        <div>
+                          <div>{settings.signature3 || 'اعتماد الإدارة'}</div>
+                          <div className="border-t border-gray-300 w-16 mx-auto mt-2"></div>
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
 
-                  <div className={settings.headerLayout === 'centered' ? 'mt-1' : 'text-left'}>
-                    <span
-                      className="inline-block text-white text-[10px] font-bold px-2 py-0.5 rounded"
-                      style={{ backgroundColor: settings.primaryColor }}
-                    >
-                      فاتورة مبيعات
-                    </span>
-                    <div className="text-[9px] font-mono text-gray-600 mt-0.5">#INV-2026-001</div>
-                  </div>
                 </div>
-              </div>
 
-              {/* Sample Table */}
-              <div className="my-3">
-                <table className="w-full text-right text-[10px] border-collapse" style={{ fontFamily: settings.fontFamily }}>
-                  <thead>
-                    <tr style={{ backgroundColor: settings.primaryColor, color: '#ffffff' }}>
-                      <th className="p-1 border border-black/10">الصنف</th>
-                      <th className="p-1 border border-black/10 text-center">الكمية</th>
-                      <th className="p-1 border border-black/10 text-left">السعر</th>
-                      <th className="p-1 border border-black/10 text-left">الإجمالي</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="p-1 font-semibold text-gray-800">كرتون مضلع E-Flute</td>
-                      <td className="p-1 text-center font-mono">1,000</td>
-                      <td className="p-1 text-left font-mono">5.00</td>
-                      <td className="p-1 text-left font-mono font-bold">5,000.00</td>
-                    </tr>
-                    <tr className="bg-gray-50/70 border-b border-gray-100">
-                      <td className="p-1 font-semibold text-gray-800">علب دوائية دوبلكس</td>
-                      <td className="p-1 text-center font-mono">2,500</td>
-                      <td className="p-1 text-left font-mono">2.00</td>
-                      <td className="p-1 text-left font-mono font-bold">5,000.00</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Mini Totals */}
-                <div
-                  className="mt-2.5 p-1.5 border rounded text-[10px] flex justify-between font-bold"
-                  style={{
-                    borderColor: settings.primaryColor,
-                    backgroundColor: '#f8fafc',
-                    color: settings.primaryColor
-                  }}
-                >
-                  <span>الإجمالي النهائي:</span>
-                  <span className="font-mono">10,000.00 ج.م</span>
-                </div>
-              </div>
-
-              {/* Footer Preview */}
-              <div className="pt-2 border-t border-gray-200 text-[9px]" style={{ fontFamily: settings.fontFamily }}>
-                {settings.footerGreeting && (
-                  <div className="text-center font-bold mb-1" style={{ color: settings.primaryColor }}>
-                    {settings.footerGreeting}
-                  </div>
-                )}
-                {settings.footerNotes && (
-                  <div className="p-1.5 bg-gray-50 border border-dashed border-gray-300 rounded text-gray-500 leading-tight">
-                    {settings.footerNotes}
-                  </div>
-                )}
-
-                {settings.showSignatures && (
-                  <div className="flex justify-between mt-3 text-center text-gray-600 font-semibold">
-                    <div>{settings.signature1 || 'المحاسب'}</div>
-                    <div>{settings.signature2 || 'المستلم'}</div>
-                    <div>{settings.signature3 || 'اعتماد الإدارة'}</div>
-                  </div>
-                )}
               </div>
 
             </div>
@@ -781,7 +953,7 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
           <div className="flex items-center gap-2.5">
             {savedSuccess && (
               <span className="text-xs font-bold text-emerald-600 animate-pulse">
-                ✓ تم حفظ الإعدادات بنجاح!
+                ✓ تم حفظ وتطبيق الإعدادات بنجاح!
               </span>
             )}
             <button

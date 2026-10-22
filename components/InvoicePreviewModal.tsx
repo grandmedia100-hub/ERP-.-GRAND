@@ -116,28 +116,35 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                 <p style="color:#475569;font-size:11px;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px dashed #cbd5e1;line-height:1.5;">${invoice.notes}</p>
             </div>` : '';
 
-        const signaturesHtml = printSettings.showSignatures && printSettings.paperSize !== 'thermal80' ? `
+        const showSig1 = printSettings.showSignature1 !== false;
+        const showSig2 = printSettings.showSignature2 !== false;
+        const showSig3 = printSettings.showSignature3 !== false;
+
+        const signaturesHtml = printSettings.showSignatures && (showSig1 || showSig2 || showSig3) && printSettings.paperSize !== 'thermal80' ? `
             <div class="signatures-row">
-                <div class="sig-block">
-                    <div class="sig-title">${printSettings.signature1 || 'إعداد / المحاسب'}</div>
-                    <div class="sig-line"></div>
-                </div>
-                <div class="sig-block">
-                    <div class="sig-title">${printSettings.signature2 || 'المستلم / ' + entityLabel}</div>
-                    <div class="sig-line"></div>
-                </div>
-                <div class="sig-block">
-                    <div class="sig-title">${printSettings.signature3 || 'اعتماد الإدارة'}</div>
-                    <div class="sig-line"></div>
-                </div>
+                ${showSig1 ? `
+                    <div class="sig-block">
+                        <div class="sig-title">${printSettings.signature1 || 'إعداد / المحاسب'}</div>
+                        <div class="sig-line"></div>
+                    </div>` : ''}
+                ${showSig2 ? `
+                    <div class="sig-block">
+                        <div class="sig-title">${printSettings.signature2 || 'المستلم / ' + entityLabel}</div>
+                        <div class="sig-line"></div>
+                    </div>` : ''}
+                ${showSig3 ? `
+                    <div class="sig-block">
+                        <div class="sig-title">${printSettings.signature3 || 'اعتماد الإدارة'}</div>
+                        <div class="sig-line"></div>
+                    </div>` : ''}
             </div>` : '';
 
-        const termsHtml = printSettings.footerNotes ? `
+        const termsHtml = (printSettings.showTerms !== false && printSettings.footerNotes) ? `
             <div style="margin-top:14px;padding:8px 12px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;font-size:10px;color:#64748b;line-height:1.5;">
                 <b>الشروط والأحكام:</b> ${printSettings.footerNotes}
             </div>` : '';
 
-        const greetingHtml = printSettings.footerGreeting ? `
+        const greetingHtml = (printSettings.showGreeting !== false && printSettings.footerGreeting) ? `
             <div style="text-align:center;margin-top:12px;font-size:11px;font-weight:700;color:${primaryHex};">
                 ${printSettings.footerGreeting}
             </div>` : '';
@@ -501,27 +508,33 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                         </div>
 
                         {/* Notes & Terms */}
-                        {printSettings.footerNotes && (
+                        {(printSettings.showTerms !== false && printSettings.footerNotes) && (
                             <div className="p-3 bg-white rounded-xl border border-dashed border-gray-300 text-xs text-gray-500 mb-6">
                                 <b className="text-gray-700">الشروط والأحكام:</b> {printSettings.footerNotes}
                             </div>
                         )}
 
                         {/* Signatures */}
-                        {printSettings.showSignatures && (
+                        {(printSettings.showSignatures && (printSettings.showSignature1 !== false || printSettings.showSignature2 !== false || printSettings.showSignature3 !== false)) && (
                             <div className="mt-8 flex justify-between px-6 text-xs text-gray-600">
-                                <div className="text-center">
-                                    <p className="font-bold mb-6">{printSettings.signature1 || 'إعداد / المحاسب'}</p>
-                                    <div className="border-t border-dashed border-gray-400 w-36"></div>
-                                </div>
-                                <div className="text-center">
-                                    <p className="font-bold mb-6">{printSettings.signature2 || 'المستلم / ' + entityLabel}</p>
-                                    <div className="border-t border-dashed border-gray-400 w-36"></div>
-                                </div>
-                                <div className="text-center">
-                                    <p className="font-bold mb-6">{printSettings.signature3 || 'اعتماد الإدارة'}</p>
-                                    <div className="border-t border-dashed border-gray-400 w-36"></div>
-                                </div>
+                                {printSettings.showSignature1 !== false && (
+                                    <div className="text-center">
+                                        <p className="font-bold mb-6">{printSettings.signature1 || 'إعداد / المحاسب'}</p>
+                                        <div className="border-t border-dashed border-gray-400 w-36"></div>
+                                    </div>
+                                )}
+                                {printSettings.showSignature2 !== false && (
+                                    <div className="text-center">
+                                        <p className="font-bold mb-6">{printSettings.signature2 || 'المستلم / ' + entityLabel}</p>
+                                        <div className="border-t border-dashed border-gray-400 w-36"></div>
+                                    </div>
+                                )}
+                                {printSettings.showSignature3 !== false && (
+                                    <div className="text-center">
+                                        <p className="font-bold mb-6">{printSettings.signature3 || 'اعتماد الإدارة'}</p>
+                                        <div className="border-t border-dashed border-gray-400 w-36"></div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

@@ -13,11 +13,16 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   headerLayout: 'standard',
   taxNumber: '',
   commercialRegister: '',
+  showTerms: true,
   footerNotes: 'البضاعة المباعة لا ترد ولا تستبدل إلا بموجب أصل الفاتورة ووفق الشروط المتفق عليها.',
+  showGreeting: true,
   footerGreeting: 'شكراً لتعاملكم مع جراند ميديا ونسعد دائماً بخدمتكم.',
   showSignatures: true,
+  showSignature1: true,
   signature1: 'إعداد / المحاسب',
+  showSignature2: true,
   signature2: 'المستلم / العميل',
+  showSignature3: true,
   signature3: 'اعتماد الإدارة',
   showQrCode: true,
 };
@@ -355,30 +360,40 @@ export const generatePrintFooter = (
   settings: PrintSettings,
   companyInfo: CompanyInfo
 ): string => {
-  const greetingHtml = settings.footerGreeting ? `
+  const greetingHtml = (settings.showGreeting !== false && settings.footerGreeting) ? `
     <div class="footer-greeting">${settings.footerGreeting}</div>
   ` : '';
 
-  const notesHtml = settings.footerNotes ? `
+  const notesHtml = (settings.showTerms !== false && settings.footerNotes) ? `
     <div class="footer-notes">
       <b>ملاحظات وشروط:</b> ${settings.footerNotes}
     </div>
   ` : '';
 
-  const sigHtml = settings.showSignatures && settings.paperSize !== 'thermal80' ? `
+  const showSig1 = settings.showSignature1 !== false;
+  const showSig2 = settings.showSignature2 !== false;
+  const showSig3 = settings.showSignature3 !== false;
+
+  const sigHtml = settings.showSignatures && (showSig1 || showSig2 || showSig3) && settings.paperSize !== 'thermal80' ? `
     <div class="signatures-row">
-      <div class="sig-block">
-        <div class="sig-title">${settings.signature1 || 'إعداد / المحاسب'}</div>
-        <div class="sig-line"></div>
-      </div>
-      <div class="sig-block">
-        <div class="sig-title">${settings.signature2 || 'المستلم / الطرف الآخر'}</div>
-        <div class="sig-line"></div>
-      </div>
-      <div class="sig-block">
-        <div class="sig-title">${settings.signature3 || 'اعتماد الإدارة'}</div>
-        <div class="sig-line"></div>
-      </div>
+      ${showSig1 ? `
+        <div class="sig-block">
+          <div class="sig-title">${settings.signature1 || 'إعداد / المحاسب'}</div>
+          <div class="sig-line"></div>
+        </div>
+      ` : ''}
+      ${showSig2 ? `
+        <div class="sig-block">
+          <div class="sig-title">${settings.signature2 || 'المستلم / الطرف الآخر'}</div>
+          <div class="sig-line"></div>
+        </div>
+      ` : ''}
+      ${showSig3 ? `
+        <div class="sig-block">
+          <div class="sig-title">${settings.signature3 || 'اعتماد الإدارة'}</div>
+          <div class="sig-line"></div>
+        </div>
+      ` : ''}
     </div>
   ` : '';
 

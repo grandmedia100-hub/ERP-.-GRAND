@@ -80,11 +80,16 @@ export interface PrintSettings {
   headerLayout: 'standard' | 'centered' | 'modern';
   taxNumber?: string;
   commercialRegister?: string;
+  showTerms?: boolean;
   footerNotes?: string;
+  showGreeting?: boolean;
   footerGreeting?: string;
   showSignatures: boolean;
+  showSignature1?: boolean;
   signature1?: string;
+  showSignature2?: boolean;
   signature2?: string;
+  showSignature3?: boolean;
   signature3?: string;
   showQrCode?: boolean;
 }
