@@ -700,7 +700,7 @@ const Treasury: React.FC<TreasuryProps> = ({
   // Helper to check funds
   const checkFunds = (accountName: string, amount: number, excludeTransactionId?: string): boolean => {
     // Calculate current balance for the specific account and branch
-    let companyInfo: CompanyInfo = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    let companyInfo: any = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
     if (currentBranchId === 'main') {
       const companyInfoString = localStorage.getItem('companyInfo');
       if (companyInfoString) {
@@ -768,7 +768,7 @@ const Treasury: React.FC<TreasuryProps> = ({
   };
 
   const balances = useMemo(() => {
-    let companyInfo: CompanyInfo = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
+    let companyInfo: any = { treasuryOpeningBalance: 0, treasuryBreakdown: {} };
     if (currentBranchId === 'main') {
       const companyInfoString = localStorage.getItem('companyInfo');
       if (companyInfoString) {

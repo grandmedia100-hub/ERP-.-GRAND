@@ -12,6 +12,9 @@ interface CommandPaletteProps {
   purchaseInvoices?: PurchaseInvoice[];
   currentUser?: User;
   onOpenPrintSettings?: () => void;
+  onOpenAccountingAudit?: () => void;
+  onOpenCashFlowForecast?: () => void;
+  onOpenVATDeclaration?: () => void;
 }
 
 interface PaletteItem {
@@ -33,7 +36,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   products = [],
   salesInvoices = [],
   purchaseInvoices = [],
-  onOpenPrintSettings
+  onOpenPrintSettings,
+  onOpenAccountingAudit,
+  onOpenCashFlowForecast,
+  onOpenVATDeclaration
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -152,6 +158,39 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         action: () => {
           if (onOpenPrintSettings) onOpenPrintSettings();
           else onNavigate('settings');
+          onClose();
+        }
+      },
+      {
+        id: 'action-audit',
+        category: 'إجراءات سريعة',
+        title: '⚖️ فاحص وتدقيق التوازن والنزاهة المحاسبية الآلي',
+        subtitle: 'فحص ميزان المراجعة، مطابقة العملاء والموردين والمخزون',
+        icon: '🛡️',
+        action: () => {
+          if (onOpenAccountingAudit) onOpenAccountingAudit();
+          onClose();
+        }
+      },
+      {
+        id: 'action-cashflow',
+        category: 'إجراءات سريعة',
+        title: '📈 مؤشر التدفقات النقدية والسيولة المتوقعة',
+        subtitle: 'توقع السيولة للأيام القادمة ومقارنة التحصيلات والالتزامات',
+        icon: '💵',
+        action: () => {
+          if (onOpenCashFlowForecast) onOpenCashFlowForecast();
+          onClose();
+        }
+      },
+      {
+        id: 'action-vat',
+        category: 'إجراءات سريعة',
+        title: '🏛️ إقرار ضريبة القيمة المضافة ومساعد الفاتورة الضريبية',
+        subtitle: 'حساب ضريبة المخرجات والمدخلات وصافي المستحق للسداد (14%)',
+        icon: '📊',
+        action: () => {
+          if (onOpenVATDeclaration) onOpenVATDeclaration();
           onClose();
         }
       }

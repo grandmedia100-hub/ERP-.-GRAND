@@ -243,6 +243,47 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
         return Math.max(0, final);
     }, [subTotal, discountValue, discountType]);
 
+    // Credit Limit & Overdue Checks
+    const selectedCustomer = useMemo(() => {
+        return customers.find(c => c.id === customerId);
+    }, [customers, customerId]);
+
+    const customerCurrentBalance = useMemo(() => {
+        if (!customerId) return 0;
+        const cust = customers.find(c => c.id === customerId);
+        const openBal = cust?.openingBalance || 0;
+        const invoicesTotal = (existingInvoices || [])
+            .filter(inv => inv.customerId === customerId && inv.status !== 'voided')
+            .reduce((sum, inv) => inv.invoiceType === 'return' ? sum - inv.total : sum + inv.total, 0);
+        return openBal + invoicesTotal;
+    }, [customerId, customers, existingInvoices]);
+
+    const creditLimitExceededInfo = useMemo(() => {
+        if (!selectedCustomer || paymentMethod !== 'اجل') return null;
+        if (selectedCustomer.isCreditLocked) {
+            return {
+                isLocked: true,
+                reason: 'البيع الآجل مجمد يدوياً لهذا العميل بأمر الإدارة.'
+            };
+        }
+        if (selectedCustomer.creditLimit && selectedCustomer.creditLimit > 0) {
+            const projectedBalance = customerCurrentBalance + total;
+            if (projectedBalance > selectedCustomer.creditLimit) {
+                const diff = projectedBalance - selectedCustomer.creditLimit;
+                return {
+                    isLocked: false,
+                    isExceeded: true,
+                    limit: selectedCustomer.creditLimit,
+                    current: customerCurrentBalance,
+                    projected: projectedBalance,
+                    diff,
+                    reason: `تجاوز الحد الائتماني بمقدار ${diff.toLocaleString()} ج.م (الحد: ${selectedCustomer.creditLimit.toLocaleString()} ج.م / الرصيد بعد الفاتورة: ${projectedBalance.toLocaleString()} ج.م)`
+                };
+            }
+        }
+        return null;
+    }, [selectedCustomer, paymentMethod, customerCurrentBalance, total]);
+
     // Schedule Handlers
     const addInstallment = () => {
         const remainingAmount = total - schedule.reduce((sum, i) => sum + i.amount, 0);
@@ -290,6 +331,20 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
         } as InvoiceItem));
 
         if (finalItems.length === 0) { showAlert('الرجاء إضافة صنف واحد على الأقل وتحديد الكمية'); return; }
+
+        // Credit Limit and Locked Account Check
+        if (creditLimitExceededInfo) {
+            if (creditLimitExceededInfo.isLocked) {
+                showAlert('🚫 عفواً: لا يمكن إصدار فاتورة آجلة لهذا العميل، حيث أن البيع الآجل مجمد حالياً لهذا الحساب بأمر الإدارة.');
+                return;
+            }
+            if (creditLimitExceededInfo.isExceeded) {
+                const proceed = window.confirm(
+                    `⚠️ تنبيه ائتماني:\n${creditLimitExceededInfo.reason}\n\nهل ترغب في تجاوز الحد الائتماني واعتماد الفاتورة (اعتماد إداري)؟`
+                );
+                if (!proceed) return;
+            }
+        }
 
         // Logical Duplicate Check (Ignore voided)
         const isDuplicate = existingInvoices.some(inv =>
@@ -475,6 +530,23 @@ const AddSalesInvoiceModal: React.FC<AddSalesInvoiceModalProps> = ({ onClose, on
                             </select>
                         </div>
                     </div>
+
+                    {/* Credit Limit Alert Banner */}
+                    {creditLimitExceededInfo && (
+                        <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs animate-fadeIn ${
+                            creditLimitExceededInfo.isLocked
+                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                : 'bg-amber-50 border-amber-200 text-amber-900'
+                        }`}>
+                            <span className="text-base shrink-0">{creditLimitExceededInfo.isLocked ? '🚫' : '⚠️'}</span>
+                            <div className="flex-1">
+                                <span className="font-bold block">
+                                    {creditLimitExceededInfo.isLocked ? 'حساب العميل مجمد ائتمانياً' : 'تنبيه: تجاوز سقف الائتمان المسموح به'}
+                                </span>
+                                <p className="mt-0.5 leading-relaxed">{creditLimitExceededInfo.reason}</p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="w-full text-right min-w-[700px]">

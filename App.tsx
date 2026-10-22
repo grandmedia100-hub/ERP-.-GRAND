@@ -26,6 +26,9 @@ import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
 import AccountingSettingsPage from './components/AccountingSettingsPage.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
+import AccountingAuditModal from './components/AccountingAuditModal.tsx';
+import CashFlowForecastModal from './components/CashFlowForecastModal.tsx';
+import VATDeclarationModal from './components/VATDeclarationModal.tsx';
 import ToastContainer from './components/ToastContainer.tsx';
 import NotificationCenter from './components/NotificationCenter.tsx';
 import { showNotification } from './services/notificationService.ts';
@@ -405,6 +408,9 @@ const App: React.FC = () => {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+    const [isCashFlowModalOpen, setIsCashFlowModalOpen] = useState(false);
+    const [isVATModalOpen, setIsVATModalOpen] = useState(false);
     const [showNewBranchModal, setShowNewBranchModal] = useState(false);
     const [newBranchName, setNewBranchName] = useState('');
 
@@ -906,6 +912,30 @@ const App: React.FC = () => {
                                 <span className="text-sm">↗️</span>
                                 <span className="hidden sm:inline">نافذة جديدة</span>
                             </button>
+                            <button
+                                onClick={() => setIsAuditModalOpen(true)}
+                                className="hidden lg:flex items-center gap-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all"
+                                title="فاحص وتدقيق التوازن والنزاهة المحاسبية الآلي"
+                            >
+                                <span>⚖️</span>
+                                <span>تدقيق الدفاتر</span>
+                            </button>
+                            <button
+                                onClick={() => setIsCashFlowModalOpen(true)}
+                                className="hidden lg:flex items-center gap-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all"
+                                title="مؤشر التدفقات النقدية والسيولة المتوقعة"
+                            >
+                                <span>📈</span>
+                                <span>توقع السيولة</span>
+                            </button>
+                            <button
+                                onClick={() => setIsVATModalOpen(true)}
+                                className="hidden lg:flex items-center gap-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all"
+                                title="إقرار ضريبة القيمة المضافة ومساعد الفاتورة الضريبية"
+                            >
+                                <span>🏛️</span>
+                                <span>إقرار الضريبة</span>
+                            </button>
                         </div>
                         <div className="flex items-center gap-3">
                             <NotificationCenter onNavigatePage={(page) => setActivePage(page as Page)} />
@@ -965,6 +995,51 @@ const App: React.FC = () => {
                 salesInvoices={salesInvoices}
                 purchaseInvoices={purchaseInvoices}
                 currentUser={currentUser || undefined}
+                onOpenAccountingAudit={() => setIsAuditModalOpen(true)}
+                onOpenCashFlowForecast={() => setIsCashFlowModalOpen(true)}
+                onOpenVATDeclaration={() => setIsVATModalOpen(true)}
+            />
+
+            {/* Accounting Audit Modal */}
+            <AccountingAuditModal
+                isOpen={isAuditModalOpen}
+                onClose={() => setIsAuditModalOpen(false)}
+                accounts={accounts}
+                journalEntries={journalEntries}
+                customers={customers}
+                suppliers={suppliers}
+                products={products}
+                salesInvoices={salesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                customerPayments={customerPayments}
+                supplierPayments={supplierPayments}
+                currentBranchId={currentBranchId}
+                onOpenJournalEntry={(id) => {
+                    setActivePage('journalEntries');
+                    setIsAuditModalOpen(false);
+                }}
+            />
+
+            {/* Cash Flow Forecast Modal */}
+            <CashFlowForecastModal
+                isOpen={isCashFlowModalOpen}
+                onClose={() => setIsCashFlowModalOpen(false)}
+                salesInvoices={salesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                customerPayments={customerPayments}
+                supplierPayments={supplierPayments}
+                expenses={expenses}
+                accounts={accounts}
+            />
+
+            {/* VAT Declaration Modal */}
+            <VATDeclarationModal
+                isOpen={isVATModalOpen}
+                onClose={() => setIsVATModalOpen(false)}
+                salesInvoices={salesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                customers={customers}
+                suppliers={suppliers}
             />
 
             {/* Global Toast Notifications & Audio Feedback */}

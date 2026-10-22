@@ -6,6 +6,7 @@ import { exportToExcel } from '../utils/exportToExcel.ts'; // Import
 import DetailedSalesByItemReport from './DetailedSalesByItemReport.tsx';
 import apiService from '../services/api.ts';
 import { showNotification } from '../services/notificationService.ts';
+import { generateInvoiceWhatsAppText, openWhatsAppWithMessage } from '../utils/whatsappHelper.ts';
 
 interface SalesProps {
   invoices: SalesInvoice[];
@@ -777,11 +778,12 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
 
   // WhatsApp Handler
   const handleWhatsApp = (invoice: SalesInvoice) => {
-    const message = `مرحباً ${invoice.customerName}،\nمرفق تفاصيل الفاتورة رقم ${invoice.id}.\nالإجمالي: ${invoice.total.toLocaleString()} ج.م.\nشكراً لتعاملكم معنا.`;
     const customer = customers.find(c => c.id === invoice.customerId);
     const phone = customer?.phone || '';
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    const companyInfoStr = localStorage.getItem('companyInfo');
+    const companyName = companyInfoStr ? JSON.parse(companyInfoStr).name : undefined;
+    const message = generateInvoiceWhatsAppText(invoice, companyName);
+    openWhatsAppWithMessage(phone, message);
   };
 
 

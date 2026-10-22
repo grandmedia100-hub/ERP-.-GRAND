@@ -139,6 +139,8 @@ const Customers: React.FC<CustomersProps> = ({
                 <th className="p-3 text-sm font-semibold tracking-wide">العنوان</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">الرصيد الافتتاحي</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">الرصيد الحالي</th>
+                <th className="p-3 text-sm font-semibold tracking-wide">الحد الائتماني</th>
+                <th className="p-3 text-sm font-semibold tracking-wide">حالة الائتمان</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">إجراءات</th>
               </tr>
             </thead>
@@ -155,6 +157,28 @@ const Customers: React.FC<CustomersProps> = ({
                   </td>
                   <td className={`p-3 text-sm font-bold ${customer.currentBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {customer.currentBalance.toLocaleString('en-US')} ج.م
+                  </td>
+                  <td className="p-3 text-sm text-gray-700 font-mono">
+                    {customer.creditLimit && customer.creditLimit > 0 ? `${customer.creditLimit.toLocaleString('en-US')} ج.م` : 'غير محدد'}
+                  </td>
+                  <td className="p-3 text-sm">
+                    {customer.isCreditLocked ? (
+                      <span className="bg-rose-100 text-rose-800 text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <span>🚫</span> مجمد
+                      </span>
+                    ) : customer.creditLimit && customer.creditLimit > 0 ? (
+                      customer.currentBalance > customer.creditLimit ? (
+                        <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <span>⚠️</span> متجاوز (+{(customer.currentBalance - customer.creditLimit).toLocaleString('en-US')})
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <span>✅</span> ضمن الحد
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-gray-400 text-xs">مفتوح</span>
+                    )}
                   </td>
                   <td className="p-3 text-sm text-gray-700 space-x-2 space-x-reverse">
                     <button onClick={() => handleOpenCustomerModal(customer)} className="text-blue-500 hover:text-blue-700 transition-colors" title="تعديل">

@@ -17,6 +17,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [openingBalance, setOpeningBalance] = useState(0);
+  const [creditLimit, setCreditLimit] = useState<number>(0);
+  const [creditPeriodDays, setCreditPeriodDays] = useState<number>(30);
+  const [isCreditLocked, setIsCreditLocked] = useState<boolean>(false);
+  const [taxNumber, setTaxNumber] = useState<string>('');
 
   // Alert State
   const [alertMessage, setAlertMessage] = useState('');
@@ -32,6 +36,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
           setPhone(customerToEdit.phone);
           setAddress(customerToEdit.address);
           setOpeningBalance(customerToEdit.openingBalance);
+          setCreditLimit(customerToEdit.creditLimit || 0);
+          setCreditPeriodDays(customerToEdit.creditPeriodDays || 30);
+          setIsCreditLocked(!!customerToEdit.isCreditLocked);
+          setTaxNumber(customerToEdit.taxNumber || '');
       } else {
           const prefix = 'C-';
           const maxNum = existingCustomers.reduce((max, c) => {
@@ -49,6 +57,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
           setPhone('');
           setAddress('');
           setOpeningBalance(0);
+          setCreditLimit(0);
+          setCreditPeriodDays(30);
+          setIsCreditLocked(false);
+          setTaxNumber('');
       }
   }, [isEditing, customerToEdit, existingCustomers]);
 
@@ -89,7 +101,11 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
         companyName: companyName.trim(),
         phone: phone.trim(), 
         address: address.trim(), 
-        openingBalance 
+        openingBalance,
+        creditLimit: creditLimit > 0 ? creditLimit : undefined,
+        creditPeriodDays: creditPeriodDays > 0 ? creditPeriodDays : 30,
+        isCreditLocked,
+        taxNumber: taxNumber.trim() || undefined
     };
 
     onSave(customerData);
@@ -141,6 +157,57 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
                  <div>
                     <label htmlFor="customerBalance" className="block text-sm font-medium text-gray-700 mb-1">الرصيد الافتتاحي</label>
                     <input type="number" id="customerBalance" value={openingBalance} onChange={e => setOpeningBalance(parseFloat(e.target.value) || 0)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                </div>
+
+                {/* Credit Limit & Tax Info */}
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-3">
+                    <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                        <span>🛡️</span> ضوابط الائتمان والبيانات الضريبية
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">الحد الائتماني (ج.م)</label>
+                            <input
+                                type="number"
+                                placeholder="0 = غير محدد"
+                                value={creditLimit || ''}
+                                onChange={e => setCreditLimit(parseFloat(e.target.value) || 0)}
+                                className="w-full p-2 border border-gray-300 rounded-md text-xs font-mono"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">فترة السماح (أيام)</label>
+                            <input
+                                type="number"
+                                placeholder="30"
+                                value={creditPeriodDays || ''}
+                                onChange={e => setCreditPeriodDays(parseInt(e.target.value) || 0)}
+                                className="w-full p-2 border border-gray-300 rounded-md text-xs font-mono"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">الرقم الضريبي للعميل</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. 123-456-789"
+                            value={taxNumber}
+                            onChange={e => setTaxNumber(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md text-xs font-mono"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 border-t border-blue-100/60">
+                        <input
+                            type="checkbox"
+                            id="isCreditLocked"
+                            checked={isCreditLocked}
+                            onChange={e => setIsCreditLocked(e.target.checked)}
+                            className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+                        />
+                        <label htmlFor="isCreditLocked" className="text-xs font-bold text-rose-700 cursor-pointer select-none">
+                            🚫 تجميد البيع الآجل (منع إصدار فواتير آجلة لهذا العميل)
+                        </label>
+                    </div>
                 </div>
             </div>
 

@@ -203,6 +203,8 @@ export interface PurchaseInvoice {
   subTotal?: number; // Added for discount support
   discountValue?: number; // Added for discount support
   discountType?: 'amount' | 'percentage'; // Added for discount support
+  taxRate?: number; // نسبة الضريبة المضافة (مثل 14%)
+  taxAmount?: number; // قيمة الضريبة المضافة
   total: number;
   paymentMethod: 'نقدي' | 'اجل' | 'شيك';
   treasuryAccount?: string; // Target treasury account when paymentMethod is cash
@@ -224,6 +226,8 @@ export interface SalesInvoice {
   subTotal?: number; // Added for discount support
   discountValue?: number; // Added for discount support
   discountType?: 'amount' | 'percentage'; // Added for discount support
+  taxRate?: number; // نسبة الضريبة المضافة (مثل 14%)
+  taxAmount?: number; // قيمة الضريبة المضافة
   total: number;
   paymentMethod: 'نقدي' | 'اجل' | 'شيك';
   invoiceType?: 'sale' | 'return'; // New field for returns
@@ -251,6 +255,10 @@ export interface Customer {
   phone: string;
   address: string;
   openingBalance: number;
+  creditLimit?: number; // سقف الائتمان بالجنيه
+  creditPeriodDays?: number; // فترة السماح بالأيام للبيع الآجل
+  isCreditLocked?: boolean; // تجميد البيع الآجل للعميل
+  taxNumber?: string; // الرقم الضريبي
 }
 
 export interface Supplier {
@@ -260,6 +268,7 @@ export interface Supplier {
   phone: string;
   address: string;
   openingBalance: number;
+  taxNumber?: string; // الرقم الضريبي للمورد
 }
 
 export interface Expense {
@@ -354,6 +363,7 @@ export interface TreasuryTransfer {
   fromBranchName?: string;
   toBranchId?: string;
   toBranchName?: string;
+  sourceBranchName?: string;
   mirrorTransferId?: string;
 }
 
@@ -374,6 +384,7 @@ export interface JournalEntry {
   lines: JournalEntryLine[];
   createdAt: string;
   type?: 'manual' | 'auto' | string;
+  branchId?: string;
   status?: 'posted' | 'draft' | string;
 }
 
