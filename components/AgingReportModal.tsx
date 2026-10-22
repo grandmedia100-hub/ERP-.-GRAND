@@ -89,6 +89,7 @@ const AgingReportModal: React.FC<AgingReportModalProps> = ({
                 return {
                     id: entity.id,
                     name: entity.name,
+                    phone: (entity as any).phone || '',
                     totalMood: currentBalance,
                     buckets
                 };
@@ -100,6 +101,43 @@ const AgingReportModal: React.FC<AgingReportModalProps> = ({
 
         return { customersAging, suppliersAging };
     }, [customers, suppliers, salesInvoices, purchaseInvoices, customerPayments, supplierPayments]);
+
+    const handleSendWhatsAppDemand = (c: any) => {
+        const companyInfoString = localStorage.getItem('companyInfo');
+        const companyInfo = companyInfoString ? JSON.parse(companyInfoString) : { name: 'جراند ميديا' };
+        
+        let phone = c.phone;
+        if (!phone) {
+            phone = prompt(`يرجى إدخال رقم هاتف العميل (${c.name}) لإرسال المطالبة عبر الواتساب:`);
+        }
+        if (!phone) return;
+
+        let cleanPhone = phone.replace(/[^0-9]/g, '');
+        if (cleanPhone.startsWith('01')) {
+            cleanPhone = '2' + cleanPhone;
+        } else if (cleanPhone.startsWith('1') && cleanPhone.length === 10) {
+            cleanPhone = '20' + cleanPhone;
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const message = 
+`عناية السادة / *${c.name}* المحترمين
+تحية طيبة وبعد من شركة *${companyInfo.name || 'جراند ميديا'}*،
+
+نود إحاطة سيادتكم علماً ببيان المستحقات المالية المسجلة لديكم حتى تاريخ (${todayStr}):
+📊 *إجمالي المديونية المستحقة:* ${c.totalMood.toLocaleString('en-US')} ج.م
+
+تفاصيل الفترات وأعمار الديون:
+• مستحق (0 إلى 30 يوم): ${c.buckets['0-30'].toLocaleString('en-US')} ج.م
+• متأخر (31 إلى 60 يوم): ${c.buckets['31-60'].toLocaleString('en-US')} ج.م
+• متأخر (61 إلى 90 يوم): ${c.buckets['61-90'].toLocaleString('en-US')} ج.م
+• متأخر أكثر من 90 يوم: ${c.buckets['90+'].toLocaleString('en-US')} ج.م
+
+يرجى التكرم بجدولة وسداد المبالغ المتأخرة عبر حساباتنا البنكية أو المحافظ الإلكترونية المعتمدة.
+شاكرين ومقدرين حسن تعاونكم الدائم معنا.`;
+
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+    };
 
     const handlePrint = () => {
         // Print logic (Standard HTML print)
@@ -206,6 +244,7 @@ const AgingReportModal: React.FC<AgingReportModalProps> = ({
                                 <th className="p-3 bg-yellow-50 text-yellow-800">31-60 يوم</th>
                                 <th className="p-3 bg-orange-50 text-orange-800">61-90 يوم</th>
                                 <th className="p-3 bg-red-50 text-red-800">+90 يوم</th>
+                                <th className="p-3 text-center">إجراء التحصيل</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y text-sm">
@@ -217,9 +256,20 @@ const AgingReportModal: React.FC<AgingReportModalProps> = ({
                                     <td className="p-3 text-gray-600">{c.buckets['31-60'].toLocaleString('en-US')}</td>
                                     <td className="p-3 text-gray-600">{c.buckets['61-90'].toLocaleString('en-US')}</td>
                                     <td className="p-3 font-bold text-red-600">{c.buckets['90+'].toLocaleString('en-US')}</td>
+                                    <td className="p-3 text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSendWhatsAppDemand(c)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-3 rounded-lg text-xs flex items-center gap-1.5 shadow-sm mx-auto transition-transform active:scale-95"
+                                            title="إرسال رسالة مطالبة ودية بالمديونية وتفاصيل الفترات عبر الواتساب"
+                                        >
+                                            <span>💬</span>
+                                            <span>مطالبة واتساب</span>
+                                        </button>
+                                    </td>
                                 </tr>
                             )) : (
-                                <tr><td colSpan={6} className="text-center p-4 text-gray-500">لا توجد مديونيات على العملاء</td></tr>
+                                <tr><td colSpan={7} className="text-center p-4 text-gray-500">لا توجد مديونيات على العملاء</td></tr>
                             )}
                         </tbody>
                     </table>

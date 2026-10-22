@@ -518,6 +518,83 @@ app.post("/api/clearAll", (req, res) => {
     });
 });
 
+// --- Database Backup & Restore Points API ---
+app.get("/api/backup/download-db", (req, res) => {
+    const fs = require("fs");
+    if (!fs.existsSync(dbPath)) {
+        return res.status(404).json({ error: "Database file not found" });
+    }
+    const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    res.download(dbPath, `mediahive-backup-${dateStr}.db`);
+});
+
+app.post("/api/backup/create-snapshot", (req, res) => {
+    const fs = require("fs");
+    const backupsDir = path.join(__dirname, "backups");
+    if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+    }
+    const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const targetFile = path.join(backupsDir, `snapshot_${dateStr}.db`);
+    
+    db.run("PRAGMA wal_checkpoint(TRUNCATE);", () => {
+        try {
+            fs.copyFileSync(dbPath, targetFile);
+            const stats = fs.statSync(targetFile);
+            res.json({
+                success: true,
+                filename: path.basename(targetFile),
+                snapshot: path.basename(targetFile),
+                sizeBytes: stats.size,
+                sizeMB: (stats.size / (1024 * 1024)).toFixed(2),
+                createdAt: new Date().toISOString()
+            });
+        } catch (copyErr) {
+            res.status(500).json({ error: copyErr.message });
+        }
+    });
+});
+
+app.get("/api/backup/list-snapshots", (req, res) => {
+    const fs = require("fs");
+    const backupsDir = path.join(__dirname, "backups");
+    if (!fs.existsSync(backupsDir)) {
+        return res.json({ snapshots: [] });
+    }
+    const files = fs.readdirSync(backupsDir).filter(f => f.endsWith(".db"));
+    const snapshots = files.map(filename => {
+        const fullPath = path.join(backupsDir, filename);
+        const stats = fs.statSync(fullPath);
+        return {
+            filename,
+            name: filename,
+            sizeMB: (stats.size / (1024 * 1024)).toFixed(2),
+            size: stats.size,
+            createdAt: stats.mtime,
+            mtime: stats.mtime
+        };
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ snapshots });
+});
+
+app.post("/api/backup/restore-snapshot", (req, res) => {
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ error: "Filename required" });
+    const fs = require("fs");
+    const snapshotPath = path.join(__dirname, "backups", filename);
+    if (!fs.existsSync(snapshotPath)) {
+        return res.status(404).json({ error: "Snapshot file not found" });
+    }
+    const rollbackPath = path.join(__dirname, "backups", `pre_restore_${Date.now()}.db`);
+    try {
+        fs.copyFileSync(dbPath, rollbackPath);
+        fs.copyFileSync(snapshotPath, dbPath);
+        res.json({ success: true, message: "تمت استعادة نقطة الاستعادة بنجاح" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Generic Table CRUD with Branch Support & Automated Mirroring
 app.get("/api/:table", (req, res) => {
     const table = req.params.table;

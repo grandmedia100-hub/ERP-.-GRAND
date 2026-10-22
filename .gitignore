@@ -23,6 +23,8 @@ release/
 *.db-wal
 *.db-shm
 *.db.bak
+*.db.bak*
+server/backups/
 
 # Editor & OS files
 .vscode/*

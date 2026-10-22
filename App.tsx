@@ -25,6 +25,7 @@ import AuditLog from './components/AuditLog.tsx';
 import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
 import AccountingSettingsPage from './components/AccountingSettingsPage.tsx';
+import CommandPalette from './components/CommandPalette.tsx';
 
 // Data Imports
 import * as initialData from './data.ts';
@@ -400,8 +401,20 @@ const App: React.FC = () => {
     const [initialPurchaseInvoiceData, setInitialPurchaseInvoiceData] = useState<Partial<PurchaseInvoice> | null>(null);
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [showNewBranchModal, setShowNewBranchModal] = useState(false);
     const [newBranchName, setNewBranchName] = useState('');
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setIsCommandPaletteOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const handleCreateBranch = () => {
         if (!newBranchName.trim()) return;
@@ -849,12 +862,25 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                             <h1 className="text-xl font-bold text-gray-800">MediaHive ERP</h1>
                             <button
+                                onClick={() => setIsCommandPaletteOpen(true)}
+                                className="bg-white hover:bg-slate-50 text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 shadow-xs transition-all w-44 sm:w-64 justify-between cursor-pointer"
+                                title="البحث السريع والتنقل في النظام (Ctrl + K)"
+                            >
+                                <div className="flex items-center gap-1.5 truncate">
+                                    <span className="text-sm">🔍</span>
+                                    <span className="truncate">بحث سريع أو إجراء...</span>
+                                </div>
+                                <kbd className="hidden sm:inline-block px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] font-mono text-gray-600">
+                                    Ctrl + K
+                                </kbd>
+                            </button>
+                            <button
                                 onClick={() => window.open(`/?page=${activePage}`, '_blank')}
                                 className="bg-white/90 hover:bg-white text-gray-700 hover:text-blue-700 border border-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
                                 title="فتح هذه الشاشة في نافذة جديدة مستقلة للعمل على أكثر من شاشة في نفس الوقت"
                             >
                                 <span className="text-sm">↗️</span>
-                                <span className="hidden sm:inline">فتح في نافذة جديدة</span>
+                                <span className="hidden sm:inline">نافذة جديدة</span>
                             </button>
                         </div>
                         <div className="flex items-center gap-4">
@@ -902,6 +928,19 @@ const App: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Global Command Palette (Ctrl + K) */}
+            <CommandPalette
+                isOpen={isCommandPaletteOpen}
+                onClose={() => setIsCommandPaletteOpen(false)}
+                onNavigate={(page) => setActivePage(page as Page)}
+                customers={customers}
+                suppliers={suppliers}
+                products={products}
+                salesInvoices={salesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                currentUser={currentUser || undefined}
+            />
         </div>
     );
 };
