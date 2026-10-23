@@ -26,19 +26,32 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
     ]);
 
     const filteredEntries = useMemo(() => {
+        if (!Array.isArray(journalEntries)) return [];
         return journalEntries
             .filter(je => {
-                const descMatch = !searchQuery || je.description.toLowerCase().includes(searchQuery.toLowerCase()) || (je.referenceId || '').toLowerCase().includes(searchQuery.toLowerCase());
+                if (!je) return false;
+                const desc = (je.description || '').toLowerCase();
+                const ref = (je.referenceId || '').toLowerCase();
+                const q = searchQuery.toLowerCase();
+                const descMatch = !searchQuery || desc.includes(q) || ref.includes(q);
                 const typeMatch = !filterType || je.referenceType === filterType;
-                const startMatch = !dateStart || je.date >= dateStart;
-                const endMatch = !dateEnd || je.date <= dateEnd;
+                const startMatch = !dateStart || (je.date && je.date >= dateStart);
+                const endMatch = !dateEnd || (je.date && je.date <= dateEnd);
                 return descMatch && typeMatch && startMatch && endMatch;
             })
-            .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+            .sort((a, b) => {
+                const dateA = a.date || '';
+                const dateB = b.date || '';
+                if (dateB !== dateA) return dateB.localeCompare(dateA);
+                const createdA = a.createdAt || '';
+                const createdB = b.createdAt || '';
+                if (createdB !== createdA) return createdB.localeCompare(createdA);
+                return (b.id || '').localeCompare(a.id || '');
+            });
     }, [journalEntries, searchQuery, filterType, dateStart, dateEnd]);
 
-    const totalDebit = useMemo(() => filteredEntries.reduce((s, je) => s + je.lines.reduce((ls, l) => ls + (l.debit || 0), 0), 0), [filteredEntries]);
-    const totalCredit = useMemo(() => filteredEntries.reduce((s, je) => s + je.lines.reduce((ls, l) => ls + (l.credit || 0), 0), 0), [filteredEntries]);
+    const totalDebit = useMemo(() => filteredEntries.reduce((s, je) => s + (je.lines || []).reduce((ls, l) => ls + (Number(l.debit) || 0), 0), 0), [filteredEntries]);
+    const totalCredit = useMemo(() => filteredEntries.reduce((s, je) => s + (je.lines || []).reduce((ls, l) => ls + (Number(l.credit) || 0), 0), 0), [filteredEntries]);
 
     const typeLabels: Record<string, { label: string; color: string }> = {
         SalesInvoice: { label: 'مبيعات', color: 'bg-blue-100 text-blue-700' },
@@ -106,10 +119,10 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
         <p>الفترة: ${dateStart || 'البداية'} - ${dateEnd || 'الآن'} | عدد القيود: ${filteredEntries.length}</p>
         <table><thead><tr><th>رقم القيد</th><th>التاريخ</th><th>الوصف</th><th>المرجع</th><th>مدين</th><th>دائن</th></tr></thead><tbody>
         ${filteredEntries.map(je => {
-            const d = je.lines.reduce((s, l) => s + l.debit, 0);
-            const c = je.lines.reduce((s, l) => s + l.credit, 0);
+            const d = (je.lines || []).reduce((s, l) => s + (Number(l.debit) || 0), 0);
+            const c = (je.lines || []).reduce((s, l) => s + (Number(l.credit) || 0), 0);
             return `<tr>
-                <td>${je.id}</td><td>${je.date}</td><td>${je.description}</td>
+                <td>${je.id || ''}</td><td>${je.date || ''}</td><td>${je.description || ''}</td>
                 <td>${je.referenceId || '-'}</td>
                 <td style="text-align:center">${d.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                 <td style="text-align:center">${c.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
@@ -208,8 +221,8 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
                         </thead>
                         <tbody>
                             {filteredEntries.map((je, i) => {
-                                const jeTotalDebit = je.lines.reduce((s, l) => s + (l.debit || 0), 0);
-                                const jeTotalCredit = je.lines.reduce((s, l) => s + (l.credit || 0), 0);
+                                const jeTotalDebit = (je.lines || []).reduce((s, l) => s + (Number(l.debit) || 0), 0);
+                                const jeTotalCredit = (je.lines || []).reduce((s, l) => s + (Number(l.credit) || 0), 0);
                                 const isExpanded = expandedId === je.id;
                                 const typeInfo = typeLabels[je.referenceType || 'Manual'] || { label: 'أخرى', color: 'bg-gray-100 text-gray-600' };
                                 return (
@@ -261,7 +274,11 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
                                                                 </tr>
                                                             </tbody>
                                                         </table>
-                                                        {je.referenceId && <p className="text-xs text-gray-400 mt-2">المرجع: {je.referenceId} | أُنشئ: {new Date(je.createdAt).toLocaleString('ar-EG')}</p>}
+                                                        {je.referenceId && (
+                                                            <p className="text-xs text-gray-400 mt-2">
+                                                                المرجع: {je.referenceId} {je.createdAt ? `| أُنشئ: ${new Date(je.createdAt).toLocaleString('ar-EG')}` : ''}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
