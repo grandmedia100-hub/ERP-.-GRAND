@@ -172,12 +172,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 right-0 z-30 h-full w-72 bg-white text-gray-800 shadow-xl flex flex-col transition-transform duration-300 ease-in-out border-l border-gray-100 flex-shrink-0 select-none
+        fixed top-0 right-0 z-30 h-full w-72 bg-white text-gray-800 shadow-xl flex flex-col transition-transform duration-300 ease-in-out border-l border-gray-100 flex-shrink-0 select-none overflow-hidden
         md:relative md:translate-x-0
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
         {/* Brand Header */}
-        <div className="p-5 text-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white relative">
+        <div className="p-5 text-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white relative flex-shrink-0">
           <div className="flex items-center justify-center gap-2">
             <span className="text-2xl">⚡</span>
             <h1 className="text-2xl font-black text-blue-700 tracking-tight">ERP System</h1>
@@ -297,7 +297,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Footer Logout */}
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-gray-100 flex-shrink-0">
           <button
             onClick={onLogout}
             className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors font-bold text-sm"
@@ -309,7 +309,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        <div className="p-2 text-center text-[10px] text-gray-400 bg-gray-50/80 border-t border-gray-100">
+        <div className="p-2 text-center text-[10px] text-gray-400 bg-gray-50/80 border-t border-gray-100 flex-shrink-0">
           <p>&copy; 2026 ERP System - v9.1.0</p>
         </div>
       </aside>
