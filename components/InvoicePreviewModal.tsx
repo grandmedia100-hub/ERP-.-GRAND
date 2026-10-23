@@ -81,8 +81,8 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                     ${item.description ? `<div style="font-size:10.5px;color:#64748b;margin-top:2px;">${item.description}</div>` : ''}
                 </td>
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;">${item.quantity} ${item.unit || ''}</td>
-                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;">${item.price.toLocaleString()}</td>
-                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-weight:700;font-family:monospace;">${item.total.toLocaleString()}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;">${(Number(item.price) || 0).toLocaleString()}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-weight:700;font-family:monospace;">${(Number(item.total) || 0).toLocaleString()}</td>
             </tr>`;
         }).join('');
 
@@ -231,7 +231,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
             ${discountHtml}
             <div class="totals-row final">
                 <span>صافي المطالبة:</span>
-                <span style="font-family:monospace;">${invoice.total.toLocaleString()} ج.م</span>
+                <span style="font-family:monospace;">${(Number(invoice.total) || 0).toLocaleString()} ج.م</span>
             </div>
         </div>
     </div>
@@ -440,8 +440,8 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                                     {item.description && <div className="text-gray-400 text-[11px] mt-0.5">{item.description}</div>}
                                                 </td>
                                                 <td className="p-3 text-center font-mono">{item.quantity} {item.unit || ''}</td>
-                                                <td className="p-3 text-center font-mono">{item.price.toLocaleString()}</td>
-                                                <td className="p-3 text-center font-mono font-bold text-gray-900">{item.total.toLocaleString()}</td>
+                                                <td className="p-3 text-center font-mono">{(Number(item.price) || 0).toLocaleString()}</td>
+                                                <td className="p-3 text-center font-mono font-bold text-gray-900">{(Number(item.total) || 0).toLocaleString()}</td>
                                             </tr>
                                         );
                                     })}
@@ -502,7 +502,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                     style={{ backgroundColor: primaryHex }}
                                 >
                                     <span className="font-bold text-sm">صافي المطالبة:</span>
-                                    <span className="font-bold text-lg font-mono">{invoice.total.toLocaleString()} ج.م</span>
+                                    <span className="font-bold text-lg font-mono">{(Number(invoice.total) || 0).toLocaleString()} ج.م</span>
                                 </div>
                             </div>
                         </div>
@@ -563,7 +563,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
 
                             <button
                                 onClick={() => {
-                                    const message = `*${title}* رقم #${invoice.id}\nالطرف: ${entityName}\nالتاريخ: ${invoice.date}\nالإجمالي: ${invoice.total.toLocaleString()} ج.م`;
+                                    const message = `*${title}* رقم #${invoice.id}\nالطرف: ${entityName}\nالتاريخ: ${invoice.date}\nالإجمالي: ${(Number(invoice.total) || 0).toLocaleString()} ج.م`;
                                     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
                                 }}
                                 className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl hover:bg-emerald-700 flex items-center gap-1.5 text-xs transition-colors shadow-sm"

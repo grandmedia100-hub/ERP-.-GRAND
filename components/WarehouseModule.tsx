@@ -568,10 +568,10 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                                 <td className="p-3 font-mono text-sm font-bold text-blue-700 bg-blue-50/50 rounded">{p.sku || p.id}</td>
                                                 <td className="p-3 font-semibold text-gray-800">{p.name}</td>
                                                 <td className="p-3 text-gray-600">{p.unit || 'عدد'}</td>
-                                                <td className="p-3 font-bold text-center text-gray-800">{p.quantity.toLocaleString()}</td>
-                                                <td className="p-3 text-center text-gray-700">{p.costPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                                                <td className="p-3 text-center text-gray-700">{p.salePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                                                <td className="p-3 text-center font-semibold text-blue-700">{(p.quantity * p.costPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-3 font-bold text-center text-gray-800">{(Number(p.quantity) || 0).toLocaleString()}</td>
+                                                <td className="p-3 text-center text-gray-700">{(Number(p.costPrice) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-3 text-center text-gray-700">{(Number(p.salePrice) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-3 text-center font-semibold text-blue-700">{((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                                                 <td className="p-3 text-center">
                                                     {p.quantity <= 0 ? (
                                                         <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">نفد</span>
@@ -626,15 +626,15 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                 <div className="grid grid-cols-3 gap-3 mb-4">
                                     <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-100">
                                         <div className="text-xs text-blue-500">الرصيد الحالي</div>
-                                        <div className="text-xl font-bold text-blue-700">{cardProduct.quantity.toLocaleString()}</div>
+                                        <div className="text-xl font-bold text-blue-700">{(Number(cardProduct.quantity) || 0).toLocaleString()}</div>
                                     </div>
                                     <div className="bg-green-50 rounded-lg p-3 text-center border border-green-100">
                                         <div className="text-xs text-green-600">سعر التكلفة</div>
-                                        <div className="text-xl font-bold text-green-700">{cardProduct.costPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-xl font-bold text-green-700">{(Number(cardProduct.costPrice) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                                     </div>
                                     <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-100">
                                         <div className="text-xs text-purple-600">إجمالي القيمة</div>
-                                        <div className="text-xl font-bold text-purple-700">{(cardProduct.quantity * cardProduct.costPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م</div>
+                                        <div className="text-xl font-bold text-purple-700">{((Number(cardProduct.quantity) || 0) * (Number(cardProduct.costPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م</div>
                                     </div>
                                 </div>
                             )}
@@ -656,11 +656,11 @@ const WarehouseModule: React.FC<WarehouseModuleProps> = ({
                                                 <td className="p-2.5">
                                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeBadge[tx.type]}`}>{typeLabel[tx.type]}</span>
                                                 </td>
-                                                <td className="p-2.5 text-center font-bold text-green-700">{tx.quantityIn > 0 ? tx.quantityIn.toLocaleString() : '-'}</td>
-                                                <td className="p-2.5 text-center font-bold text-red-600">{tx.quantityOut > 0 ? tx.quantityOut.toLocaleString() : '-'}</td>
-                                                <td className="p-2.5 text-center text-gray-600">{tx.unitCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                                                <td className="p-2.5 text-center text-gray-700">{tx.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                                                <td className="p-2.5 text-center font-bold text-blue-700">{tx.balanceAfter.toLocaleString()}</td>
+                                                <td className="p-2.5 text-center font-bold text-green-700">{Number(tx.quantityIn) > 0 ? Number(tx.quantityIn).toLocaleString() : '-'}</td>
+                                                <td className="p-2.5 text-center font-bold text-red-600">{Number(tx.quantityOut) > 0 ? Number(tx.quantityOut).toLocaleString() : '-'}</td>
+                                                <td className="p-2.5 text-center text-gray-600">{(Number(tx.unitCost) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-2.5 text-center text-gray-700">{(Number(tx.totalCost) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-2.5 text-center font-bold text-blue-700">{(Number(tx.balanceAfter) || 0).toLocaleString()}</td>
                                                 <td className="p-2.5 text-xs text-gray-500 font-mono">{tx.referenceId || '-'}</td>
                                                 <td className="p-2.5 text-xs text-gray-500">{tx.notes || '-'}</td>
                                             </tr>

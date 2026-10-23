@@ -35,7 +35,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
       const totalPaid = customerPayments
         .filter(pay => pay.customerId === customer.id && pay.status !== 'voided')
         .reduce((sum, pay) => sum + pay.amount, 0);
-      const currentBalance = customer.openingBalance + totalSales - totalPaid;
+      const currentBalance = (Number(customer.openingBalance) || 0) + totalSales - totalPaid;
       return { ...customer, currentBalance };
     }).filter(c => c.currentBalance !== 0).sort((a, b) => b.currentBalance - a.currentBalance);
   }, [customers, salesInvoices, customerPayments]);
@@ -48,7 +48,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
       const totalPaid = supplierPayments
         .filter(pay => pay.supplierId === supplier.id && pay.status !== 'voided')
         .reduce((sum, pay) => sum + pay.amount, 0);
-      const currentBalance = supplier.openingBalance + totalPurchases - totalPaid;
+      const currentBalance = (Number(supplier.openingBalance) || 0) + totalPurchases - totalPaid;
       return { ...supplier, currentBalance };
     }).filter(s => s.currentBalance !== 0).sort((a, b) => b.currentBalance - a.currentBalance);
   }, [suppliers, purchaseInvoices, supplierPayments]);
@@ -58,7 +58,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
       const totalTxs = partnerTransactions
         .filter(tx => tx.partnerId === partner.id && tx.status !== 'voided')
         .reduce((sum, tx) => sum + (tx.type === 'إيداع' ? tx.amount : -tx.amount), 0);
-      const currentBalance = partner.openingBalance + totalTxs;
+      const currentBalance = (Number(partner.openingBalance) || 0) + totalTxs;
       return { ...partner, currentBalance };
     }).filter(p => p.currentBalance !== 0).sort((a, b) => b.currentBalance - a.currentBalance);
   }, [partners, partnerTransactions]);
@@ -182,7 +182,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                   <h3 className="text-lg font-bold text-blue-800">إجمالي الديون المستحقة</h3>
                   <p className="text-sm text-blue-600">المبالغ التي يجب تحصيلها من العملاء</p>
                 </div>
-                <div className="text-2xl font-bold text-blue-700">{totalCustomerDebts.toLocaleString('en-US')} ج.م</div>
+                <div className="text-2xl font-bold text-blue-700">{(Number(totalCustomerDebts) || 0).toLocaleString('en-US')} ج.م</div>
               </div>
               <table className="w-full text-right border-collapse">
                 <thead className="bg-gray-100 sticky top-0">
@@ -199,7 +199,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                       <td className="p-3 border text-sm text-gray-600 font-mono">{c.id}</td>
                       <td className="p-3 border text-sm text-gray-800 font-bold">{c.name}</td>
                       <td className="p-3 border text-sm text-gray-600">{c.phone}</td>
-                      <td className="p-3 border text-sm font-bold text-blue-600">{c.currentBalance.toLocaleString('en-US')} ج.م</td>
+                      <td className="p-3 border text-sm font-bold text-blue-600">{(Number(c.currentBalance) || 0).toLocaleString('en-US')} ج.م</td>
                     </tr>
                   ))}
                   {customerBalances.length === 0 && (
@@ -215,7 +215,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                   <h3 className="text-lg font-bold text-green-800">إجمالي المستحقات للموردين</h3>
                   <p className="text-sm text-green-600">المبالغ التي يجب سدادها للموردين</p>
                 </div>
-                <div className="text-2xl font-bold text-green-700">{totalSupplierDebts.toLocaleString('en-US')} ج.م</div>
+                <div className="text-2xl font-bold text-green-700">{(Number(totalSupplierDebts) || 0).toLocaleString('en-US')} ج.م</div>
               </div>
               <table className="w-full text-right border-collapse">
                 <thead className="bg-gray-100 sticky top-0">
@@ -232,7 +232,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                       <td className="p-3 border text-sm text-gray-600 font-mono">{s.id}</td>
                       <td className="p-3 border text-sm text-gray-800 font-bold">{s.name}</td>
                       <td className="p-3 border text-sm text-gray-600">{s.phone}</td>
-                      <td className="p-3 border text-sm font-bold text-green-600">{s.currentBalance.toLocaleString('en-US')} ج.م</td>
+                      <td className="p-3 border text-sm font-bold text-green-600">{(Number(s.currentBalance) || 0).toLocaleString('en-US')} ج.م</td>
                     </tr>
                   ))}
                   {supplierBalances.length === 0 && (
@@ -248,7 +248,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                   <h3 className="text-lg font-bold text-purple-800">إجمالي أرصدة الشركاء</h3>
                   <p className="text-sm text-purple-600">مجموع رؤوس الأموال والحسابات الجارية للشركاء</p>
                 </div>
-                <div className="text-2xl font-bold text-purple-700">{totalPartnerBalances.toLocaleString('en-US')} ج.م</div>
+                <div className="text-2xl font-bold text-purple-700">{(Number(totalPartnerBalances) || 0).toLocaleString('en-US')} ج.م</div>
               </div>
               <table className="w-full text-right border-collapse">
                 <thead className="bg-gray-100 sticky top-0">
@@ -266,7 +266,7 @@ const BalancesReportModal: React.FC<BalancesReportModalProps> = ({
                       <td className="p-3 border text-sm text-gray-800 font-bold">{p.name}</td>
                       <td className="p-3 border text-sm text-gray-600">{p.phone || '-'}</td>
                       <td className={`p-3 border text-sm font-bold ${p.currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {p.currentBalance.toLocaleString('en-US')} ج.م
+                        {(Number(p.currentBalance) || 0).toLocaleString('en-US')} ج.م
                       </td>
                     </tr>
                   ))}

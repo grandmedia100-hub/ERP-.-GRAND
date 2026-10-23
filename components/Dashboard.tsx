@@ -75,7 +75,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         const productCounts: Record<string, number> = {};
         salesInvoices.forEach(inv => {
             if (inv.status !== 'voided') {
-                inv.items.forEach(item => {
+                (inv.items || []).forEach(item => {
                     if (productCounts[item.productName]) {
                         productCounts[item.productName] += item.quantity;
                     } else {
@@ -246,7 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         <span className="text-gray-800 truncate max-w-[120px]">{notif.customer}</span>
                                         <span className={`${notif.type === 'overdue' ? 'text-red-700' :
                                                 notif.type === 'today' ? 'text-yellow-700' : 'text-blue-700'
-                                            }`}>{notif.amount.toLocaleString('en-US')} ج.م</span>
+                                            }`}>{(Number(notif.amount) || 0).toLocaleString('en-US')} ج.م</span>
                                     </div>
                                     <div className="flex justify-between text-xs text-gray-600">
                                         <span>#{notif.invoiceId}</span>

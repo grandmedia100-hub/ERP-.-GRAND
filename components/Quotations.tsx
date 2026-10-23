@@ -562,7 +562,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                           </tr>
                                       </thead>
                                       <tbody>
-                                          ${quote.items.map((item, i) => {
+                                          ${(quote.items || []).map((item, i) => {
                             const price = (item.pricingTiers && item.pricingTiers.length > 0)
                                 ? item.pricingTiers[0].price
                                 : item.price;
@@ -599,7 +599,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                           </tr>
                                       </thead>
                                       <tbody>
-                                          ${quote.items.map((item, i) => {
+                                          ${(quote.items || []).map((item, i) => {
                             const qty = (item.pricingTiers && item.pricingTiers.length > 0)
                                 ? item.pricingTiers[0].quantity
                                 : item.quantity;
@@ -652,7 +652,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                           </tr>
                                       </thead>
                                       <tbody>
-                                          ${quote.items.map((item, i) => {
+                                          ${(quote.items || []).map((item, i) => {
                         const tiers = (item.pricingTiers && item.pricingTiers.length > 0)
                             ? item.pricingTiers
                             : [{ quantity: item.quantity, price: item.price }];
@@ -710,7 +710,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                           <div class="print-total-section">
                               <div class="total-row final">
                                   <span>الإجمالي النهائي:</span>
-                                  <span>${quote.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</span>
+                                  <span>${(Number(quote.total) || 0).toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</span>
                               </div>
                           </div>`;
                           })()}
@@ -794,7 +794,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                         return `${day}/${month}/${year} - ${hours}:${minutes}`;
                                     })() : '-'}
                                 </td>
-                                <td className="p-3 font-bold text-blue-600">{q.total.toLocaleString()} ج.م</td>
+                                <td className="p-3 font-bold text-blue-600">{(Number(q.total) || 0).toLocaleString()} ج.م</td>
                                 <td className="p-3">
                                     <span className={`px-2 py-1 rounded-full text-xs ${q.status === 'accepted' ? 'bg-green-100 text-green-800' :
                                         q.status === 'rejected' ? 'bg-red-100 text-red-800' :

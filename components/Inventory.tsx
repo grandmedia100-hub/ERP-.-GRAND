@@ -113,11 +113,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
                     )}
                   </td>
                   <td className="p-3 text-sm text-gray-700">{product.productType || '-'}</td>
-                  <td className="p-3 text-sm text-gray-700 font-bold">{product.quantity.toLocaleString('en-US')}</td>
-                  <td className="p-3 text-sm text-gray-700">{product.costPrice.toLocaleString('en-US')} ج.م</td>
-                  <td className="p-3 text-sm text-gray-700">{product.salePrice.toLocaleString('en-US')} ج.م</td>
+                  <td className="p-3 text-sm text-gray-700 font-bold">{(Number(product.quantity) || 0).toLocaleString('en-US')}</td>
+                  <td className="p-3 text-sm text-gray-700">{(Number(product.costPrice) || 0).toLocaleString('en-US')} ج.م</td>
+                  <td className="p-3 text-sm text-gray-700">{(Number(product.salePrice) || 0).toLocaleString('en-US')} ج.م</td>
                   <td className="p-3 text-sm">
-                    {product.quantity > product.lowStockThreshold ? (
+                    {(Number(product.quantity) || 0) > (Number(product.lowStockThreshold) || 0) ? (
                       <span className="p-1.5 text-xs font-medium uppercase tracking-wider text-green-800 bg-green-200 rounded-lg bg-opacity-50">متوفر</span>
                     ) : (
                       <span className="p-1.5 text-xs font-medium uppercase tracking-wider text-red-800 bg-red-200 rounded-lg bg-opacity-50">مخزون منخفض</span>

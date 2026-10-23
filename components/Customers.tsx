@@ -35,13 +35,14 @@ const Customers: React.FC<CustomersProps> = ({
         .reduce((sum, inv) => sum + inv.total, 0);
       const totalPaid = customerPayments
         .filter(pay => pay.customerId === customer.id && pay.status !== 'voided')
-        .reduce((sum, pay) => sum + pay.amount, 0);
-      const currentBalance = customer.openingBalance + totalSales - totalPaid;
+        .reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+      const opening = Number(customer.openingBalance) || 0;
+      const currentBalance = opening + totalSales - totalPaid;
       return { ...customer, currentBalance };
     });
   }, [customerList, salesInvoices, customerPayments]);
 
-  const totalReceivables = customersWithBalance.reduce((sum, c) => sum + c.currentBalance, 0);
+  const totalReceivables = customersWithBalance.reduce((sum, c) => sum + (Number(c.currentBalance) || 0), 0);
 
   // -- Customer Handlers --
   const handleOpenCustomerModal = (customer?: Customer) => {
@@ -122,7 +123,7 @@ const Customers: React.FC<CustomersProps> = ({
             <p className="text-sm text-blue-600">الأموال المستحقة للشركة عند العملاء</p>
           </div>
           <div className="text-2xl font-bold text-blue-700">
-            {totalReceivables.toLocaleString('en-US')} ج.م
+            {(Number(totalReceivables) || 0).toLocaleString('en-US')} ج.م
           </div>
         </div>
       </div>
@@ -153,13 +154,13 @@ const Customers: React.FC<CustomersProps> = ({
                   <td className="p-3 text-sm text-gray-700">{customer.phone}</td>
                   <td className="p-3 text-sm text-gray-700">{customer.address}</td>
                   <td className="p-3 text-sm text-gray-500">
-                    {customer.openingBalance.toLocaleString('en-US')} ج.م
+                    {(Number(customer.openingBalance) || 0).toLocaleString('en-US')} ج.م
                   </td>
-                  <td className={`p-3 text-sm font-bold ${customer.currentBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {customer.currentBalance.toLocaleString('en-US')} ج.م
+                  <td className={`p-3 text-sm font-bold ${(Number(customer.currentBalance) || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {(Number(customer.currentBalance) || 0).toLocaleString('en-US')} ج.م
                   </td>
                   <td className="p-3 text-sm text-gray-700 font-mono">
-                    {customer.creditLimit && customer.creditLimit > 0 ? `${customer.creditLimit.toLocaleString('en-US')} ج.م` : 'غير محدد'}
+                    {customer.creditLimit && customer.creditLimit > 0 ? `${(Number(customer.creditLimit) || 0).toLocaleString('en-US')} ج.م` : 'غير محدد'}
                   </td>
                   <td className="p-3 text-sm">
                     {customer.isCreditLocked ? (
@@ -167,9 +168,9 @@ const Customers: React.FC<CustomersProps> = ({
                         <span>🚫</span> مجمد
                       </span>
                     ) : customer.creditLimit && customer.creditLimit > 0 ? (
-                      customer.currentBalance > customer.creditLimit ? (
+                      (Number(customer.currentBalance) || 0) > (Number(customer.creditLimit) || 0) ? (
                         <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                          <span>⚠️</span> متجاوز (+{(customer.currentBalance - customer.creditLimit).toLocaleString('en-US')})
+                          <span>⚠️</span> متجاوز (+{((Number(customer.currentBalance) || 0) - (Number(customer.creditLimit) || 0)).toLocaleString('en-US')})
                         </span>
                       ) : (
                         <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">

@@ -36,7 +36,7 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
                     invoiceId: inv.id,
                     date: inv.date,
                     type: 'invoice' as const,
-                    description: `فاتورة #${inv.id} - ${item.productName} (${item.quantity} × ${item.price.toLocaleString()} ج.م)`,
+                    description: `فاتورة #${inv.id} - ${item.productName} (${item.quantity} × ${(Number(item.price) || 0).toLocaleString()} ج.م)`,
                     debit: item.total || (item.quantity * item.price),
                     credit: 0,
                     originalObject: inv,
@@ -197,7 +197,7 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
                    <tbody>
                      <tr class="balance-row">
                        <td colspan="4">رصيد ما قبل الفترة</td>
-                       <td>${statementData.balanceBeforePeriod.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                       <td>${(Number(statementData.balanceBeforePeriod) || 0).toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                      </tr>
                      ${statementData.transactions.map(t => `
                        <tr>
@@ -210,7 +210,7 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
                      `).join('')}
                      <tr class="closing-balance-row">
                        <td colspan="4" style="text-align: center;">الرصيد الختامي</td>
-                       <td style="direction: ltr; text-align: right;">${statementData.closingBalance.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                       <td style="direction: ltr; text-align: right;">${(Number(statementData.closingBalance) || 0).toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                      </tr>
                    </tbody>
                  </table>
@@ -325,7 +325,7 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
                                 <tbody className="divide-y divide-gray-100">
                                     <tr>
                                         <td colSpan={4} className="p-3 text-sm text-gray-700 font-semibold">رصيد الفترة السابقة</td>
-                                        <td className="p-3 text-sm text-gray-700 font-bold">{statementData.balanceBeforePeriod.toLocaleString('en-US')} ج.م</td>
+                                        <td className="p-3 text-sm text-gray-700 font-bold">{(Number(statementData.balanceBeforePeriod) || 0).toLocaleString('en-US')} ج.م</td>
                                     </tr>
                                     {statementData.transactions.map((t, index) => (
                                         <tr key={index} className="hover:bg-gray-50">
@@ -347,12 +347,12 @@ const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({ onClose
                                             </td>
                                             <td className="p-3 text-sm text-red-600">{t.debit > 0 ? t.debit.toLocaleString('en-US') + ' ج.م' : ''}</td>
                                             <td className="p-3 text-sm text-green-600">{t.credit > 0 ? t.credit.toLocaleString('en-US') + ' ج.م' : ''}</td>
-                                            <td className="p-3 text-sm text-gray-700 font-bold">{t.balance.toLocaleString('en-US')} ج.م</td>
+                                            <td className="p-3 text-sm text-gray-700 font-bold">{(Number(t.balance) || 0).toLocaleString('en-US')} ج.م</td>
                                         </tr>
                                     ))}
                                     <tr className="bg-gray-100 font-bold border-t-2">
                                         <td colSpan={4} className="p-3 text-sm">الرصيد الختامي</td>
-                                        <td className="p-3 text-sm">{statementData.closingBalance.toLocaleString('en-US')} ج.م</td>
+                                        <td className="p-3 text-sm">{(Number(statementData.closingBalance) || 0).toLocaleString('en-US')} ج.م</td>
                                     </tr>
                                 </tbody>
                             </table>

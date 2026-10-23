@@ -182,8 +182,8 @@ const Purchases: React.FC<PurchasesProps> = ({
     }
 
     // Calculate Splits (Inventory vs Expenses)
-    const inventoryItems = newInvoice.items.filter(i => i.itemType !== 'expense');
-    const expenseItems = newInvoice.items.filter(i => i.itemType === 'expense');
+    const inventoryItems = (newInvoice.items || []).filter(i => i.itemType !== 'expense');
+    const expenseItems = (newInvoice.items || []).filter(i => i.itemType === 'expense');
 
     const defaultInvAccId = postingSettings?.purchaseDefaultInventoryAccountId || '110401';
     const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
@@ -462,8 +462,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         }
 
         // 4. Create Reversing Entry (Recalculate split)
-        const inventoryItems = invoice.items.filter(i => i.itemType !== 'expense');
-        const expenseItems = invoice.items.filter(i => i.itemType === 'expense');
+        const inventoryItems = (invoice.items || []).filter(i => i.itemType !== 'expense');
+        const expenseItems = (invoice.items || []).filter(i => i.itemType === 'expense');
 
         const defaultInvAccId = postingSettings?.purchaseDefaultInventoryAccountId || '110401';
         const payablesAccId = postingSettings?.purchasePayablesAccountId || '2101';
@@ -870,9 +870,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                   </td>
                   <td className="p-3 text-sm text-gray-700 font-bold">
                     {invoice.status === 'voided' ? (
-                      <span className="line-through text-gray-400">{invoice.total.toLocaleString('en-US')} ج.م</span>
+                      <span className="line-through text-gray-400">{(Number(invoice.total) || 0).toLocaleString('en-US')} ج.م</span>
                     ) : (
-                      `${invoice.total.toLocaleString('en-US')} ج.م`
+                      `${(Number(invoice.total) || 0).toLocaleString('en-US')} ج.م`
                     )}
                   </td>
                   <td className="p-3 text-sm">

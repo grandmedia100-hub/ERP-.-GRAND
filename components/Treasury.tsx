@@ -1101,7 +1101,7 @@ const Treasury: React.FC<TreasuryProps> = ({
 
               <div class="amount-box">
                 <label style="font-size: 13px; opacity: 0.9;">المبلغ المحوّل</label>
-                <div class="amount">${transfer.amount.toLocaleString()}</div>
+                <div class="amount">${(Number(transfer.amount) || 0).toLocaleString()}</div>
                 <div style="font-size: 13px; opacity: 0.9;">جنيه مصري</div>
               </div>
             </div>
@@ -1394,7 +1394,7 @@ const Treasury: React.FC<TreasuryProps> = ({
 
               <div class="amount-box">
                 <label>${amountLabel}</label>
-                <div class="amount">${voucher.amount.toLocaleString()}</div>
+                <div class="amount">${(Number(voucher.amount) || 0).toLocaleString()}</div>
                 <div class="currency">جنيه مصري</div>
               </div>
             </div>

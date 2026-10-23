@@ -180,7 +180,7 @@ const useKVServerState = <T,>(defaultValue: T[], kvKey: string): [T[], React.Dis
         const fetchServer = () => {
             apiService.request('/api/kv/' + kvKey).then((serverData: any) => {
                 if (!isSubscribed) return;
-                const arr = Array.isArray(serverData) ? serverData : defaultValue;
+                const arr = (Array.isArray(serverData) && (serverData.length > 0 || defaultValue.length === 0)) ? serverData : defaultValue;
                 const localStr = JSON.stringify(dataRef.current);
                 const serverStr = JSON.stringify(arr);
                 if (localStr !== serverStr) {

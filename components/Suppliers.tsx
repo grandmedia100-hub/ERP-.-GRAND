@@ -38,13 +38,14 @@ const Suppliers: React.FC<SuppliersProps> = ({
                 .reduce((sum, inv) => sum + inv.total, 0);
             const totalPaid = supplierPayments
                 .filter(pay => pay.supplierId === supplier.id && pay.status !== 'voided')
-                .reduce((sum, pay) => sum + pay.amount, 0);
-            const currentBalance = supplier.openingBalance + totalPurchases - totalPaid;
+                .reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+            const opening = Number(supplier.openingBalance) || 0;
+            const currentBalance = opening + totalPurchases - totalPaid;
             return { ...supplier, currentBalance };
         });
     }, [supplierList, purchaseInvoices, supplierPayments]);
 
-    const totalPayables = suppliersWithBalance.reduce((sum, s) => sum + s.currentBalance, 0);
+    const totalPayables = suppliersWithBalance.reduce((sum, s) => sum + (Number(s.currentBalance) || 0), 0);
 
     // -- Supplier Handlers --
     const handleOpenSupplierModal = (supplier?: Supplier) => {
@@ -130,7 +131,7 @@ const Suppliers: React.FC<SuppliersProps> = ({
                         <p className="text-sm text-green-600">الأموال المستحقة للموردين على الشركة</p>
                     </div>
                     <div className="text-2xl font-bold text-green-700">
-                        {totalPayables.toLocaleString('en-US')} ج.م
+                        {(Number(totalPayables) || 0).toLocaleString('en-US')} ج.م
                     </div>
                 </div>
             </div>
@@ -159,10 +160,10 @@ const Suppliers: React.FC<SuppliersProps> = ({
                                     <td className="p-3 text-sm text-gray-700">{supplier.phone}</td>
                                     <td className="p-3 text-sm text-gray-700">{supplier.address}</td>
                                     <td className={`p-3 text-sm text-gray-500`}>
-                                        {supplier.openingBalance.toLocaleString('en-US')} ج.م
+                                        {(Number(supplier.openingBalance) || 0).toLocaleString('en-US')} ج.م
                                     </td>
                                     <td className={`p-3 text-sm font-bold ${supplier.currentBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                        {supplier.currentBalance.toLocaleString('en-US')} ج.م
+                                        {(Number(supplier.currentBalance) || 0).toLocaleString('en-US')} ج.م
                                     </td>
                                     <td className="p-3 text-sm text-gray-700 space-x-2 space-x-reverse flex">
                                         <button onClick={() => handleOpenStatement(supplier.id)} className="text-gray-600 hover:text-gray-800 transition-colors" title="كشف حساب">

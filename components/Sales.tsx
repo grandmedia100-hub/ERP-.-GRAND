@@ -402,7 +402,7 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
         const totalCost = calculateTotalCost(invoice.items);
 
         const inventoryGroups: Record<string, number> = {};
-        invoice.items.forEach(item => {
+        (invoice.items || []).forEach(item => {
           let itemCost = 0;
           if (item.cost !== undefined && item.cost >= 0) {
             itemCost = item.cost * (item.quantity || 0);
@@ -1057,9 +1057,9 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
                   </td>
                   <td className="p-3 text-sm text-gray-700 font-bold">
                     {invoice.status === 'voided' ? (
-                      <span className="line-through text-gray-400">{invoice.total.toLocaleString('en-US')} ج.م</span>
+                      <span className="line-through text-gray-400">{(Number(invoice.total) || 0).toLocaleString('en-US')} ج.م</span>
                     ) : (
-                      `${invoice.total.toLocaleString('en-US')} ج.م`
+                      `${(Number(invoice.total) || 0).toLocaleString('en-US')} ج.م`
                     )}
                   </td>
                   <td className="p-3 text-sm">
