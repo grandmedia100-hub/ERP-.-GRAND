@@ -75,6 +75,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       { id: 'sales', title: 'فواتير المبيعات والعملاء', icon: '💰', subtitle: 'إصدار ومتابعة فواتير البيع' },
       { id: 'quotations', title: 'عروض الأسعار ومقايسات الطباعة', icon: '📋', subtitle: 'حساب التكاليف وعروض العملاء' },
       { id: 'purchases', title: 'فواتير المشتريات والموردين', icon: '🛒', subtitle: 'فواتير التوريد ومستحقات الموردين' },
+      { id: 'purchaseReturns', title: 'مرتجعات المشتريات (إشعارات الخصم)', icon: '🔄', subtitle: 'متابعة المرتجعات ورد البضائع للموردين' },
       { id: 'purchaseRequests', title: 'طلبات الشراء (PR)', icon: '📝', subtitle: 'إدارة وتعميد طلبات الاحتياج' },
       { id: 'purchaseOrders', title: 'أوامر الشراء (PO)', icon: '📑', subtitle: 'أوامر التوريد الصادرة للموردين' },
       { id: 'manufacturing', title: 'التصنيع وأوامر الشغل وبطاقات الإنتاج', icon: '⚙️', subtitle: 'متابعة خطوط الإنتاج والـ BOM' },

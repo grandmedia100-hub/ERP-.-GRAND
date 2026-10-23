@@ -1,5 +1,5 @@
 
-export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'accountingSettings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
+export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseReturns' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'accountingSettings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
 
 export type TreasuryAccountType = 'الخزينة الرئيسية' | 'انستاباى' | 'فودافون كاش' | 'بنك فيصل' | 'البنك الاهلى' | (string & {});
 
@@ -7,6 +7,7 @@ export type Permission =
   | 'access_dashboard'
   | 'access_sales'
   | 'access_purchases'
+  | 'access_purchase_returns'
   | 'access_purchase_requests'
   | 'access_purchase_orders'
   | 'access_inventory'

@@ -82,7 +82,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       subItems: [
         { id: 'purchaseRequests', label: 'طلبات الشراء (PR)', icon: '📝', permission: 'access_purchase_requests' },
         { id: 'purchaseOrders', label: 'أوامر الشراء (PO)', icon: '📑', permission: 'access_purchase_orders' },
-        { id: 'purchases', label: 'فواتير ومرتجعات المشتريات', icon: '🧾', permission: 'access_purchases' },
+        { id: 'purchases', label: 'فواتير المشتريات', icon: '🧾', permission: 'access_purchases' },
+        { id: 'purchaseReturns', label: 'مرتجعات المشتريات', icon: '🔄', permission: 'access_purchases' },
         { id: 'suppliers', label: 'الموردين وحساباتهم', icon: '🚛', permission: 'access_suppliers' },
       ]
     },

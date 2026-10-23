@@ -252,7 +252,8 @@ const PAGE_TITLES: Record<Page, string> = {
     quotations: 'عروض الأسعار',
     purchaseRequests: 'طلبات الشراء (PR)',
     purchaseOrders: 'أوامر الشراء (PO)',
-    purchases: 'فواتير المشتريات والموردين',
+    purchases: 'فواتير المشتريات',
+    purchaseReturns: 'مرتجعات المشتريات (إشعارات الخصم)',
     inventory: 'إدارة المخزون والأصناف',
     warehouse: 'إدارة المستودعات والجرد',
     manufacturing: 'أوامر التصنيع والتشغيل',
@@ -387,6 +388,7 @@ const App: React.FC = () => {
             sales: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920',
             quotations: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=1920',
             purchases: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
+            purchaseReturns: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
             purchaseRequests: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             purchaseOrders: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             manufacturing: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920',
@@ -566,6 +568,7 @@ const App: React.FC = () => {
             sales: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=1920',
             quotations: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=1920',
             purchases: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
+            purchaseReturns: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&q=80&w=1920',
             purchaseRequests: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             purchaseOrders: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=1920',
             manufacturing: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920',
@@ -700,6 +703,25 @@ const App: React.FC = () => {
         }
         if (activePage === 'purchases' && hasPermission('access_purchases')) {
             return <Purchases
+                pageMode="invoices"
+                invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
+                suppliers={suppliers} products={products} setProducts={setProducts}
+                stockTransactions={stockTransactions} setStockTransactions={setStockTransactions}
+                supplierPayments={supplierPayments} setSupplierPayments={setSupplierPayments}
+                createJournalEntry={createJournalEntry} logAction={logAction}
+                currentUser={currentUser}
+                deleteJournalEntryByReference={deleteJournalEntryByReference}
+                accounts={accounts} setAccounts={setAccounts}
+                currentBranchId={currentBranchId}
+                postingSettings={postingSettings}
+                initialInvoiceData={initialPurchaseInvoiceData}
+                onClearInitialData={() => setInitialPurchaseInvoiceData(null)}
+                onNavigate={(page) => setActivePage(page)}
+            />;
+        }
+        if (activePage === 'purchaseReturns' && (hasPermission('access_purchase_returns') || hasPermission('access_purchases'))) {
+            return <Purchases
+                pageMode="returns"
                 invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
                 suppliers={suppliers} products={products} setProducts={setProducts}
                 stockTransactions={stockTransactions} setStockTransactions={setStockTransactions}
@@ -833,6 +855,7 @@ const App: React.FC = () => {
                 postingSettings={postingSettings}
                 setPostingSettings={setPostingSettings}
                 onNavigate={(page) => setActivePage(page)}
+                onOpenAuditModal={() => setIsAuditModalOpen(true)}
             />;
         }
         if (activePage === 'chartOfAccounts' && hasPermission('access_chart_of_accounts')) {

@@ -28,6 +28,7 @@ interface PurchasesProps {
   initialInvoiceData?: Partial<PurchaseInvoice> | null;
   onClearInitialData?: () => void;
   onNavigate?: (page: Page) => void;
+  pageMode?: 'invoices' | 'returns' | 'all';
 }
 
 const Purchases: React.FC<PurchasesProps> = ({
@@ -35,8 +36,11 @@ const Purchases: React.FC<PurchasesProps> = ({
   stockTransactions, setStockTransactions, supplierPayments, setSupplierPayments,
   createJournalEntry, logAction, currentUser, deleteJournalEntryByReference,
   accounts, setAccounts, currentBranchId = 'main', postingSettings, onOpenSettings,
-  initialInvoiceData, onClearInitialData, onNavigate
+  initialInvoiceData, onClearInitialData, onNavigate, pageMode = 'all'
 }) => {
+  const isReturnsMode = pageMode === 'returns';
+  const isInvoicesMode = pageMode === 'invoices';
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
 
@@ -64,6 +68,10 @@ const Purchases: React.FC<PurchasesProps> = ({
   // Filtering Logic
   const filteredInvoices = React.useMemo(() => {
     return invoices.filter(inv => {
+      // Filter based on pageMode
+      if (isReturnsMode && inv.invoiceType !== 'return') return false;
+      if (isInvoicesMode && inv.invoiceType === 'return') return false;
+
       const dateMatch = (!searchDateStart || new Date(inv.date) >= new Date(searchDateStart)) &&
         (!searchDateEnd || new Date(inv.date) <= new Date(searchDateEnd));
       const supplierMatch = !searchSupplierId || inv.supplierId === searchSupplierId;
@@ -71,7 +79,25 @@ const Purchases: React.FC<PurchasesProps> = ({
 
       return dateMatch && supplierMatch && idMatch;
     }).sort((a, b) => b.id.localeCompare(a.id));
-  }, [invoices, searchDateStart, searchDateEnd, searchSupplierId, searchInvoiceId]);
+  }, [invoices, searchDateStart, searchDateEnd, searchSupplierId, searchInvoiceId, isReturnsMode, isInvoicesMode]);
+
+  // Overall counts for tabs
+  const regularInvoicesCount = React.useMemo(() => invoices.filter(i => i.invoiceType !== 'return' && i.status !== 'voided').length, [invoices]);
+  const returnInvoicesCount = React.useMemo(() => invoices.filter(i => i.invoiceType === 'return' && i.status !== 'voided').length, [invoices]);
+
+  // Aggregate stats for current view
+  const viewStats = React.useMemo(() => {
+    const active = filteredInvoices.filter(i => i.status !== 'voided');
+    const totalAmount = active.reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+    const cashAmount = active.filter(i => i.paymentMethod === 'نقدي').reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+    const creditAmount = active.filter(i => i.paymentMethod === 'اجل').reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+    return {
+      totalAmount,
+      cashAmount,
+      creditAmount,
+      count: active.length
+    };
+  }, [filteredInvoices]);
 
   const resetFilters = () => {
     setSearchDateStart('');
@@ -80,9 +106,13 @@ const Purchases: React.FC<PurchasesProps> = ({
     setSearchInvoiceId('');
   };
 
-  const handleOpenModal = (invoice: PurchaseInvoice | null = null) => {
+  const handleOpenModal = (invoice: PurchaseInvoice | null = null, forceReturn: boolean = isReturnsMode) => {
     if (invoice) return; // Prevent editing existing invoices
-    setEditingInvoice(null);
+    if (forceReturn) {
+      setEditingInvoice({ invoiceType: 'return' } as any);
+    } else {
+      setEditingInvoice(null);
+    }
     setIsModalOpen(true);
   };
 
@@ -730,18 +760,58 @@ const Purchases: React.FC<PurchasesProps> = ({
             </button>
             <button
               onClick={() => onNavigate('purchases')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-green-600 text-white shadow-sm transition-all"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                isInvoicesMode
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200'
+              }`}
             >
               <span>🧾</span>
-              <span>فواتير ومرتجعات المشتريات</span>
-              <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">{invoices.length}</span>
+              <span>فواتير المشتريات</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${isInvoicesMode ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                {regularInvoicesCount}
+              </span>
+            </button>
+            <button
+              onClick={() => onNavigate('purchaseReturns')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                isReturnsMode
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200'
+              }`}
+            >
+              <span>🔄</span>
+              <span>مرتجعات المشتريات (Debit Notes)</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${isReturnsMode ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                {returnInvoicesCount}
+              </span>
             </button>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">فواتير المشتريات والمرتجعات</h1>
+      {/* Page Header */}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-2">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+            <span>{isReturnsMode ? '🔄' : '🧾'}</span>
+            <span>
+              {isReturnsMode
+                ? 'مرتجعات المشتريات (إشعارات الخصم)'
+                : isInvoicesMode
+                ? 'فواتير المشتريات'
+                : 'فواتير المشتريات والمرتجعات'}
+            </span>
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            {isReturnsMode
+              ? 'إدارة إشعارات الخصم للموردين، رد البضائع، واسترداد النقدية أو تخفيض المديونيات'
+              : isInvoicesMode
+              ? 'تسجيل وإدارة فواتير المشتريات وتكاليف البضائع ومستحقات الموردين'
+              : 'إدارة كافة حركات الشراء والمرتجعات'}
+          </p>
+        </div>
+
         <div className="flex flex-wrap gap-2 items-center">
           {onOpenSettings && (
             <button
@@ -757,46 +827,162 @@ const Purchases: React.FC<PurchasesProps> = ({
           <button
             onClick={() => {
               import('../utils/exportToExcel.ts').then(({ exportToExcel }) => {
-                exportToExcel(filteredInvoices, 'purchases_invoices');
+                exportToExcel(filteredInvoices, isReturnsMode ? 'purchase_returns' : 'purchases_invoices');
               });
             }}
-            className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse"
+            className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>تصدير إكسيل</span>
           </button>
-          <button
-            onClick={() => handleOpenModal()}
-            className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-            <span>إضافة فاتورة شراء</span>
-          </button>
-          <button
-            onClick={() => {
-              setEditingInvoice({ invoiceType: 'return' } as any);
-              setIsModalOpen(true);
-            }}
-            className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-            <span>مرتجع مشتريات</span>
-          </button>
+
+          {/* Action buttons based on mode */}
+          {isReturnsMode ? (
+            <>
+              <button
+                onClick={() => handleOpenModal(null, true)}
+                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span>إضافة مرتجع مشتريات</span>
+              </button>
+              {onNavigate && (
+                <button
+                  onClick={() => onNavigate('purchases')}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 text-sm transition-all"
+                  title="الانتقال إلى فواتير المشتريات"
+                >
+                  <span>🧾</span>
+                  <span>فواتير المشتريات</span>
+                </button>
+              )}
+            </>
+          ) : isInvoicesMode ? (
+            <>
+              <button
+                onClick={() => handleOpenModal(null, false)}
+                className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                <span>إضافة فاتورة شراء</span>
+              </button>
+              {onNavigate && (
+                <button
+                  onClick={() => onNavigate('purchaseReturns')}
+                  className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 text-sm transition-all"
+                  title="الانتقال إلى مرتجعات المشتريات"
+                >
+                  <span>🔄</span>
+                  <span>مرتجعات المشتريات</span>
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleOpenModal(null, false)}
+                className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                <span>إضافة فاتورة شراء</span>
+              </button>
+              <button
+                onClick={() => handleOpenModal(null, true)}
+                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span>مرتجع مشتريات</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`p-4 rounded-xl border shadow-sm ${isReturnsMode ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200' : 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'}`}>
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${isReturnsMode ? 'text-red-700' : 'text-emerald-700'}`}>
+              {isReturnsMode ? 'إجمالي قيمة المرتجعات' : 'إجمالي المشتريات'}
+            </span>
+            <span className="text-xl">{isReturnsMode ? '🔄' : '💰'}</span>
+          </div>
+          <div className={`text-2xl font-black mt-2 ${isReturnsMode ? 'text-red-800' : 'text-emerald-800'}`}>
+            {viewStats.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold">ج.م</span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {isReturnsMode ? 'إجمالي المبالغ المستردة أو المخصومة' : 'صافي قيمة فواتير الشراء المعروضة'}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-600">
+              {isReturnsMode ? 'عدد إشعارات الخصم' : 'عدد فواتير الشراء'}
+            </span>
+            <span className="text-xl">{isReturnsMode ? '📑' : '🧾'}</span>
+          </div>
+          <div className="text-2xl font-black mt-2 text-gray-800">
+            {viewStats.count} <span className="text-sm font-semibold">{isReturnsMode ? 'إشعار' : 'فاتورة'}</span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {isReturnsMode ? 'حركات مرتجعات نشطة' : 'فواتير غير ملغاة'}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-blue-700">
+              {isReturnsMode ? 'مرتجع نقدي (استرداد نقدية)' : 'مشتريات نقدية (مدفوعة)'}
+            </span>
+            <span className="text-xl">💵</span>
+          </div>
+          <div className="text-2xl font-black mt-2 text-blue-900">
+            {viewStats.cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold">ج.م</span>
+          </div>
+          <div className="text-xs text-blue-600 mt-1">
+            {isReturnsMode ? 'تم تحصيلها في الخزينة' : 'سداد فوري من الخزينة'}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/50 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">
+              {isReturnsMode ? 'مرتجع آجل (تخفيض حساب مورد)' : 'مشتريات آجلة (ذمم دائنة)'}
+            </span>
+            <span className="text-xl">⏳</span>
+          </div>
+          <div className="text-2xl font-black mt-2 text-amber-900">
+            {viewStats.creditAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold">ج.م</span>
+          </div>
+          <div className="text-xs text-amber-600 mt-1">
+            {isReturnsMode ? 'خصم مباشر من رصيد المورد' : 'مستحقة للموردين لاحقاً'}
+          </div>
         </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">بحث برقم الفاتورة</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              {isReturnsMode ? 'بحث برقم إشعار المرتجع' : 'بحث برقم الفاتورة'}
+            </label>
             <input
               type="text"
               value={searchInvoiceId}
               onChange={e => setSearchInvoiceId(e.target.value)}
-              placeholder="مثال: PUR-2025..."
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              placeholder={isReturnsMode ? 'مثال: RET-PUR-2025...' : 'مثال: PUR-2025...'}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
             />
           </div>
           <div className="flex-1 min-w-[200px]">
@@ -804,7 +990,7 @@ const Purchases: React.FC<PurchasesProps> = ({
             <select
               value={searchSupplierId}
               onChange={e => setSearchSupplierId(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
             >
               <option value="">كل الموردين</option>
               {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -812,14 +998,14 @@ const Purchases: React.FC<PurchasesProps> = ({
           </div>
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-semibold text-gray-700 mb-1">من تاريخ</label>
-            <input type="date" value={searchDateStart} onChange={e => setSearchDateStart(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg" />
+            <input type="date" value={searchDateStart} onChange={e => setSearchDateStart(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
           </div>
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-semibold text-gray-700 mb-1">إلى تاريخ</label>
-            <input type="date" value={searchDateEnd} onChange={e => setSearchDateEnd(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg" />
+            <input type="date" value={searchDateEnd} onChange={e => setSearchDateEnd(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
           </div>
           <div className="flex items-end gap-2">
-            <button onClick={resetFilters} className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-lg hover:bg-gray-200">إعادة تعيين</button>
+            <button onClick={resetFilters} className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-lg hover:bg-gray-200 text-sm font-bold">إعادة تعيين</button>
             {searchSupplierId && (
               <button
                 onClick={() => {
@@ -829,7 +1015,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                     setIsStatementModalOpen(true);
                   }
                 }}
-                className="bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                className="bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm font-bold shadow-sm"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 كشف حساب
@@ -844,12 +1030,12 @@ const Purchases: React.FC<PurchasesProps> = ({
           <table className="w-full text-right">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-3 text-sm font-semibold tracking-wide">رقم الفاتورة</th>
+                <th className="p-3 text-sm font-semibold tracking-wide">{isReturnsMode ? 'رقم الإشعار' : 'رقم الفاتورة'}</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">المورد</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">اسم الشركة</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">التاريخ</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">طريقة السداد</th>
-                <th className="p-3 text-sm font-semibold tracking-wide">الإجمالي</th>
+                <th className="p-3 text-sm font-semibold tracking-wide">{isReturnsMode ? 'قيمة المرتجع' : 'الإجمالي'}</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">الحالة</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">إجراءات</th>
               </tr>
@@ -857,7 +1043,16 @@ const Purchases: React.FC<PurchasesProps> = ({
             <tbody className="divide-y divide-gray-100">
               {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className={`hover:bg-gray-50 ${invoice.status === 'voided' ? 'bg-red-50' : ''}`}>
-                  <td className="p-3 text-sm text-gray-700">{invoice.id}</td>
+                  <td className="p-3 text-sm text-gray-700 font-mono font-semibold">
+                    <div className="flex items-center gap-1.5">
+                      <span>{invoice.id}</span>
+                      {invoice.invoiceType === 'return' && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">
+                          مرتجع
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 text-sm text-gray-700 font-medium">{invoice.supplierName}</td>
                   <td className="p-3 text-sm text-gray-600 font-medium">{invoice.companyName || suppliers.find(s => s.id === invoice.supplierId)?.companyName || '-'}</td>
                   <td className="p-3 text-sm text-gray-700" style={{ direction: 'ltr', textAlign: 'right' }}>{invoice.date}</td>
