@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type {
   PrintingJobOrder, JobOperationItem, PrintingOperationId, PrintingOperationDefinition,
   ConsolidatedVendorInvoice, ConsolidatedVendorInvoiceLine, Customer, Supplier, Account,
-  JournalEntry, ModulePostingSettings, Permission, SalesInvoice
+  JournalEntry, ModulePostingSettings, Permission, SalesInvoice, PurchaseInvoice
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
 
@@ -62,6 +62,11 @@ interface PrintingJobOrdersProps {
   setConsolidatedInvoices: React.Dispatch<React.SetStateAction<ConsolidatedVendorInvoice[]>>;
   salesInvoices?: SalesInvoice[];
   setSalesInvoices?: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
+  purchaseInvoices?: PurchaseInvoice[];
+  setPurchaseInvoices?: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
+  deleteJournalEntryByReference?: (refId: string) => void;
+  journalEntries?: JournalEntry[];
+  setJournalEntries?: React.Dispatch<React.SetStateAction<JournalEntry[]>>;
   customers: Customer[];
   suppliers: Supplier[];
   accounts: Account[];
@@ -80,6 +85,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   setConsolidatedInvoices,
   salesInvoices = [],
   setSalesInvoices,
+  purchaseInvoices = [],
+  setPurchaseInvoices,
+  deleteJournalEntryByReference,
+  journalEntries = [],
+  setJournalEntries,
   customers = [],
   suppliers = [],
   accounts = [],
@@ -395,17 +405,58 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     }
 
     let jeId: string | undefined = op.journalEntryId;
+    let pInvId: string | undefined = op.purchaseInvoiceId;
 
-    // Generate Journal Entry if external and not already posted
+    // 1. Generate real Purchase Invoice for supplier if external and not yet created
+    if (isExternal && cost > 0 && !pInvId) {
+      const pinvCount = (purchaseInvoices?.length || 0) + 1;
+      const todayStr = new Date().toISOString().split('T')[0];
+      const yearStr = todayStr.split('-')[0];
+      pInvId = `PINV-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
+      const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل لدى الغير';
+
+      const newPurchaseInvoice: PurchaseInvoice = {
+        id: pInvId,
+        supplierId: supplierId!,
+        supplierName,
+        companyName: supplier?.companyName,
+        date: todayStr,
+        items: [
+          {
+            productId: `SRV-${op.operationId}`,
+            productName: `${op.name} (أمر شغل ${order.code} - ${order.customerName})`,
+            quantity: 1,
+            price: cost,
+            total: cost,
+            unit: (op.unit as any) || 'عدد',
+            itemType: 'expense',
+            cost: cost
+          }
+        ],
+        subTotal: cost,
+        total: cost,
+        paymentMethod: op.paymentMethod || 'اجل',
+        invoiceType: 'purchase',
+        notes: `مصنعية/توريد ${op.name} عن أمر شغل ${order.code} للعميل ${order.customerName}${op.notes ? ` - ${op.notes}` : ''}`,
+        status: 'active',
+        branchId: currentBranchId
+      };
+
+      if (setPurchaseInvoices) {
+        setPurchaseInvoices(prev => [newPurchaseInvoice, ...prev]);
+      }
+    }
+
+    // 2. Generate Journal Entry if external and not already posted
     if (isExternal && cost > 0 && !jeId) {
       const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل لدى الغير';
-      const entryDesc = `تكلفة تشغيل لدى الغير (${op.name}) - أمر شغل ${order.code} - مورد: ${supplierName}`;
+      const entryDesc = `فاتورة مشتريات ${pInvId || ''} - تكلفة تشغيل لدى الغير (${op.name}) - أمر شغل ${order.code} - مورد: ${supplierName}`;
 
       jeId = createJournalEntry({
         description: entryDesc,
         date: new Date().toISOString().split('T')[0],
         referenceType: 'PurchaseInvoice',
-        referenceId: order.code,
+        referenceId: pInvId || order.code,
         branchId: currentBranchId,
         lines: [
           {
@@ -423,7 +474,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         ]
       });
 
-      logAction(`ترحيل قيد مرحلة (${op.name}) بأمر شغل ${order.code} لحساب المورد ${supplierName} بقيمة ${cost} ج.م`);
+      logAction(`ترحيل قيد مرحلة (${op.name}) وفاتورة مشتريات ${pInvId} بأمر شغل ${order.code} لحساب المورد ${supplierName} بقيمة ${cost} ج.م`);
     }
 
     // Update operation item
@@ -434,6 +485,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       supplierName: supplier?.name || supplier?.companyName || op.supplierName,
       status: 'completed',
       journalEntryId: jeId,
+      purchaseInvoiceId: pInvId,
       completedAt: new Date().toISOString()
     };
 
@@ -460,7 +512,111 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
     if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
 
-    showNotification(`تم اعتماد مرحلة (${op.name}) وترحيل القيد بنجاح ✅`, 'success');
+    showNotification(`تم اعتماد مرحلة (${op.name}) وتسجيل فاتورة المورد في المشتريات والحسابات بنجاح ✅`, 'success');
+  };
+
+  // Undo / Reset an approved stage (تراجع عن اعتماد مرحلة لتعديل التكلفة أو المورد)
+  const handleUndoStage = (orderId: string, opIndex: number) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const op = order.operations[opIndex];
+    if (!op || op.status !== 'completed') return;
+
+    if (!window.confirm(`هل أنت متأكد من إلغاء اعتماد مرحلة (${op.name})؟ سيتم حذف فاتورة المورد وقيدها المحاسبي لإتاحة تعديلها من جديد.`)) {
+      return;
+    }
+
+    // 1. Remove linked purchase invoice from state
+    if (op.purchaseInvoiceId && setPurchaseInvoices) {
+      setPurchaseInvoices(prev => prev.filter(p => p.id !== op.purchaseInvoiceId));
+    }
+
+    // 2. Delete journal entry by reference and ID
+    if (deleteJournalEntryByReference) {
+      if (op.purchaseInvoiceId) deleteJournalEntryByReference(op.purchaseInvoiceId);
+      if (op.journalEntryId) deleteJournalEntryByReference(op.journalEntryId);
+    }
+    if (setJournalEntries) {
+      setJournalEntries(prev => prev.filter(e => 
+        e.id !== op.journalEntryId && 
+        e.referenceId !== op.purchaseInvoiceId && 
+        e.referenceId !== op.journalEntryId
+      ));
+    }
+
+    // 3. Reset operation state to pending
+    const newOps = [...order.operations];
+    newOps[opIndex] = {
+      ...op,
+      status: 'pending',
+      journalEntryId: undefined,
+      purchaseInvoiceId: undefined,
+      completedAt: undefined
+    };
+
+    const totalActualCost = newOps.reduce((sum, o) => sum + (o.status === 'completed' ? (Number(o.cost) || 0) : 0), 0);
+    const grossProfit = order.clientSalePrice - totalActualCost;
+    const profitMarginPercent = order.clientSalePrice > 0 ? (grossProfit / order.clientSalePrice) * 100 : 0;
+
+    const updatedOrder: PrintingJobOrder = {
+      ...order,
+      operations: newOps,
+      totalActualCost,
+      grossProfit,
+      profitMarginPercent
+    };
+
+    setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+    if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
+
+    logAction(`إلغاء اعتماد مرحلة (${op.name}) بأمر شغل ${order.code} وحذف فاتورة المورد وقيدها`);
+    showNotification(`تم إلغاء اعتماد المرحلة وإلغاء استحقاق المورد، يمكنك الآن تعديلها وإعادة الاعتماد ✅`, 'success');
+  };
+
+  // Delete Job Order completely (حذف أمر الشغل بالكامل وتنظيف القيود والفواتير المرتبطة)
+  const handleDeleteJobOrder = (orderId: string) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+
+    if (!window.confirm(`هل أنت متأكد تماماً من حذف أمر الشغل رقم (${order.code})؟ سيتم إلغاء فواتير الموردين وفاتورة البيع والقيود المرتبطة به نهائياً.`)) {
+      return;
+    }
+
+    // 1. Remove all linked purchase invoices
+    const pInvIds = order.operations.map(o => o.purchaseInvoiceId).filter(Boolean) as string[];
+    if (pInvIds.length > 0 && setPurchaseInvoices) {
+      setPurchaseInvoices(prev => prev.filter(p => !pInvIds.includes(p.id)));
+    }
+
+    // 2. Remove linked sales invoice if any
+    if (order.salesInvoiceId && setSalesInvoices) {
+      setSalesInvoices(prev => prev.filter(inv => inv.id !== order.salesInvoiceId));
+    }
+
+    // 3. Delete journal entries by reference & ID
+    const jeIds = order.operations.map(o => o.journalEntryId).filter(Boolean) as string[];
+    if (order.cogsJournalEntryId) jeIds.push(order.cogsJournalEntryId);
+
+    if (deleteJournalEntryByReference) {
+      deleteJournalEntryByReference(order.code);
+      pInvIds.forEach(id => deleteJournalEntryByReference(id));
+      if (order.salesInvoiceId) deleteJournalEntryByReference(order.salesInvoiceId);
+    }
+    if (setJournalEntries) {
+      setJournalEntries(prev => prev.filter(e => 
+        !jeIds.includes(e.id) &&
+        e.referenceId !== order.code &&
+        !pInvIds.includes(e.referenceId || '') &&
+        e.referenceId !== order.salesInvoiceId
+      ));
+    }
+
+    // 4. Remove from state
+    setJobOrders(prev => prev.filter(o => o.id !== orderId));
+    if (viewingJob?.id === orderId) setViewingJob(null);
+
+    logAction(`حذف أمر تشغيل المطبوعات بالكامل: ${order.code}`);
+    showNotification(`تم حذف أمر الشغل (${order.code}) وتنظيف كافة الحركات المرتبطة به بنجاح 🗑️`, 'success');
   };
 
   // Final Delivery & Revenue Recognition (Creates real Sales Invoice in Sales Module)
@@ -639,6 +795,40 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       };
     });
 
+    // Generate real Purchase Invoice for supplier
+    const pinvCount = (purchaseInvoices?.length || 0) + 1;
+    const yearStr = consForm.date.split('-')[0] || new Date().getFullYear().toString();
+    const pInvId = consForm.invoiceNumber ? `PINV-${consForm.invoiceNumber}` : `PINV-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
+
+    const newPurchaseInvoice: PurchaseInvoice = {
+      id: pInvId,
+      supplierId: consForm.supplierId,
+      supplierName,
+      companyName: supplier?.companyName,
+      date: consForm.date,
+      items: formattedLines.map(line => ({
+        productId: `SRV-${line.operationId}`,
+        productName: `${line.operationName} (أمر شغل ${line.jobOrderCode} - ${line.customerName})`,
+        quantity: 1,
+        price: line.amount,
+        total: line.amount,
+        unit: 'عدد',
+        itemType: 'expense',
+        cost: line.amount
+      })),
+      subTotal: totalAmount,
+      total: totalAmount,
+      paymentMethod: consForm.paymentMethod,
+      invoiceType: 'purchase',
+      notes: `فاتورة مورد مجمعة رقم ${consForm.invoiceNumber || ''} موزعة على ${formattedLines.length} طلبيات${consForm.notes ? ` - ${consForm.notes}` : ''}`,
+      status: 'active',
+      branchId: currentBranchId
+    };
+
+    if (setPurchaseInvoices) {
+      setPurchaseInvoices(prev => [newPurchaseInvoice, ...prev]);
+    }
+
     // Create single Journal Entry: Credit Supplier, Debit WIP split per job
     const jeLines = [
       {
@@ -656,10 +846,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     ];
 
     const jeId = createJournalEntry({
-      description: `فاتورة مجمعة لمورد (${supplierName}) رقم ${consForm.invoiceNumber || 'بدون'} عن ${formattedLines.length} طلبيات`,
+      description: `فاتورة مشتريات ${pInvId} - فاتورة مجمعة لمورد (${supplierName}) رقم ${consForm.invoiceNumber || 'بدون'} عن ${formattedLines.length} طلبيات`,
       date: consForm.date,
       referenceType: 'PurchaseInvoice',
-      referenceId: consForm.invoiceNumber || `CONS-${Date.now()}`,
+      referenceId: pInvId,
       branchId: currentBranchId,
       lines: jeLines
     });
@@ -681,6 +871,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               cost: Number(updatedOps[opIndex].cost || 0) + line.amount,
               status: 'completed',
               journalEntryId: jeId,
+              purchaseInvoiceId: pInvId,
               completedAt: new Date().toISOString()
             };
           }
@@ -710,6 +901,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       paymentMethod: consForm.paymentMethod,
       lines: formattedLines,
       journalEntryId: jeId,
+      purchaseInvoiceId: pInvId,
       createdAt: new Date().toISOString(),
       notes: consForm.notes
     };
@@ -718,6 +910,31 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     logAction(`تسجيل فاتورة مجمعة للمورد ${supplierName} بقيمة ${totalAmount} ج.م لـ ${formattedLines.length} طلبيات`);
     showNotification('تم تسجيل الفاتورة المجمعة وترحيل القيود وتحديث الطلبيات بنجاح ✅', 'success');
     setIsConsolidatedModalOpen(false);
+  };
+
+  const handleDeleteConsolidatedInvoice = (consId: string) => {
+    const cons = consolidatedInvoices.find(c => c.id === consId);
+    if (!cons) return;
+    if (!window.confirm(`هل أنت متأكد من حذف الفاتورة المجمعة للمورد (${cons.supplierName})؟ سيتم إلغاء فاتورة المشتريات والقيود المرتبطة بها.`)) return;
+
+    if (cons.purchaseInvoiceId && setPurchaseInvoices) {
+      setPurchaseInvoices(prev => prev.filter(p => p.id !== cons.purchaseInvoiceId));
+    }
+    if (deleteJournalEntryByReference) {
+      if (cons.purchaseInvoiceId) deleteJournalEntryByReference(cons.purchaseInvoiceId);
+      if (cons.journalEntryId) deleteJournalEntryByReference(cons.journalEntryId);
+      if (cons.invoiceNumber) deleteJournalEntryByReference(cons.invoiceNumber);
+    }
+    if (setJournalEntries) {
+      setJournalEntries(prev => prev.filter(e => 
+        e.id !== cons.journalEntryId && 
+        e.referenceId !== cons.purchaseInvoiceId && 
+        e.referenceId !== cons.invoiceNumber
+      ));
+    }
+    setConsolidatedInvoices(prev => prev.filter(c => c.id !== consId));
+    logAction(`حذف فاتورة مورد مجمعة: ${cons.supplierName} بقيمة ${cons.totalAmount}`);
+    showNotification(`تم حذف الفاتورة المجمعة وإلغاء الاستحقاق بنجاح ✅`, 'success');
   };
 
   // ==================== Feature 6: Customer Profitability Analysis ====================
@@ -1034,15 +1251,23 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             </button>
                           )}
 
-                          {hasPerm('edit_printing_job') && order.status !== 'delivered' && (
+                          {order.status !== 'delivered' && (
                             <button
                               onClick={() => handleOpenCreateModal(order)}
-                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
-                              title="تعديل المواصفات"
+                              className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
+                              title="تعديل أمر الشغل والكمية والأسعار"
                             >
-                              ✏️
+                              ✏️ تعديل
                             </button>
                           )}
+
+                          <button
+                            onClick={() => handleDeleteJobOrder(order.id)}
+                            className="bg-red-50 hover:bg-red-100 text-red-700 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            title="حذف أمر الشغل بالكامل وتنظيف القيود والفواتير المرتبطة"
+                          >
+                            🗑️ حذف
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1092,6 +1317,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   <th className="p-3.5 text-xs font-bold text-gray-600">إجمالي الفاتورة</th>
                   <th className="p-3.5 text-xs font-bold text-gray-600">طريقة السداد</th>
                   <th className="p-3.5 text-xs font-bold text-gray-600">تفاصيل البنود</th>
+                  <th className="p-3.5 text-xs font-bold text-gray-600 text-center">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1118,12 +1344,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                         ))}
                       </div>
                     </td>
+                    <td className="p-3.5 text-center">
+                      <button
+                        onClick={() => handleDeleteConsolidatedInvoice(inv.id)}
+                        className="bg-red-50 hover:bg-red-100 text-red-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all"
+                        title="حذف الفاتورة المجمعة وإلغاء الاستحقاق"
+                      >
+                        🗑️ حذف
+                      </button>
+                    </td>
                   </tr>
                 ))}
 
                 {consolidatedInvoices.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500 font-medium">
+                    <td colSpan={8} className="p-8 text-center text-gray-500 font-medium">
                       لا توجد فواتير موردين مجمعة مسجلة حتى الآن.
                     </td>
                   </tr>
@@ -1624,9 +1859,24 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             <span>اعتماد وترحيل القيد ✅</span>
                           </button>
                         ) : (
-                          <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg">
-                            مرحّل بالحسابات ✓
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مرحّل بالحسابات</span>
+                              {op.cost > 0 && <span className="font-mono">({op.cost.toLocaleString('en-US')} ج.م)</span>}
+                            </span>
+
+                            {viewingJob.status !== 'delivered' && (
+                              <button
+                                onClick={() => handleUndoStage(viewingJob.id, idx)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                                title="إلغاء اعتماد المرحلة لتصحيح التكلفة أو تغيير المورد وإعادة ترحيلها"
+                              >
+                                <span>↩️</span>
+                                <span>تراجع / إلغاء الاعتماد</span>
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1637,19 +1887,43 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
             {/* Dossier Footer / Final Actions */}
             <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-wrap justify-between items-center gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {hasPerm('duplicate_printing_job') && (
                   <button
                     onClick={() => {
                       handleDuplicateJob(viewingJob);
                       setViewingJob(null);
                     }}
-                    className="bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+                    className="bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
                   >
                     <span>🔄</span>
-                    <span>تكرار هذا الشغل لطلبية جديدة</span>
+                    <span>تكرار هذا الشغل</span>
                   </button>
                 )}
+
+                {viewingJob.status !== 'delivered' && (
+                  <button
+                    onClick={() => {
+                      const job = viewingJob;
+                      setViewingJob(null);
+                      handleOpenCreateModal(job);
+                    }}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+                    title="تعديل مواصفات أو كميات أو سعر أمر الشغل"
+                  >
+                    <span>✏️</span>
+                    <span>تعديل بيانات الطلبية</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleDeleteJobOrder(viewingJob.id)}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+                  title="حذف أمر الشغل نهائياً مع فواتير الموردين والقيود المرتبطة"
+                >
+                  <span>🗑️</span>
+                  <span>حذف أمر الشغل</span>
+                </button>
               </div>
 
               <div className="flex items-center gap-3">

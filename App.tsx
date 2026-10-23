@@ -808,6 +808,11 @@ const App: React.FC = () => {
                 setConsolidatedInvoices={setConsolidatedInvoices}
                 salesInvoices={salesInvoices}
                 setSalesInvoices={setSalesInvoices}
+                purchaseInvoices={purchaseInvoices}
+                setPurchaseInvoices={setPurchaseInvoices}
+                deleteJournalEntryByReference={deleteJournalEntryByReference}
+                journalEntries={journalEntries}
+                setJournalEntries={setJournalEntries}
                 customers={customers}
                 suppliers={suppliers}
                 accounts={accounts}

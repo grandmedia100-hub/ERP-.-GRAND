@@ -805,6 +805,7 @@ export interface JobOperationItem {
   cost: number;
   paymentMethod?: 'نقدي' | 'اجل';
   journalEntryId?: string;
+  purchaseInvoiceId?: string;
   
   // Internal (In-House)
   machineName?: string;
@@ -878,6 +879,7 @@ export interface ConsolidatedVendorInvoice {
   paymentMethod: 'نقدي' | 'اجل';
   lines: ConsolidatedVendorInvoiceLine[];
   journalEntryId?: string;
+  purchaseInvoiceId?: string;
   createdAt: string;
   notes?: string;
 }
