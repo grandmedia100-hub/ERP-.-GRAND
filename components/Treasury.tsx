@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { CustomerPayment, SupplierPayment, Customer, Supplier, TreasuryAccountType, CompanyInfo, JournalEntry, Account, ModulePostingSettings } from '../types.ts';
+import type { CustomerPayment, SupplierPayment, Customer, Supplier, TreasuryAccountType, CompanyInfo, JournalEntry, Account, ModulePostingSettings, Permission } from '../types.ts';
 import AddReceiptModal from './AddReceiptModal.tsx';
 import AddPaymentModal from './AddPaymentModal.tsx';
 import AddTransferModal from './AddTransferModal.tsx';
@@ -43,6 +43,12 @@ const Treasury: React.FC<TreasuryProps> = ({
   onOpenSettings
 }) => {
   const [activeTab, setActiveTab] = useState<'receipts' | 'payments' | 'transfers'>('receipts');
+
+  const hasPerm = (perm: Permission) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+  };
 
   // Modals State
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -1634,17 +1640,19 @@ const Treasury: React.FC<TreasuryProps> = ({
             </svg>
             <span>طباعة الكشف</span>
           </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            <span>تصدير إكسيل</span>
-          </button>
-          {activeTab === 'receipts' && (
+          {hasPerm('view_reports_treasury') && (
+            <button
+              type="button"
+              onClick={handleExport}
+              className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              <span>تصدير إكسيل</span>
+            </button>
+          )}
+          {activeTab === 'receipts' && hasPerm('create_receipt_voucher') && (
             <button
               type="button"
               onClick={() => handleAddReceipt()}
@@ -1654,7 +1662,7 @@ const Treasury: React.FC<TreasuryProps> = ({
               <span>إضافة سند قبض</span>
             </button>
           )}
-          {activeTab === 'payments' && (
+          {activeTab === 'payments' && hasPerm('create_payment_voucher') && (
             <button
               type="button"
               onClick={() => handleAddPayment()}
@@ -1664,16 +1672,18 @@ const Treasury: React.FC<TreasuryProps> = ({
               <span>إضافة سند صرف</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleAddTransfer}
-            className="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 flex items-center space-x-2 space-x-reverse shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 011.414 1.414l3-3a1 1 0 010-1.414l-3-3a1 1 0 111.414 1.414L13.586 5H8zM16 15a1 1 0 100-2H10.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 15H16z" />
-            </svg>
-            <span>تحويل بين الحسابات / الفروع</span>
-          </button>
+          {hasPerm('treasury_transfer') && (
+            <button
+              type="button"
+              onClick={handleAddTransfer}
+              className="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 flex items-center space-x-2 space-x-reverse shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 011.414 1.414l3-3a1 1 0 010-1.414l-3-3a1 1 0 111.414 1.414L13.586 5H8zM16 15a1 1 0 100-2H10.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 15H16z" />
+              </svg>
+              <span>تحويل بين الحسابات / الفروع</span>
+            </button>
+          )}
         </div>
       </div>
 

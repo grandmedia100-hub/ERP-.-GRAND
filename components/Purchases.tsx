@@ -41,6 +41,12 @@ const Purchases: React.FC<PurchasesProps> = ({
   const isReturnsMode = pageMode === 'returns';
   const isInvoicesMode = pageMode === 'invoices';
 
+  const hasPerm = (perm: Permission) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
 
@@ -824,32 +830,36 @@ const Purchases: React.FC<PurchasesProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => {
-              import('../utils/exportToExcel.ts').then(({ exportToExcel }) => {
-                exportToExcel(filteredInvoices, isReturnsMode ? 'purchase_returns' : 'purchases_invoices');
-              });
-            }}
-            className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>تصدير إكسيل</span>
-          </button>
+          {hasPerm('export_purchases') && (
+            <button
+              onClick={() => {
+                import('../utils/exportToExcel.ts').then(({ exportToExcel }) => {
+                  exportToExcel(filteredInvoices, isReturnsMode ? 'purchase_returns' : 'purchases_invoices');
+                });
+              }}
+              className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>تصدير إكسيل</span>
+            </button>
+          )}
 
           {/* Action buttons based on mode */}
           {isReturnsMode ? (
             <>
-              <button
-                onClick={() => handleOpenModal(null, true)}
-                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-                <span>إضافة مرتجع مشتريات</span>
-              </button>
+              {hasPerm('create_purchase_return') && (
+                <button
+                  onClick={() => handleOpenModal(null, true)}
+                  className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  <span>إضافة مرتجع مشتريات</span>
+                </button>
+              )}
               {onNavigate && (
                 <button
                   onClick={() => onNavigate('purchases')}
@@ -863,15 +873,17 @@ const Purchases: React.FC<PurchasesProps> = ({
             </>
           ) : isInvoicesMode ? (
             <>
-              <button
-                onClick={() => handleOpenModal(null, false)}
-                className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                <span>إضافة فاتورة شراء</span>
-              </button>
+              {hasPerm('create_purchase_invoice') && (
+                <button
+                  onClick={() => handleOpenModal(null, false)}
+                  className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>إضافة فاتورة شراء</span>
+                </button>
+              )}
               {onNavigate && (
                 <button
                   onClick={() => onNavigate('purchaseReturns')}
@@ -885,24 +897,28 @@ const Purchases: React.FC<PurchasesProps> = ({
             </>
           ) : (
             <>
-              <button
-                onClick={() => handleOpenModal(null, false)}
-                className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                <span>إضافة فاتورة شراء</span>
-              </button>
-              <button
-                onClick={() => handleOpenModal(null, true)}
-                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-                <span>مرتجع مشتريات</span>
-              </button>
+              {hasPerm('create_purchase_invoice') && (
+                <button
+                  onClick={() => handleOpenModal(null, false)}
+                  className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>إضافة فاتورة شراء</span>
+                </button>
+              )}
+              {hasPerm('create_purchase_return') && (
+                <button
+                  onClick={() => handleOpenModal(null, true)}
+                  className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 flex items-center space-x-2 space-x-reverse shadow-sm text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  <span>مرتجع مشتريات</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1006,7 +1022,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           </div>
           <div className="flex items-end gap-2">
             <button onClick={resetFilters} className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-lg hover:bg-gray-200 text-sm font-bold">إعادة تعيين</button>
-            {searchSupplierId && (
+            {searchSupplierId && hasPerm('view_supplier_statement') && (
               <button
                 onClick={() => {
                   const supp = suppliers.find(s => s.id === searchSupplierId);
@@ -1078,7 +1094,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                     )}
                   </td>
                   <td className="p-3 text-sm text-gray-700 space-x-2 space-x-reverse flex items-center">
-                    <button onClick={() => handlePrint(invoice)} className="text-blue-500 hover:text-blue-700 font-medium">طباعة</button>
+                    {hasPerm('print_purchase_invoice') && (
+                      <button onClick={() => handlePrint(invoice)} className="text-blue-500 hover:text-blue-700 font-medium">طباعة</button>
+                    )}
                     {invoice.status !== 'voided' && (
                       <>
                         {currentUser?.role === 'admin' && (
@@ -1093,7 +1111,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                             تعديل
                           </button>
                         )}
-                        <button onClick={() => handleVoidRequest(invoice.id)} className="text-red-500 hover:text-red-700 font-medium">إلغاء</button>
+                        {hasPerm('void_purchase_invoice') && (
+                          <button onClick={() => handleVoidRequest(invoice.id)} className="text-red-500 hover:text-red-700 font-medium">إلغاء</button>
+                        )}
                       </>
                     )}
                   </td>

@@ -767,6 +767,7 @@ const App: React.FC = () => {
                 journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                 accounts={accounts}
                 createJournalEntry={createJournalEntry} logAction={logAction}
+                currentUser={currentUser}
             />;
         }
         if (activePage === 'fixedAssets' && hasPermission('access_fixed_assets')) {
@@ -792,13 +793,14 @@ const App: React.FC = () => {
                 initialOrderData={manufacturingInitialOrder}
                 onClearInitialData={() => setManufacturingInitialOrder(null)}
                 postingSettings={postingSettings}
+                currentUser={currentUser}
             />;
         }
         if (activePage === 'customers' && hasPermission('access_customers')) {
-            return <Customers customerList={customers} setCustomerList={setCustomers} salesInvoices={salesInvoices} customerPayments={customerPayments} />;
+            return <Customers customerList={customers} setCustomerList={setCustomers} salesInvoices={salesInvoices} customerPayments={customerPayments} currentUser={currentUser} />;
         }
         if (activePage === 'suppliers' && hasPermission('access_suppliers')) {
-            return <Suppliers supplierList={suppliers} setSupplierList={setSuppliers} purchaseInvoices={purchaseInvoices} supplierPayments={supplierPayments} />;
+            return <Suppliers supplierList={suppliers} setSupplierList={setSuppliers} purchaseInvoices={purchaseInvoices} supplierPayments={supplierPayments} currentUser={currentUser} />;
         }
         if (activePage === 'reports' && hasPermission('access_reports')) {
             return <Reports
@@ -880,7 +882,7 @@ const App: React.FC = () => {
         if (activePage === 'users' && hasPermission('manage_users')) {
             return <UsersManagement users={users} setUsers={setUsers} />;
         }
-        if (activePage === 'auditLog' && hasPermission('manage_users')) {
+        if (activePage === 'auditLog' && (hasPermission('access_audit_log') || hasPermission('manage_users'))) {
             return <AuditLog logs={logs} />;
         }
 

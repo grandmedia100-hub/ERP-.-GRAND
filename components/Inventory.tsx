@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Product, Warehouse } from '../types.ts';
+import type { Product, Warehouse, Permission } from '../types.ts';
 import AddProductModal from './AddProductModal.tsx';
 import ExcelImportModal from './ExcelImportModal.tsx';
 
@@ -9,10 +9,17 @@ interface InventoryProps {
   warehouses?: Warehouse[];
   setWarehouses?: React.Dispatch<React.SetStateAction<Warehouse[]>>;
   logAction?: (action: string) => void;
+  currentUser?: any;
   [key: string]: any;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses = [], setWarehouses, logAction }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses = [], setWarehouses, logAction, currentUser }) => {
+  const hasPerm = (perm: Permission) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -68,20 +75,24 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">إدارة المخزون ({products.length} صنف)</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => setIsImportOpen(true)}
-            className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
-          >
-            <span>📊</span>
-            <span>استيراد Excel</span>
-          </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center space-x-2 space-x-reverse shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-            <span>إضافة صنف جديد</span>
-          </button>
+          {hasPerm('create_product') && (
+            <>
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
+              >
+                <span>📊</span>
+                <span>استيراد Excel</span>
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center space-x-2 space-x-reverse shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                <span>إضافة صنف جديد</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -95,7 +106,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
                 <th className="p-3 text-sm font-semibold tracking-wide">المخزن</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">نوع الصنف</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">الكمية الحالية</th>
-                <th className="p-3 text-sm font-semibold tracking-wide">سعر التكلفة</th>
+                {hasPerm('view_cost_price') && (
+                  <th className="p-3 text-sm font-semibold tracking-wide">سعر التكلفة</th>
+                )}
                 <th className="p-3 text-sm font-semibold tracking-wide">سعر البيع</th>
                 <th className="p-3 text-sm font-semibold tracking-wide">الحالة</th>
               </tr>
@@ -114,7 +127,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
                   </td>
                   <td className="p-3 text-sm text-gray-700">{product.productType || '-'}</td>
                   <td className="p-3 text-sm text-gray-700 font-bold">{(Number(product.quantity) || 0).toLocaleString('en-US')}</td>
-                  <td className="p-3 text-sm text-gray-700">{(Number(product.costPrice) || 0).toLocaleString('en-US')} ج.م</td>
+                  {hasPerm('view_cost_price') && (
+                    <td className="p-3 text-sm text-gray-700">{(Number(product.costPrice) || 0).toLocaleString('en-US')} ج.م</td>
+                  )}
                   <td className="p-3 text-sm text-gray-700">{(Number(product.salePrice) || 0).toLocaleString('en-US')} ج.م</td>
                   <td className="p-3 text-sm">
                     {(Number(product.quantity) || 0) > (Number(product.lowStockThreshold) || 0) ? (

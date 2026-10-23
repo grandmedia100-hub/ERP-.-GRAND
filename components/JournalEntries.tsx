@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { JournalEntry, Account } from '../types.ts';
+import type { JournalEntry, Account, Permission } from '../types.ts';
 
 interface JournalEntriesProps {
     journalEntries: JournalEntry[];
@@ -7,9 +7,16 @@ interface JournalEntriesProps {
     accounts: Account[];
     createJournalEntry: (params: { description: string; lines: any[]; referenceType?: any; referenceId?: string; date?: string }) => void;
     logAction: (action: string) => void;
+    currentUser?: any;
 }
 
-const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJournalEntries, accounts, createJournalEntry, logAction }) => {
+const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJournalEntries, accounts, createJournalEntry, logAction, currentUser }) => {
+    const hasPerm = (perm: Permission) => {
+        if (!currentUser) return false;
+        if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+        return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+    };
+
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('');
     const [dateStart, setDateStart] = useState('');
@@ -145,9 +152,11 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
                     <button onClick={handlePrint} className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
                         🖨️ طباعة
                     </button>
-                    <button onClick={() => setIsManualModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
-                        ✏️ قيد يدوي
-                    </button>
+                    {hasPerm('create_manual_journal') && (
+                        <button onClick={() => setIsManualModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
+                            ✏️ قيد يدوي
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -240,7 +249,7 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
                                                 <button onClick={() => setExpandedId(isExpanded ? null : je.id)} className="text-blue-500 hover:text-blue-700 text-xs font-medium ml-2">
                                                     {isExpanded ? '▲ إخفاء' : '▼ تفاصيل'}
                                                 </button>
-                                                {je.referenceType === 'Manual' && (
+                                                {je.referenceType === 'Manual' && hasPerm('delete_journal_entry') && (
                                                     <button onClick={() => handleDeleteEntry(je.id)} className="text-red-400 hover:text-red-600 text-xs font-medium">حذف</button>
                                                 )}
                                             </td>

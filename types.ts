@@ -4,35 +4,112 @@ export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseReturns' | 'pu
 export type TreasuryAccountType = 'الخزينة الرئيسية' | 'انستاباى' | 'فودافون كاش' | 'بنك فيصل' | 'البنك الاهلى' | (string & {});
 
 export type Permission =
+  // 1. Dashboard & General
   | 'access_dashboard'
+
+  // 2. Sales & Quotations & Customers
   | 'access_sales'
-  | 'access_purchases'
-  | 'access_purchase_returns'
-  | 'access_purchase_requests'
-  | 'access_purchase_orders'
-  | 'access_inventory'
+  | 'create_sales_invoice'
+  | 'void_sales_invoice'
+  | 'print_sales_invoice'
+  | 'export_sales'
+  | 'access_sales_returns'
+  | 'create_sales_return'
+  | 'access_quotations'
+  | 'create_quotation'
+  | 'edit_quotation'
+  | 'convert_quotation'
   | 'access_customers'
+  | 'create_customer'
+  | 'edit_customer'
+  | 'delete_customer'
+  | 'collect_customer_payment'
+  | 'view_customer_statement'
+  | 'manage_customer_credit_limit'
+
+  // 3. Purchases & Suppliers & Cycle
+  | 'access_purchase_requests'
+  | 'create_purchase_request'
+  | 'approve_purchase_request'
+  | 'access_purchase_orders'
+  | 'create_purchase_order'
+  | 'approve_purchase_order'
+  | 'access_purchases'
+  | 'create_purchase_invoice'
+  | 'void_purchase_invoice'
+  | 'print_purchase_invoice'
+  | 'export_purchases'
+  | 'access_purchase_returns'
+  | 'create_purchase_return'
   | 'access_suppliers'
+  | 'create_supplier'
+  | 'edit_supplier'
+  | 'delete_supplier'
+  | 'pay_supplier_payment'
+  | 'view_supplier_statement'
+
+  // 4. Inventory, Items & Warehouses
+  | 'access_inventory'
+  | 'create_product'
+  | 'edit_product'
+  | 'delete_product'
+  | 'view_cost_price'
+  | 'export_inventory'
+  | 'access_warehouse'
+  | 'manage_warehouses'
+  | 'inventory_transfer'
+  | 'inventory_count_adjustment'
+
+  // 5. Manufacturing & Production
+  | 'access_manufacturing'
+  | 'create_bom'
+  | 'create_production_order'
+  | 'execute_production'
+  | 'complete_production'
+  | 'cancel_production'
+  | 'view_manufacturing_costs'
+
+  // 6. Treasury, Banks, Expenses & Partners
   | 'access_treasury'
-  | 'access_reports'
-  | 'access_settings'
-  | 'manage_users'
+  | 'create_receipt_voucher'
+  | 'create_payment_voucher'
+  | 'treasury_transfer'
+  | 'access_expenses'
+  | 'create_expense'
+  | 'access_partners'
+  | 'create_partner_transaction'
+
+  // 7. General Ledger, Accounts & Fixed Assets
   | 'access_chart_of_accounts'
-  | 'manage_backup'
+  | 'create_account'
+  | 'access_journal_entries'
+  | 'create_manual_journal'
+  | 'delete_journal_entry'
+  | 'access_fixed_assets'
+  | 'create_fixed_asset'
+  | 'calculate_depreciation'
+
+  // 8. Reports & Financial Statements
+  | 'access_reports'
   | 'view_reports_sales'
   | 'view_reports_purchases'
   | 'view_reports_customers'
   | 'view_reports_suppliers'
   | 'view_reports_treasury'
   | 'view_reports_profits'
-  | 'access_quotations'
-  | 'access_warehouse'
-  | 'access_journal_entries'
-  | 'access_fixed_assets'
-  | 'access_manufacturing'
-  | 'access_expenses'
-  | 'access_partners'
-  | 'manage_accounting_settings';
+  | 'view_balance_sheet'
+  | 'view_trial_balance'
+  | 'view_vat_declaration'
+  | 'view_cash_flow_forecast'
+
+  // 9. System Administration, Audit & Security
+  | 'access_settings'
+  | 'manage_accounting_settings'
+  | 'access_accounting_audit'
+  | 'manage_users'
+  | 'manage_backup'
+  | 'access_audit_log'
+  | 'financial_year_lock';
 
 export interface User {
   id: string;

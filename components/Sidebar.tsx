@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         { id: 'purchaseRequests', label: 'طلبات الشراء (PR)', icon: '📝', permission: 'access_purchase_requests' },
         { id: 'purchaseOrders', label: 'أوامر الشراء (PO)', icon: '📑', permission: 'access_purchase_orders' },
         { id: 'purchases', label: 'فواتير المشتريات', icon: '🧾', permission: 'access_purchases' },
-        { id: 'purchaseReturns', label: 'مرتجعات المشتريات', icon: '🔄', permission: 'access_purchases' },
+        { id: 'purchaseReturns', label: 'مرتجعات المشتريات', icon: '🔄', permission: 'access_purchase_returns' },
         { id: 'suppliers', label: 'الموردين وحساباتهم', icon: '🚛', permission: 'access_suppliers' },
       ]
     },
@@ -139,11 +139,11 @@ const Sidebar: React.FC<SidebarProps> = ({
       permission: 'access_settings',
       targetPage: 'settings',
       subItems: [
-        { id: 'settings', label: 'الإعدادات العامة والشركة', icon: '🛠️' },
-        { id: 'accountingSettings', label: 'إعدادات التوجيه المحاسبي', icon: '⚖️' },
+        { id: 'settings', label: 'الإعدادات العامة والشركة', icon: '🛠️', permission: 'access_settings' },
+        { id: 'accountingSettings', label: 'إعدادات التوجيه المحاسبي', icon: '⚖️', permission: 'manage_accounting_settings' },
         { id: 'users', label: 'المستخدمين والصلاحيات', icon: '👤', permission: 'manage_users' },
         { id: 'backup', label: 'النسخ الاحتياطي والأمان', icon: '💾', permission: 'manage_backup' },
-        { id: 'auditLog', label: 'سجل العمليات والرقابة', icon: '🔍', permission: 'manage_users' },
+        { id: 'auditLog', label: 'سجل العمليات والرقابة', icon: '🔍', permission: 'access_audit_log' },
       ]
     }
   ];

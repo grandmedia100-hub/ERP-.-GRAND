@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type {
   Product, Warehouse, BillOfMaterials, BOMItem, ProductionOrder, ProductionPlan,
   StockTransaction, ProductionExpense, ProductionOperation, ProductionScrap, ProductionPlanItem,
-  ModulePostingSettings, JournalEntry
+  ModulePostingSettings, JournalEntry, Permission
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
 
@@ -28,6 +28,7 @@ interface ManufacturingProps {
   onClearInitialData?: () => void;
   postingSettings?: ModulePostingSettings;
   onOpenSettings?: () => void;
+  currentUser?: any;
 }
 
 // ==================== Helper ====================
@@ -52,8 +53,13 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
   productionOrders, setProductionOrders, productionPlans, setProductionPlans,
   stockTransactions, setStockTransactions, createJournalEntry, logAction, accounts, customers = [],
   journalEntries = [], setJournalEntries,
-  initialOrderData, onClearInitialData, postingSettings, onOpenSettings
+  initialOrderData, onClearInitialData, postingSettings, onOpenSettings, currentUser
 }) => {
+  const hasPerm = (perm: Permission) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+  };
   const [activeTab, setActiveTab] = useState<'orders' | 'bom' | 'plans'>('orders');
 
   // ---- Filtering & Search ----
@@ -940,7 +946,7 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
             </button>
           )}
 
-          {activeTab === 'bom' && (
+          {activeTab === 'bom' && hasPerm('create_bom') && (
             <button
               onClick={() => { setEditingBOMId(null); setBomForm(emptyBOM()); setShowBOMModal(true); }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold shadow-sm flex items-center gap-2 text-sm transition-all shadow-blue-200"
@@ -960,7 +966,7 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
             </button>
           )}
 
-          {activeTab === 'orders' && (
+          {activeTab === 'orders' && hasPerm('create_production_order') && (
             <button
               onClick={() => { setEditingOrderId(null); setOrderForm(emptyOrder()); setOrderSubTab('materials'); setShowOrderModal(true); }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold shadow-sm flex items-center gap-2 text-sm transition-all shadow-emerald-200"
@@ -1100,13 +1106,15 @@ const Manufacturing: React.FC<ManufacturingProps> = ({
                           {/* If in progress or draft: Execute button */}
                           {(order.status === 'draft' || order.status === 'in_progress') && (
                             <>
-                              <button
-                                onClick={() => { setExecutingOrder(order); setActualQty(order.plannedQuantity); setShowExecuteModal(true); }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1"
-                              >
-                                <span>📤</span>
-                                <span>تنفيذ وترحيل</span>
-                              </button>
+                              {hasPerm('execute_production') && (
+                                <button
+                                  onClick={() => { setExecutingOrder(order); setActualQty(order.plannedQuantity); setShowExecuteModal(true); }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1"
+                                >
+                                  <span>📤</span>
+                                  <span>تنفيذ وترحيل</span>
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleEditOrder(order)}
                                 className="bg-amber-50 hover:bg-amber-100 text-amber-700 p-1.5 rounded-lg text-xs font-bold transition-colors"

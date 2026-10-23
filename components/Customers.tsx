@@ -3,19 +3,26 @@ import React, { useState, useMemo } from 'react';
 import AddCustomerModal from './AddCustomerModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import ExcelImportModal from './ExcelImportModal.tsx';
-import type { Customer, SalesInvoice, CustomerPayment } from '../types.ts';
+import type { Customer, SalesInvoice, CustomerPayment, Permission } from '../types.ts';
 
 interface CustomersProps {
   customerList: Customer[];
   setCustomerList: React.Dispatch<React.SetStateAction<Customer[]>>;
   salesInvoices: SalesInvoice[];
   customerPayments: CustomerPayment[];
+  currentUser?: any;
 }
 
 const Customers: React.FC<CustomersProps> = ({
   customerList, setCustomerList,
-  salesInvoices, customerPayments
+  salesInvoices, customerPayments,
+  currentUser
 }) => {
+  const hasPerm = (perm: Permission) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    return currentUser.permissions ? currentUser.permissions.includes(perm) : false;
+  };
   // Modals State
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -98,20 +105,24 @@ const Customers: React.FC<CustomersProps> = ({
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">إدارة العملاء</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => setIsImportOpen(true)}
-            className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-          >
-            <span>📊</span>
-            <span>استيراد Excel</span>
-          </button>
-          <button
-            onClick={() => handleOpenCustomerModal()}
-            className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center space-x-2 space-x-reverse"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-            <span>إضافة عميل جديد</span>
-          </button>
+          {hasPerm('create_customer') && (
+            <>
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+              >
+                <span>📊</span>
+                <span>استيراد Excel</span>
+              </button>
+              <button
+                onClick={() => handleOpenCustomerModal()}
+                className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center space-x-2 space-x-reverse"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                <span>إضافة عميل جديد</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -182,12 +193,16 @@ const Customers: React.FC<CustomersProps> = ({
                     )}
                   </td>
                   <td className="p-3 text-sm text-gray-700 space-x-2 space-x-reverse">
-                    <button onClick={() => handleOpenCustomerModal(customer)} className="text-blue-500 hover:text-blue-700 transition-colors" title="تعديل">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
-                    </button>
-                    <button onClick={() => handleDeleteRequest(customer.id)} className="text-red-500 hover:text-red-700 transition-colors" title="حذف">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                    </button>
+                    {hasPerm('edit_customer') && (
+                      <button onClick={() => handleOpenCustomerModal(customer)} className="text-blue-500 hover:text-blue-700 transition-colors" title="تعديل">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                      </button>
+                    )}
+                    {hasPerm('delete_customer') && (
+                      <button onClick={() => handleDeleteRequest(customer.id)} className="text-red-500 hover:text-red-700 transition-colors" title="حذف">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
