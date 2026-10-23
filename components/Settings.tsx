@@ -840,12 +840,19 @@ const Settings: React.FC<SettingsProps> = ({
       {/* Theme Selector Section */}
       <div className="bg-theme-card p-8 rounded-xl shadow-md max-w-3xl mx-auto mb-8 relative overflow-hidden text-right">
         <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">جديد</div>
-        <h2 className="text-xl font-bold text-main mb-6 pb-2 border-b flex items-center gap-2">
+        <h2 className="text-xl font-bold text-main mb-4 pb-2 border-b flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.357a4 4 0 014.114 0l1.657 1.357M10 14v4h4v-4m-4 0a6 6 0 016-6h-6z" />
           </svg>
           المظهر والألوان (Themes)
         </h2>
+
+        <div className="mb-5 p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2.5 text-xs text-blue-900 font-bold leading-relaxed">
+          <span className="text-xl flex-shrink-0">🏢</span>
+          <span>
+            <strong>تخصيص مستقل:</strong> يتم حفظ وتطبيق إعدادات المظهر والخطوط والألوان والخلفيات بشكل مستقل تماماً لكل فرع ولكل مستخدم دون التأثير على إعدادات الفروع الأخرى أو باقي المستخدمين.
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[

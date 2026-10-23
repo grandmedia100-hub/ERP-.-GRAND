@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Account, ModulePostingSettings, Page } from '../types.ts';
+import type { Account, ModulePostingSettings, Page, ThemeSettings } from '../types.ts';
 import { defaultSettingsValues, moduleTabs } from './ModuleAccountingSettingsModal.tsx';
 
 interface AccountingSettingsPageProps {
@@ -8,6 +8,10 @@ interface AccountingSettingsPageProps {
   setPostingSettings: React.Dispatch<React.SetStateAction<ModulePostingSettings>>;
   onNavigate?: (page: Page) => void;
   onOpenAuditModal?: () => void;
+  themeSettings?: ThemeSettings;
+  setThemeSettings?: React.Dispatch<React.SetStateAction<ThemeSettings>>;
+  currentBranchName?: string;
+  currentUserName?: string;
 }
 
 type TabType = 'sales' | 'purchases' | 'manufacturing' | 'treasury' | 'warehouse' | 'all';
@@ -18,11 +22,11 @@ interface ModuleConfig {
   title: string;
   icon: string;
   color: string;
-  bgColor: string;
-  borderColor: string;
+  lightBg: string;
+  lightBorder: string;
   badgeBg: string;
   badgeText: string;
-  activeTabClass: string;
+  lightTabClass: string;
   count: number;
 }
 
@@ -32,11 +36,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'المبيعات ومرتجعات البيع',
     icon: '📈',
     color: 'emerald',
-    bgColor: 'bg-emerald-50/70 dark:bg-emerald-950/30',
-    borderColor: 'border-emerald-200 dark:border-emerald-800/60',
-    badgeBg: 'bg-emerald-100 dark:bg-emerald-900/60',
-    badgeText: 'text-emerald-800 dark:text-emerald-200',
-    activeTabClass: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/20',
+    lightBg: 'bg-emerald-50/60',
+    lightBorder: 'border-emerald-200',
+    badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    badgeText: 'text-emerald-800',
+    lightTabClass: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
     count: 7
   },
   purchases: {
@@ -44,11 +48,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'المشتريات وتوريدات الموردين',
     icon: '🛒',
     color: 'amber',
-    bgColor: 'bg-amber-50/70 dark:bg-amber-950/30',
-    borderColor: 'border-amber-200 dark:border-amber-800/60',
-    badgeBg: 'bg-amber-100 dark:bg-amber-900/60',
-    badgeText: 'text-amber-800 dark:text-amber-200',
-    activeTabClass: 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-600/20',
+    lightBg: 'bg-amber-50/60',
+    lightBorder: 'border-amber-200',
+    badgeBg: 'bg-amber-100 text-amber-800 border-amber-200',
+    badgeText: 'text-amber-800',
+    lightTabClass: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
     count: 6
   },
   manufacturing: {
@@ -56,11 +60,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'التصنيع وتكاليف التشغيل',
     icon: '🏗️',
     color: 'purple',
-    bgColor: 'bg-purple-50/70 dark:bg-purple-950/30',
-    borderColor: 'border-purple-200 dark:border-purple-800/60',
-    badgeBg: 'bg-purple-100 dark:bg-purple-900/60',
-    badgeText: 'text-purple-800 dark:text-purple-200',
-    activeTabClass: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/20',
+    lightBg: 'bg-purple-50/60',
+    lightBorder: 'border-purple-200',
+    badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
+    badgeText: 'text-purple-800',
+    lightTabClass: 'bg-purple-600 text-white shadow-md shadow-purple-600/20',
     count: 7
   },
   treasury: {
@@ -68,11 +72,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'الخزينة والمصارف والبنوك',
     icon: '🏦',
     color: 'blue',
-    bgColor: 'bg-blue-50/70 dark:bg-blue-950/30',
-    borderColor: 'border-blue-200 dark:border-blue-800/60',
-    badgeBg: 'bg-blue-100 dark:bg-blue-900/60',
-    badgeText: 'text-blue-800 dark:text-blue-200',
-    activeTabClass: 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-600/20',
+    lightBg: 'bg-sky-50/60',
+    lightBorder: 'border-sky-200',
+    badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
+    badgeText: 'text-blue-800',
+    lightTabClass: 'bg-blue-600 text-white shadow-md shadow-blue-600/20',
     count: 6
   },
   warehouse: {
@@ -80,11 +84,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'المستودعات والجرد والأصول',
     icon: '🏭',
     color: 'rose',
-    bgColor: 'bg-rose-50/70 dark:bg-rose-950/30',
-    borderColor: 'border-rose-200 dark:border-rose-800/60',
-    badgeBg: 'bg-rose-100 dark:bg-rose-900/60',
-    badgeText: 'text-rose-800 dark:text-rose-200',
-    activeTabClass: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-rose-600/20',
+    lightBg: 'bg-rose-50/60',
+    lightBorder: 'border-rose-200',
+    badgeBg: 'bg-rose-100 text-rose-800 border-rose-200',
+    badgeText: 'text-rose-800',
+    lightTabClass: 'bg-rose-600 text-white shadow-md shadow-rose-600/20',
     count: 4
   },
   all: {
@@ -92,11 +96,11 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'شامل كل الموديولات',
     icon: '📑',
     color: 'indigo',
-    bgColor: 'bg-slate-50 dark:bg-slate-900/40',
-    borderColor: 'border-slate-200 dark:border-slate-700',
-    badgeBg: 'bg-slate-100 dark:bg-slate-800',
-    badgeText: 'text-slate-800 dark:text-slate-200',
-    activeTabClass: 'bg-gradient-to-r from-gray-800 to-slate-900 text-white shadow-lg shadow-gray-900/20',
+    lightBg: 'bg-slate-50',
+    lightBorder: 'border-slate-200',
+    badgeBg: 'bg-slate-100 text-slate-800 border-slate-200',
+    badgeText: 'text-slate-800',
+    lightTabClass: 'bg-slate-800 text-white shadow-md shadow-slate-800/20',
     count: 30
   }
 };
@@ -106,7 +110,11 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
   postingSettings,
   setPostingSettings,
   onNavigate,
-  onOpenAuditModal
+  onOpenAuditModal,
+  themeSettings,
+  setThemeSettings,
+  currentBranchName = 'جراند ميديا',
+  currentUserName = 'المسؤول'
 }) => {
   const [currentTab, setCurrentTab] = useState<TabType>('sales');
   const [formData, setFormData] = useState<ModulePostingSettings>({
@@ -116,6 +124,18 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
   const [accountFilterText, setAccountFilterText] = useState('');
   const [typeFilter, setTypeFilter] = useState<AccountTypeFilter>('all');
   const [savedSuccessMessage, setSavedSuccessMessage] = useState('');
+
+  // Local day/night mode toggle
+  const isDarkMode = (themeSettings?.theme === 'dark');
+
+  const handleToggleTheme = (mode: 'light' | 'dark') => {
+    if (setThemeSettings) {
+      setThemeSettings(prev => ({
+        ...prev,
+        theme: mode === 'light' ? 'default' : 'dark'
+      }));
+    }
+  };
 
   useEffect(() => {
     if (postingSettings && Object.keys(postingSettings).length > 0) {
@@ -200,7 +220,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
     });
   };
 
-  // Helper to render account field cards
+  // Helper to render account field cards in bright, high-contrast light mode
   const renderAccountField = (
     label: string,
     field: keyof ModulePostingSettings,
@@ -214,24 +234,23 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
     const currentAccount = accounts.find(a => a.id === currentValue);
     const config = MODULE_CONFIGS[moduleKey];
 
-    // Filter check for "customized only"
     if (typeFilter === 'customized' && !isCustomized) {
       return null;
     }
 
     const natureBadgeClasses = nature === 'مدين' || nature === 'أصل' || nature === 'مصروف'
-      ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300'
-      : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300';
+      ? 'bg-blue-50 text-blue-700 border-blue-200'
+      : 'bg-purple-50 text-purple-700 border-purple-200';
 
     return (
       <div
-        className={`group relative rounded-2xl border transition-all duration-200 p-5 shadow-sm hover:shadow-md bg-white dark:bg-gray-800 ${
+        className={`group relative rounded-2xl border-2 transition-all duration-200 p-5 shadow-sm hover:shadow-md bg-white ${
           isCustomized
-            ? 'border-indigo-300 dark:border-indigo-700 ring-1 ring-indigo-200 dark:ring-indigo-900/50'
-            : `${config.borderColor} hover:border-gray-400 dark:hover:border-gray-600`
+            ? 'border-indigo-400 ring-2 ring-indigo-100'
+            : `${config.lightBorder} hover:border-gray-400`
         }`}
       >
-        {/* Accent Bar on Side */}
+        {/* Accent Bar on Right Side */}
         <div className={`absolute top-0 right-0 bottom-0 w-1.5 rounded-r-2xl ${
           moduleKey === 'sales' ? 'bg-emerald-500' :
           moduleKey === 'purchases' ? 'bg-amber-500' :
@@ -241,21 +260,21 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-base">{config.icon}</span>
-            <label className="text-sm font-extrabold text-gray-900 dark:text-white">
+            <span className="text-lg">{config.icon}</span>
+            <label className="text-sm font-black text-slate-900">
               {label}
             </label>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${natureBadgeClasses}`}>
+            <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border ${natureBadgeClasses}`}>
               {nature}
             </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600" title="كود الحساب الافتراضي">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 font-bold" title="كود الحساب الافتراضي">
               الافتراضي: {defaultAccId}
             </span>
             {isCustomized && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200">
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-300">
                 مُخصّص ✨
               </span>
             )}
@@ -263,23 +282,23 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
         </div>
 
         {/* Selected Account Status Pill */}
-        <div className="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-700/80 flex items-center justify-between gap-2">
+        <div className="mb-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${currentAccount ? 'bg-emerald-500 shadow-sm' : 'bg-red-500'}`} />
             {currentAccount ? (
               <div className="truncate text-xs">
-                <span className="font-mono font-bold text-gray-900 dark:text-gray-100 ml-1.5 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                <span className="font-mono font-black text-slate-900 ml-1.5 bg-white px-2 py-0.5 rounded border border-slate-300 shadow-xs">
                   {currentAccount.code}
                 </span>
-                <span className="font-bold text-gray-800 dark:text-gray-200">
+                <span className="font-black text-slate-800">
                   {currentAccount.name}
                 </span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 mr-1.5">
+                <span className="text-[10px] text-slate-500 mr-1.5 font-bold">
                   ({currentAccount.type || (currentAccount.code.startsWith('1') || currentAccount.code.startsWith('5') ? 'مدين' : 'دائن')})
                 </span>
               </div>
             ) : (
-              <span className="text-xs text-red-600 dark:text-red-400 font-bold">
+              <span className="text-xs text-red-600 font-bold">
                 ⚠️ الحساب المحدد برقم ({currentValue}) غير مسجل بالدليل
               </span>
             )}
@@ -289,7 +308,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
             <button
               type="button"
               onClick={() => handleResetSingleField(field, defaultAccId)}
-              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 hover:underline flex-shrink-0 flex items-center gap-1"
+              className="text-[11px] font-extrabold text-indigo-700 hover:text-indigo-900 hover:underline flex-shrink-0 flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200"
               title="استعادة الحساب الافتراضي لهذا البند"
             >
               <span>↩️</span>
@@ -298,15 +317,15 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           )}
         </div>
 
-        {/* Select Input */}
+        {/* Select Input with High Contrast */}
         <div className="relative">
           <select
             value={currentValue}
             onChange={e => handleChange(field, e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl p-2.5 text-xs font-semibold bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow shadow-sm"
+            className="w-full border-2 border-slate-300 rounded-xl p-2.5 text-xs font-bold bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow shadow-xs"
           >
             {filteredAccounts.map(a => (
-              <option key={a.id} value={a.id}>
+              <option key={a.id} value={a.id} className="text-slate-900 font-medium">
                 {a.code} - {a.name} ({a.type === 'Asset' || a.type === 'مدين' ? 'مدين' : 'دائن'})
               </option>
             ))}
@@ -314,54 +333,92 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
         </div>
 
         {/* Accounting Description */}
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2.5 leading-relaxed flex items-start gap-1.5">
-          <span className="text-gray-400 text-xs mt-0.5">💡</span>
+        <div className="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 leading-relaxed flex items-start gap-1.5">
+          <span className="text-amber-500 text-xs mt-0.5 flex-shrink-0">💡</span>
           <span>{description}</span>
-        </p>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12" dir="rtl">
-      {/* Top Main Banner Hero Card */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-indigo-900/50">
-        {/* Decorative background glow */}
-        <div className="absolute -top-24 -left-24 w-80 h-80 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans" dir="rtl">
+      {/* Top Main Banner Hero Card - Clean Light Mode */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 p-6 md:p-8 rounded-3xl shadow-sm border-2 border-indigo-100">
         <div className="relative flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-emerald-500 text-white flex items-center justify-center text-3xl shadow-lg ring-4 ring-white/10">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-blue-600 text-white flex items-center justify-center text-3xl shadow-md ring-4 ring-indigo-50">
               ⚖️
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">
                   إعدادات التوجيه والترحيل المحاسبي
                 </h1>
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-3 py-1 rounded-full font-extrabold flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs px-3 py-1 rounded-full font-black flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   مفعل ونشط تلقائياً
                 </span>
                 {customizedCount > 0 && (
-                  <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 text-xs px-2.5 py-1 rounded-full font-bold">
+                  <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs px-2.5 py-1 rounded-full font-black">
                     {customizedCount} حساب مخصص
                   </span>
                 )}
               </div>
-              <p className="text-xs md:text-sm text-indigo-200/80 mt-1.5 max-w-2xl leading-relaxed">
-                التحكم المالي المباشر في قيد اليومية التلقائي لكل حركة: فواتير المبيعات، مرتجعات المشتريات، تكلفة الإنتاج والتصنيع، الخزائن والمصارف، والتسويات المخزنية
-              </p>
+
+              {/* Branch & User Context Pills */}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-0.5 rounded-lg font-black flex items-center gap-1">
+                  <span>🏢</span>
+                  <span>الفرع: {currentBranchName}</span>
+                </span>
+                <span className="text-xs bg-gray-100 text-gray-800 border border-gray-200 px-2.5 py-0.5 rounded-lg font-black flex items-center gap-1">
+                  <span>👤</span>
+                  <span>المستخدم: {currentUserName}</span>
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  (يتم حفظ المظهر والألوان والتفضيلات بشكل مستقل لهذا الفرع والمستخدم)
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Day / Night Mode Toggle Switch */}
+            <div className="flex items-center bg-white p-1 rounded-xl border-2 border-slate-200 shadow-xs">
+              <button
+                type="button"
+                onClick={() => handleToggleTheme('light')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  !isDarkMode
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="الوضع النهاري الفاتح - ألوان واضحة ومشرقة لسهولة الرؤية"
+              >
+                <span>☀️</span>
+                <span>نهاري فاتح</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleTheme('dark')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  isDarkMode
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="الوضع الليلي - ألوان داكنة"
+              >
+                <span>🌙</span>
+                <span>ليلي</span>
+              </button>
+            </div>
+
             {onOpenAuditModal && (
               <button
                 type="button"
                 onClick={onOpenAuditModal}
-                className="bg-indigo-800/80 hover:bg-indigo-700 text-indigo-100 border border-indigo-600/50 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-2 border-indigo-200 px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-xs"
                 title="فحص اتزان ونزاهة القيود المحاسبية آلياً"
               >
                 <span>🛡️</span>
@@ -372,7 +429,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
             <button
               type="button"
               onClick={handleResetDefaults}
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              className="bg-white hover:bg-slate-100 text-slate-700 border-2 border-slate-300 px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs"
             >
               <span>🔄</span>
               <span>استعادة الافتراضيات</span>
@@ -381,7 +438,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-xs font-extrabold shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-black shadow-md shadow-emerald-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
             >
               <span>💾</span>
               <span>حفظ وتطبيق التوجيهات</span>
@@ -391,7 +448,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('settings')}
-                className="bg-white/5 hover:bg-white/15 text-indigo-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors border border-white/10"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition-colors border border-slate-300"
                 title="العودة للإعدادات العامة"
               >
                 العودة للإعدادات
@@ -403,21 +460,21 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
       {/* Success Notification Alert */}
       {savedSuccessMessage && (
-        <div className="bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-800 dark:text-emerald-200 p-4 rounded-2xl text-xs font-extrabold flex items-center justify-between gap-3 shadow-md">
+        <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-900 p-4 rounded-2xl text-xs font-black flex items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="text-xl">✅</span>
             <span>{savedSuccessMessage}</span>
           </div>
           <button
             onClick={() => setSavedSuccessMessage('')}
-            className="text-emerald-700 hover:text-emerald-900 font-bold px-2"
+            className="text-emerald-700 hover:text-emerald-900 font-bold px-2 text-base"
           >
             ✕
           </button>
         </div>
       )}
 
-      {/* Interactive Module KPI Overview Cards */}
+      {/* Interactive Module KPI Overview Cards in Light Colors */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {(['sales', 'purchases', 'manufacturing', 'treasury', 'warehouse'] as TabType[]).map(key => {
           const cfg = MODULE_CONFIGS[key];
@@ -427,22 +484,22 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
               key={key}
               type="button"
               onClick={() => setCurrentTab(key)}
-              className={`p-4 rounded-2xl border text-right transition-all duration-200 ${
+              className={`p-4 rounded-2xl border-2 text-right transition-all duration-200 ${
                 isActive
-                  ? `${cfg.bgColor} ${cfg.borderColor} ring-2 ring-${cfg.color}-500/50 shadow-md transform -translate-y-0.5`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-sm'
+                  ? `${cfg.lightBg} border-${cfg.color}-500 ring-2 ring-${cfg.color}-400/40 shadow-sm transform -translate-y-0.5`
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-2xl">{cfg.icon}</span>
-                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${cfg.badgeBg} ${cfg.badgeText}`}>
+                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full border ${cfg.badgeBg}`}>
                   {cfg.count} حسابات
                 </span>
               </div>
-              <div className="font-extrabold text-sm text-gray-900 dark:text-white truncate">
+              <div className="font-black text-sm text-slate-900 truncate">
                 {cfg.title.split(' ')[0]}
               </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate font-medium">
                 توجيهات {cfg.title}
               </div>
             </button>
@@ -451,7 +508,7 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
       </div>
 
       {/* Navigation Tabs Bar */}
-      <div className="bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white p-2 rounded-2xl shadow-xs border-2 border-slate-200 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
           {moduleTabs.map(t => {
             const isActive = currentTab === t.id;
@@ -461,15 +518,15 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
                 key={t.id}
                 type="button"
                 onClick={() => setCurrentTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
                   isActive
-                    ? cfg.activeTabClass
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent'
+                    ? cfg.lightTabClass
+                    : 'text-slate-700 hover:bg-slate-100 border border-transparent'
                 }`}
               >
                 <span className="text-base">{t.icon}</span>
                 <span>{t.title}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
                   {cfg.count}
                 </span>
               </button>
@@ -477,25 +534,25 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           })}
         </div>
 
-        <div className="text-xs text-gray-400 font-semibold px-3 hidden md:block">
-          {selectableAccounts.length} حساب متاح في شجرة الحسابات
+        <div className="text-xs text-slate-500 font-bold px-3 hidden md:block">
+          {selectableAccounts.length} حساب مسجل بالدليل
         </div>
       </div>
 
       {/* Search & Account Type Filter Chips */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-3">
+      <div className="bg-white p-4 rounded-2xl shadow-xs border-2 border-slate-200 space-y-3">
         <div className="relative">
           <input
             type="text"
-            placeholder="🔍 تصفية الحسابات بالاسم أو الكود لتسهيل الاختيار في كافة القوائم المنسدلة..."
+            placeholder="🔍 بحث سريع في الحسابات بالاسم أو الكود..."
             value={accountFilterText}
             onChange={e => setAccountFilterText(e.target.value)}
-            className="w-full text-xs p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-xl bg-slate-50/50 dark:bg-gray-700 text-right focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="w-full text-xs p-3 pr-10 border-2 border-slate-200 rounded-xl bg-slate-50 text-slate-900 text-right focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
           />
           {accountFilterText && (
             <button
               onClick={() => setAccountFilterText('')}
-              className="absolute left-3 top-2.5 text-gray-400 hover:text-gray-600 text-sm font-bold bg-white dark:bg-gray-800 px-1 rounded"
+              className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700 text-sm font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200"
             >
               ✕
             </button>
@@ -503,15 +560,15 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
         </div>
 
         {/* Quick Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-bold text-gray-600 dark:text-gray-300">
-          <span className="text-[11px] text-gray-400 font-normal">تصفية سريعة:</span>
+        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-black text-slate-700">
+          <span className="text-[11px] text-slate-500 font-bold">تصفية حسب الطبيعة:</span>
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'all'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             كل الحسابات
@@ -519,10 +576,10 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('customized')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'customized'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             المعدلة فقط ({customizedCount})
@@ -530,10 +587,10 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('asset')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'asset'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             الأصول (1)
@@ -541,10 +598,10 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('liability')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'liability'
-                ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             الخصوم (2)
@@ -552,10 +609,10 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('revenue')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'revenue'
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             الإيرادات (4)
@@ -563,10 +620,10 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('expense')}
-            className={`px-3 py-1 rounded-lg border transition-all ${
+            className={`px-3 py-1 rounded-lg border-2 transition-all ${
               typeFilter === 'expense'
-                ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
             المصروفات (5)
@@ -574,26 +631,26 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
         </div>
       </div>
 
-      {/* Main Content Panels */}
+      {/* Main Content Panels - Bright & Clear */}
       <div className="space-y-8">
         {/* ===================== SALES ===================== */}
         {(currentTab === 'sales' || currentTab === 'all') && (
-          <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-emerald-100 dark:border-emerald-950/60 space-y-5">
-            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border-2 border-emerald-200 space-y-5">
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-emerald-100 gap-2">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 flex items-center justify-center text-xl">
+                <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl font-bold">
                   📈
                 </span>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-lg text-slate-900">
                     توجيهات موديول المبيعات ومرتجعات البيع
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-600 font-medium">
                     توليد قيود استحقاق الإيراد، تخفيض المخزون بتكلفة البضاعة المباعة (COGS)، واحتساب الضريبة والخصم
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                 7 حسابات توجيه
               </span>
             </div>
@@ -612,22 +669,22 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
         {/* ===================== PURCHASES ===================== */}
         {(currentTab === 'purchases' || currentTab === 'all') && (
-          <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-950/60 space-y-5">
-            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border-2 border-amber-200 space-y-5">
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-amber-100 gap-2">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950 flex items-center justify-center text-xl">
+                <span className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-xl font-bold">
                   🛒
                 </span>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-lg text-slate-900">
                     توجيهات موديول المشتريات ومرتجعات الشراء (Debit Notes)
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-600 font-medium">
                     إثبات استحقاقات الموردين، زيادة أرصدة الخامات والمستودعات، تسوية ضريبة المدخلات ومصاريف الشحن
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200">
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
                 6 حسابات توجيه
               </span>
             </div>
@@ -645,22 +702,22 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
         {/* ===================== MANUFACTURING ===================== */}
         {(currentTab === 'manufacturing' || currentTab === 'all') && (
-          <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-purple-100 dark:border-purple-950/60 space-y-5">
-            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border-2 border-purple-200 space-y-5">
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-purple-100 gap-2">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950 flex items-center justify-center text-xl">
+                <span className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center text-xl font-bold">
                   🏗️
                 </span>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-lg text-slate-900">
                     توجيهات موديول التصنيع والتشغيل وأوامر الإنتاج
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-600 font-medium">
                     ترحيل حسابات التشغيل (WIP)، استهلاك الخامات، إضافة المنتج النهائي، وأجور العمالة ومقاولي الباطن
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200">
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
                 7 حسابات توجيه
               </span>
             </div>
@@ -679,22 +736,22 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
         {/* ===================== TREASURY ===================== */}
         {(currentTab === 'treasury' || currentTab === 'all') && (
-          <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-blue-100 dark:border-blue-950/60 space-y-5">
-            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border-2 border-sky-200 space-y-5">
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-sky-100 gap-2">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 flex items-center justify-center text-xl">
+                <span className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-xl font-bold">
                   🏦
                 </span>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-lg text-slate-900">
                     توجيهات موديول الخزينة والبنوك وحركات النقدية
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-600 font-medium">
                     ربط الصناديق النقدية، الحسابات المصرفية، المحافظ الذكية (فودافون كاش)، وشبكة إنستاباي
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200">
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-300">
                 6 حسابات توجيه
               </span>
             </div>
@@ -712,22 +769,22 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
         {/* ===================== WAREHOUSE & ASSETS ===================== */}
         {(currentTab === 'warehouse' || currentTab === 'all') && (
-          <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-rose-100 dark:border-rose-950/60 space-y-5">
-            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border-2 border-rose-200 space-y-5">
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-rose-100 gap-2">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-950 flex items-center justify-center text-xl">
+                <span className="w-10 h-10 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center text-xl font-bold">
                   🏭
                 </span>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-lg text-slate-900">
                     توجيهات المستودعات والتسويات الجردية والأصول الثابتة
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-600 font-medium">
                     معالجة فوارق الجرد الفعلي (عجز / فائض)، وتوجيه إهلاكات ومجمعات الأصول الثابتة
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
                 4 حسابات توجيه
               </span>
             </div>
@@ -744,26 +801,26 @@ const AccountingSettingsPage: React.FC<AccountingSettingsPageProps> = ({
 
       {/* Floating / Sticky Unsaved Changes Notification Bar */}
       {hasUnsavedChanges && (
-        <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-40 bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white p-4 rounded-2xl shadow-2xl border border-indigo-500/50 flex flex-wrap items-center justify-between gap-3 animate-bounce-subtle">
+        <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-40 bg-white border-2 border-indigo-400 text-slate-900 p-4 rounded-2xl shadow-2xl flex flex-wrap items-center justify-between gap-3 animate-bounce-subtle">
           <div className="flex items-center gap-3">
             <span className="text-2xl animate-spin">⚙️</span>
             <div>
-              <div className="font-extrabold text-sm">لديك تعديلات غير محفوظة في التوجيه المحاسبي!</div>
-              <div className="text-xs text-indigo-200">اضغط على زر الحفظ لتطبيق التوجيهات فوراً على القيود اليومية الجديدة.</div>
+              <div className="font-black text-sm text-slate-900">لديك تعديلات غير محفوظة في التوجيه المحاسبي!</div>
+              <div className="text-xs text-slate-600 font-medium">اضغط على زر الحفظ لتطبيق التوجيهات فوراً على القيود اليومية الجديدة.</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleDiscardChanges}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors border border-slate-200"
             >
               تراجع عن التعديل
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold px-6 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/40 transition-all flex items-center gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-2 rounded-xl text-xs shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5"
             >
               <span>💾</span>
               <span>حفظ التعديلات الآن</span>

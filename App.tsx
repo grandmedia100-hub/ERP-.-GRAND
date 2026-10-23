@@ -46,23 +46,25 @@ function useDebouncedEffect(effect: () => void, deps: any[], delay: number) {
     }, [...(deps || []), delay]);
 }
 
-const useStickyState = <T,>(defaultValue: T, key: string): [T, React.Dispatch<React.SetStateAction<T>>] => {
-    const [value, setValue] = useState<T>(() => {
+const useStickyState = <T,>(defaultValue: T, key: string, fallbackKeys: string[] = []): [T, React.Dispatch<React.SetStateAction<T>>] => {
+    const readValue = (): T => {
         try {
             const stickyValue = window.localStorage.getItem(key);
-            return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+            if (stickyValue !== null) return JSON.parse(stickyValue);
+            for (const fb of fallbackKeys) {
+                const fbVal = window.localStorage.getItem(fb);
+                if (fbVal !== null) return JSON.parse(fbVal);
+            }
+            return defaultValue;
         } catch {
             return defaultValue;
         }
-    });
+    };
+
+    const [value, setValue] = useState<T>(readValue);
 
     useEffect(() => {
-        try {
-            const stickyValue = window.localStorage.getItem(key);
-            setValue(stickyValue !== null ? JSON.parse(stickyValue) : defaultValue);
-        } catch {
-            setValue(defaultValue);
-        }
+        setValue(readValue());
     }, [key]);
 
     useDebouncedEffect(() => {
@@ -373,6 +375,18 @@ const App: React.FC = () => {
     // Global States (Not Branch Specific)
     const [users, setUsers] = useStickyState<User[]>(initialData.users || [], 'users');
     const [logs, setLogs] = useServerState<any>(initialData.logs || [], 'logs', 'logs');
+
+    // Auth State (Positioned before theme to ensure user & branch theme isolation)
+    const [currentUser, setCurrentUser] = useState<User | null>(() => {
+        try {
+            const saved = window.localStorage.getItem('currentUser');
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+    });
+
+    // Theme key scoped uniquely to user and branch: e.g. themeSettings_USR-ADMIN_main
+    const themeStorageKey = `themeSettings_${currentUser?.id || 'guest'}_${currentBranchId || 'main'}`;
+
     const [themeSettings, setThemeSettings] = useStickyState<ThemeSettings>({
         uiScale: 75,
         fontFamily: 'Cairo',
@@ -398,7 +412,7 @@ const App: React.FC = () => {
             reports: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=1920',
             accountingSettings: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1920',
         }
-    }, 'themeSettings');
+    }, themeStorageKey, [`themeSettings_${currentBranchId || 'main'}`, 'themeSettings']);
 
     // Module Accounting Posting Settings
     const [postingSettings, setPostingSettings] = useStickyState<ModulePostingSettings>({}, 'modulePostingSettings');
@@ -456,14 +470,6 @@ const App: React.FC = () => {
         setNewBranchName('');
         setShowNewBranchModal(false);
     };
-
-    // Auth State
-    const [currentUser, setCurrentUser] = useState<User | null>(() => {
-        try {
-            const saved = window.localStorage.getItem('currentUser');
-            return saved ? JSON.parse(saved) : null;
-        } catch { return null; }
-    });
 
     // Effects
     useEffect(() => {
@@ -856,6 +862,10 @@ const App: React.FC = () => {
                 setPostingSettings={setPostingSettings}
                 onNavigate={(page) => setActivePage(page)}
                 onOpenAuditModal={() => setIsAuditModalOpen(true)}
+                themeSettings={themeSettings}
+                setThemeSettings={setThemeSettings}
+                currentBranchName={branches.find(b => b.id === currentBranchId)?.name || (currentBranchId === 'main' ? 'جراند ميديا' : currentBranchId)}
+                currentUserName={currentUser?.fullName || currentUser?.username || 'المسؤول'}
             />;
         }
         if (activePage === 'chartOfAccounts' && hasPermission('access_chart_of_accounts')) {
