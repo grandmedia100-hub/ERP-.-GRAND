@@ -857,7 +857,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className={`flex h-screen font-sans relative ${themeSettings.fontFamily === 'Tajawal' ? 'font-tajawal' : 'font-cairo'} theme-${themeSettings.theme || 'default'} bg-main text-main transition-colors duration-300`} dir="rtl">
+        <div className={`flex h-screen w-screen overflow-hidden font-sans relative ${themeSettings.fontFamily === 'Tajawal' ? 'font-tajawal' : 'font-cairo'} theme-${themeSettings.theme || 'default'} bg-main text-main transition-colors duration-300`} dir="rtl">
             {themeSettings.backgroundEnabled !== false && getBackgroundImage(activePage) && (
                 <div 
                     className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-700 ease-in-out pointer-events-none" 
@@ -878,7 +878,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            <div className="z-10 flex h-full w-full">
+            <div className="z-10 flex h-full w-full overflow-hidden">
                 <Sidebar
                     activePage={activePage}
                     setActivePage={setActivePage}
@@ -887,7 +887,7 @@ const App: React.FC = () => {
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                 />
-                <main className="flex-1 p-4 md:p-8 overflow-y-auto relative flex flex-col">
+                <main className="flex-1 p-4 md:p-8 overflow-y-auto overflow-x-hidden relative flex flex-col h-full overscroll-contain" style={{ overscrollBehavior: 'contain' }}>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                             <h1 className="text-xl font-bold text-gray-800">MediaHive ERP</h1>
