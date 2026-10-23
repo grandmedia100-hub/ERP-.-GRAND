@@ -101,7 +101,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
   {
     id: 'manufacturing',
-    title: 'التصنيع والتشغيل وأوامر الإنتاج',
+    title: 'التصنيع والتشغيل وأوامر الإنتاج (الكرتون الداخلي)',
     icon: '🏗️',
     color: 'purple',
     badgeBg: 'bg-purple-100 text-purple-800',
@@ -113,6 +113,21 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'complete_production', label: 'إنهاء أمر الإنتاج وتوريد التام للمخزن', desc: 'إثبات المنتج النهائي في مخزن التام', type: 'create' },
       { key: 'cancel_production', label: 'إلغاء أمر الإنتاج', desc: 'إلغاء أو تعليق أمر التشغيل', type: 'danger' },
       { key: 'view_manufacturing_costs', label: 'رؤية تكاليف التصنيع والمصنعيات', desc: 'الاطلاع على تكلفة العمالة وخسائر الهالك', type: 'danger' },
+    ]
+  },
+  {
+    id: 'printingJobs',
+    title: 'أوامر تشغيل المطبوعات الورقية (لدى الغير / داخلي)',
+    icon: '🖨️',
+    color: 'indigo',
+    badgeBg: 'bg-indigo-100 text-indigo-800',
+    items: [
+      { key: 'access_printing_jobs', label: 'عرض أوامر تشغيل المطبوعات', desc: 'تصفح قائمة أوامر الشغل ومراحل الـ 18', type: 'view' },
+      { key: 'create_printing_job', label: 'إنشاء أمر شغل مطبوعات جديد', desc: 'فتح ملف تشغيل مخصص للعميل وتحديد العمليات', type: 'create' },
+      { key: 'edit_printing_job', label: 'تعديل أمر شغل مطبوعات', desc: 'تعديل مواصفات العمليات والكميات والأسعار', type: 'edit' },
+      { key: 'execute_printing_job_stage', label: 'اعتماد مرحلة وترحيل قيد المورد', desc: 'إثبات مديونية المطبعة أو ورشة التشطيب في الحسابات', type: 'create' },
+      { key: 'duplicate_printing_job', label: 'تكرار أمر الشغل (Re-Order)', desc: 'نسخ سريع لأمر شغل سابق لنفس العميل', type: 'create' },
+      { key: 'view_customer_profitability_report', label: 'عرض تقرير أرباح العميل الحقيقية', desc: 'الاطلاع على صافي الأرباح المحققة من كل عميل', type: 'view' },
     ]
   },
   {

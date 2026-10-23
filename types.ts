@@ -1,5 +1,5 @@
 
-export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseReturns' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'accountingSettings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing';
+export type Page = 'dashboard' | 'sales' | 'purchases' | 'purchaseReturns' | 'purchaseRequests' | 'purchaseOrders' | 'inventory' | 'warehouse' | 'customers' | 'suppliers' | 'reports' | 'treasury' | 'settings' | 'accountingSettings' | 'chartOfAccounts' | 'users' | 'backup' | 'quotations' | 'auditLog' | 'journalEntries' | 'fixedAssets' | 'manufacturing' | 'printingJobs';
 
 export type TreasuryAccountType = 'الخزينة الرئيسية' | 'انستاباى' | 'فودافون كاش' | 'بنك فيصل' | 'البنك الاهلى' | (string & {});
 
@@ -68,6 +68,14 @@ export type Permission =
   | 'complete_production'
   | 'cancel_production'
   | 'view_manufacturing_costs'
+
+  // 5b. Printing Job Orders & Subcontracting
+  | 'access_printing_jobs'
+  | 'create_printing_job'
+  | 'edit_printing_job'
+  | 'execute_printing_job_stage'
+  | 'duplicate_printing_job'
+  | 'view_customer_profitability_report'
 
   // 6. Treasury, Banks, Expenses & Partners
   | 'access_treasury'
@@ -747,5 +755,130 @@ export interface ModulePostingSettings {
   inventoryAdjustmentGainAccountId?: string; // الافتراضي 4101 (تسويات جردية فائض)
   fixedAssetsAccumDepreciationAccountId?: string; // الافتراضي 1202 (مجمع الإهلاك)
   fixedAssetsDepreciationExpenseAccountId?: string; // الافتراضي 5204 (مصروف إهلاك الأصول)
+
+  // Printing Job Orders Module
+  printingWipAccountId?: string;            // الافتراضي 110403 (تكاليف أوامر تشغيل مطبوعات WIP)
+  printingRevenueAccountId?: string;        // الافتراضي 4101 (إيرادات المطبوعات)
+  printingCogsAccountId?: string;           // الافتراضي 5101 (تكلفة بضاعة مباعة - مطبوعات)
+}
+
+// ==================== Printing Job Orders Types ====================
+export type PrintingOperationId =
+  | 'paper_cutting'      // 1. قص ورق
+  | 'ctp_plates'         // 2. ذنكات
+  | 'laser_die'          // 3. فورمة
+  | 'printing'           // 4. طباعة
+  | 'lamination'         // 5. سلوفان
+  | 'spot_uv'            // 6. سبوت uv
+  | 'flood_uv'           // 7. uv كامل
+  | 'pvc_window'         // 8. شباك pvc
+  | 'gold_metalized'     // 9. متلايز ذهبي
+  | 'silver_metalized'   // 10. متلايز فضي
+  | 'hot_foil'           // 11. بصمة
+  | 'embossing'          // 12. كوفراج
+  | 'die_cutting'        // 13. تكسير
+  | 'gluing'             // 14. لزق
+  | 'staple_binding'     // 15. دبوس
+  | 'spiral_binding'     // 16. سلك لولبي
+  | 'packaging'          // 17. تغليف
+  | 'shipping';          // 18. شحن
+
+export interface PrintingOperationDefinition {
+  id: PrintingOperationId;
+  name: string;
+  category: 'prepress' | 'press' | 'coating' | 'converting' | 'binding' | 'logistics';
+  icon: string;
+  defaultUnit: string;
+}
+
+export interface JobOperationItem {
+  id: string; // unique for this order stage
+  operationId: PrintingOperationId;
+  name: string;
+  executionType: 'external' | 'internal'; // لدى الغير / تصنيع داخلي
+  status: 'pending' | 'in_progress' | 'completed';
+  
+  // External (Subcontracting)
+  supplierId?: string;
+  supplierName?: string;
+  invoiceNumber?: string;
+  cost: number;
+  paymentMethod?: 'نقدي' | 'اجل';
+  journalEntryId?: string;
+  
+  // Internal (In-House)
+  machineName?: string;
+  operatorName?: string;
+  internalCostEstimate?: number;
+
+  // Technical details
+  quantity?: number;
+  unit?: string;
+  specifications?: string;
+  notes?: string;
+  completedAt?: string;
+}
+
+export interface PrintingJobOrder {
+  id: string; // e.g. JOB-2026-0001
+  code: string;
+  date: string;
+  deliveryDate?: string;
+  customerId: string;
+  customerName: string;
+  companyName?: string;
+  productTitle: string; // اسم المطبوع (مثال: علبة عطر 50 مل فاخرة)
+  productCategory?: string; // علب كرتون / بروشور / كتالوج / كروت / أكياس
+  quantity: number; // الكمية المطلوبة
+  unit: string; // عدد / علبة / ألف / كرتونة
+  
+  // Financials
+  clientSalePrice: number; // سعر البيع المتفق عليه للعميل
+  taxRate?: number;
+  taxAmount?: number;
+  totalWithTax?: number;
+  
+  // Operations & Workflow
+  operations: JobOperationItem[];
+  currentStageIndex: number;
+  status: 'draft' | 'in_progress' | 'completed' | 'delivered' | 'cancelled';
+
+  // Cost & Profit Summary
+  totalActualCost: number; // مجموع تكاليف العمليات المكتملة
+  grossProfit: number; // clientSalePrice - totalActualCost
+  profitMarginPercent: number; // (grossProfit / clientSalePrice) * 100
+
+  // Billing & Closing
+  salesInvoiceId?: string;
+  cogsJournalEntryId?: string;
+  notes?: string;
+  createdAt: string;
+  branchId?: string;
+}
+
+// Consolidated Vendor Invoice (Feature 5)
+export interface ConsolidatedVendorInvoiceLine {
+  id: string;
+  jobOrderId: string;
+  jobOrderCode: string;
+  customerName: string;
+  operationId: PrintingOperationId;
+  operationName: string;
+  amount: number;
+  notes?: string;
+}
+
+export interface ConsolidatedVendorInvoice {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  supplierId: string;
+  supplierName: string;
+  totalAmount: number;
+  paymentMethod: 'نقدي' | 'اجل';
+  lines: ConsolidatedVendorInvoiceLine[];
+  journalEntryId?: string;
+  createdAt: string;
+  notes?: string;
 }
 

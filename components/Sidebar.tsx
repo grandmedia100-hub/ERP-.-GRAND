@@ -92,9 +92,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       label: 'التصنيع والتشغيل',
       icon: '🏗️',
       permission: 'access_manufacturing',
-      targetPage: 'manufacturing',
+      targetPage: 'printingJobs',
       subItems: [
-        { id: 'manufacturing', label: 'أوامر التصنيع والتشغيل', icon: '📋' },
+        { id: 'printingJobs', label: 'أوامر تشغيل المطبوعات (لدى الغير / داخلي)', icon: '🖨️', permission: 'access_printing_jobs' },
+        { id: 'manufacturing', label: 'تصنيع الكرتون والتشغيل الداخلي', icon: '📋', permission: 'access_manufacturing' },
         { id: 'inventory', label: 'خامات ومستلزمات الإنتاج', icon: '📦', permission: 'access_inventory' },
       ]
     },
@@ -154,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return currentUser?.permissions?.includes(permission as any) || false;
   };
 
-  const filteredModules = navModules.filter(m => hasPermission(m.permission));
+  const filteredModules = navModules.filter(m => hasPermission(m.permission) || (m.subItems && m.subItems.some(s => hasPermission(s.permission))));
 
   const handleSelectPage = (page: Page) => {
     setActivePage(page);

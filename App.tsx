@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings, PurchaseRequest, PurchaseOrder } from './types.ts';
+import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings, PurchaseRequest, PurchaseOrder, PrintingJobOrder, ConsolidatedVendorInvoice } from './types.ts';
 
 // Component Imports
 import Sidebar from './components/Sidebar.tsx';
@@ -24,6 +24,7 @@ import UsersManagement from './components/UsersManagement.tsx';
 import AuditLog from './components/AuditLog.tsx';
 import FixedAssets from './components/FixedAssets.tsx';
 import Manufacturing from './components/Manufacturing.tsx';
+import PrintingJobOrders from './components/PrintingJobOrders.tsx';
 import AccountingSettingsPage from './components/AccountingSettingsPage.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
 import AccountingAuditModal from './components/AccountingAuditModal.tsx';
@@ -259,6 +260,7 @@ const PAGE_TITLES: Record<Page, string> = {
     inventory: 'إدارة المخزون والأصناف',
     warehouse: 'إدارة المستودعات والجرد',
     manufacturing: 'أوامر التصنيع والتشغيل',
+    printingJobs: 'أوامر تشغيل المطبوعات والتوريدات',
     customers: 'حسابات العملاء والتحصيلات',
     suppliers: 'حسابات الموردين والمدفوعات',
     treasury: 'الخزينة والمصارف',
@@ -361,6 +363,8 @@ const App: React.FC = () => {
     const [productionPlans, setProductionPlans] = useKVServerState<ProductionPlan>([], branchKey('productionPlans'));
     const [purchaseRequests, setPurchaseRequests] = useKVServerState<PurchaseRequest>([], branchKey('purchaseRequests'));
     const [purchaseOrders, setPurchaseOrders] = useKVServerState<PurchaseOrder>([], branchKey('purchaseOrders'));
+    const [printingJobOrders, setPrintingJobOrders] = useKVServerState<PrintingJobOrder>([], branchKey('printingJobOrders'));
+    const [consolidatedInvoices, setConsolidatedInvoices] = useKVServerState<ConsolidatedVendorInvoice>([], branchKey('consolidatedInvoices'));
     const [partners, setPartners] = useServerState<any>(initialData.partners || [], branchKey('partners'), 'partners', currentBranchId);
     const [partnerTransactions, setPartnerTransactions] = useServerState<any>(initialData.partnerTransactions || [], branchKey('partnerTransactions'), 'partner_transactions', currentBranchId);
     const [expenses, setExpenses] = useServerState<any>(initialData.expenses || [], branchKey('expenses'), 'expenses', currentBranchId);
@@ -794,6 +798,23 @@ const App: React.FC = () => {
                 onClearInitialData={() => setManufacturingInitialOrder(null)}
                 postingSettings={postingSettings}
                 currentUser={currentUser}
+            />;
+        }
+        if (activePage === 'printingJobs' && (hasPermission('access_printing_jobs') || hasPermission('access_manufacturing'))) {
+            return <PrintingJobOrders
+                jobOrders={printingJobOrders}
+                setJobOrders={setPrintingJobOrders}
+                consolidatedInvoices={consolidatedInvoices}
+                setConsolidatedInvoices={setConsolidatedInvoices}
+                customers={customers}
+                suppliers={suppliers}
+                accounts={accounts}
+                currentUser={currentUser}
+                createJournalEntry={createJournalEntry}
+                logAction={logAction}
+                postingSettings={postingSettings}
+                currentBranchId={currentBranchId}
+                onNavigate={(page) => setActivePage(page as any)}
             />;
         }
         if (activePage === 'customers' && hasPermission('access_customers')) {
