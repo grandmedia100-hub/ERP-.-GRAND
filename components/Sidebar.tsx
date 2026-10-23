@@ -172,13 +172,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 right-0 z-30 h-full w-72 bg-white text-gray-800 shadow-xl flex flex-col transition-transform duration-300 ease-in-out border-l border-gray-100 flex-shrink-0 select-none overscroll-contain
+        fixed top-0 right-0 z-30 h-full w-72 bg-white text-gray-800 shadow-xl flex flex-col transition-transform duration-300 ease-in-out border-l border-gray-100 flex-shrink-0 select-none
         md:relative md:translate-x-0
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-      `}
-      style={{ overscrollBehavior: 'contain' }}
-      onWheel={(e) => { e.stopPropagation(); }}
-      >
+      `}>
         {/* Brand Header */}
         <div className="p-5 text-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white relative">
           <div className="flex items-center justify-center gap-2">
@@ -207,7 +204,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Modules with Dropdowns */}
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto custom-scrollbar overscroll-contain" style={{ overscrollBehavior: 'contain' }}>
+        <nav className="flex-1 min-h-0 p-3 space-y-1.5 overflow-y-auto custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
           {filteredModules.map(mod => {
             const hasSub = mod.subItems.length > 0;
             const isExpanded = !!expandedModules[mod.id];

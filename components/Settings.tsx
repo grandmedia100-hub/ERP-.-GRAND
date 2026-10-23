@@ -711,6 +711,132 @@ const Settings: React.FC<SettingsProps> = ({
         )
       }
 
+      
+      {/* Typography & Font Settings Section */}
+      <div className="bg-theme-card p-8 rounded-xl shadow-md max-w-3xl mx-auto mb-8 relative overflow-hidden text-right border border-gray-100">
+        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs px-2.5 py-1 rounded-bl-lg font-bold">تخصيص العرض</div>
+        <h2 className="text-xl font-bold text-main mb-6 pb-2 border-b flex items-center gap-2">
+          <span className="text-2xl">🔤</span>
+          الخطوط وحجم النصوص (Typography & Font Size)
+        </h2>
+
+        {/* 1. Font Family Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-gray-700 mb-2">نوع الخط المفضل (Font Family):</label>
+          <p className="text-xs text-gray-500 mb-4">اختر الخط العربي الأنسب لراحتك البصرية أثناء العمل على الفواتير والتقارير.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { id: 'Cairo', name: 'Cairo (القاهرة)', desc: 'عصري وواضح وشامل', sample: 'نظام ميديا هايف ERP' },
+              { id: 'Tajawal', name: 'Tajawal (تجوال)', desc: 'متوازن ورسمي', sample: 'نظام ميديا هايف ERP' },
+              { id: 'Almarai', name: 'Almarai (المراعي)', desc: 'مريح جداً للعين والجداول', sample: 'نظام ميديا هايف ERP' },
+              { id: 'Alexandria', name: 'Alexandria (الإسكندرية)', desc: 'حديث للشركات', sample: 'نظام ميديا هايف ERP' },
+              { id: 'IBM Plex Sans Arabic', name: 'IBM Plex (آي بي إم)', desc: 'تقني واحترافي دقيق', sample: 'نظام ميديا هايف ERP' },
+              { id: 'Amiri', name: 'Amiri (الأميري)', desc: 'كلاسيكي ورسمي', sample: 'نظام ميديا هايف ERP' },
+            ].map(f => {
+              const isSelected = (themeSettings.fontFamily || 'Cairo') === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setThemeSettings({ ...themeSettings, fontFamily: f.id })}
+                  className={`p-3.5 rounded-xl border-2 text-right transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-sm ring-2 ring-indigo-100'
+                      : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                  }`}
+                  style={{ fontFamily: `'${f.id}', sans-serif` }}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className={`text-sm font-bold ${isSelected ? 'text-indigo-700' : 'text-gray-800'}`}>{f.name}</span>
+                    {isSelected && <span className="text-xs text-indigo-600 font-bold">✓</span>}
+                  </div>
+                  <span className="text-[11px] text-gray-500 mb-2">{f.desc}</span>
+                  <div className="text-sm font-bold text-gray-700 pt-1 border-t border-gray-100">{f.sample}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. Font Size / UI Zoom */}
+        <div className="mb-6 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-bold text-gray-700">مقياس حجم الخط وعرض الشاشة (Font & Zoom Scale):</label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setThemeSettings({ ...themeSettings, uiScale: Math.max(55, (themeSettings.uiScale || 75) - 5) })}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm shadow-xs transition-colors"
+                title="تصغير الخط"
+              >
+                -
+              </button>
+              <span className="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg text-sm border border-indigo-100 min-w-[55px] text-center">
+                {themeSettings.uiScale || 75}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setThemeSettings({ ...themeSettings, uiScale: Math.min(130, (themeSettings.uiScale || 75) + 5) })}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm shadow-xs transition-colors"
+                title="تكبير الخط"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              { label: 'مدمج (65%)', val: 65 },
+              { label: 'صغير (70%)', val: 70 },
+              { label: 'افتراضي (75%)', val: 75 },
+              { label: 'متوسط (85%)', val: 85 },
+              { label: 'كبير (100%)', val: 100 },
+              { label: 'كبير جداً (115%)', val: 115 },
+            ].map(p => (
+              <button
+                key={p.val}
+                type="button"
+                onClick={() => setThemeSettings({ ...themeSettings, uiScale: p.val })}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                  (themeSettings.uiScale || 75) === p.val
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            type="range"
+            min="55"
+            max="130"
+            step="5"
+            value={themeSettings.uiScale || 75}
+            onChange={(e) => setThemeSettings({ ...themeSettings, uiScale: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+
+        {/* 3. Live Preview Card */}
+        <div 
+          className="p-4 rounded-xl bg-slate-50 border border-slate-200 mt-4 text-right transition-all"
+          style={{ fontFamily: `'${themeSettings.fontFamily || 'Cairo'}', sans-serif` }}
+        >
+          <div className="text-xs font-bold text-gray-500 mb-1">معاينة حية للمظهر والخط المختار:</div>
+          <div className="text-base font-bold text-gray-900 mb-1">
+            مجموعة ميديا هايف للطباعة والتغليف - فرع جراند ميديا
+          </div>
+          <div className="text-xs text-gray-600 flex items-center justify-between">
+            <span>فاتورة مبيعات #SINV-2026-001 | إجمالي الفاتورة: 125,000 ج.م</span>
+            <span className="text-emerald-600 font-bold">الحالة: مرحلة ✅</span>
+          </div>
+        </div>
+      </div>
+
       {/* Theme Selector Section */}
       <div className="bg-theme-card p-8 rounded-xl shadow-md max-w-3xl mx-auto mb-8 relative overflow-hidden text-right">
         <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">جديد</div>
