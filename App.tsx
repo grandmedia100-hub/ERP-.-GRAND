@@ -806,6 +806,8 @@ const App: React.FC = () => {
                 setJobOrders={setPrintingJobOrders}
                 consolidatedInvoices={consolidatedInvoices}
                 setConsolidatedInvoices={setConsolidatedInvoices}
+                salesInvoices={salesInvoices}
+                setSalesInvoices={setSalesInvoices}
                 customers={customers}
                 suppliers={suppliers}
                 accounts={accounts}

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type {
   PrintingJobOrder, JobOperationItem, PrintingOperationId, PrintingOperationDefinition,
   ConsolidatedVendorInvoice, ConsolidatedVendorInvoiceLine, Customer, Supplier, Account,
-  JournalEntry, ModulePostingSettings, Permission
+  JournalEntry, ModulePostingSettings, Permission, SalesInvoice
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
 
@@ -60,6 +60,8 @@ interface PrintingJobOrdersProps {
   setJobOrders: React.Dispatch<React.SetStateAction<PrintingJobOrder[]>>;
   consolidatedInvoices: ConsolidatedVendorInvoice[];
   setConsolidatedInvoices: React.Dispatch<React.SetStateAction<ConsolidatedVendorInvoice[]>>;
+  salesInvoices?: SalesInvoice[];
+  setSalesInvoices?: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
   customers: Customer[];
   suppliers: Supplier[];
   accounts: Account[];
@@ -76,6 +78,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   setJobOrders,
   consolidatedInvoices = [],
   setConsolidatedInvoices,
+  salesInvoices = [],
+  setSalesInvoices,
   customers = [],
   suppliers = [],
   accounts = [],
@@ -459,19 +463,60 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     showNotification(`تم اعتماد مرحلة (${op.name}) وترحيل القيد بنجاح ✅`, 'success');
   };
 
-  // Final Delivery & Revenue Recognition
+  // Final Delivery & Revenue Recognition (Creates real Sales Invoice in Sales Module)
   const handleDeliverJobOrder = (order: PrintingJobOrder) => {
     if (order.status === 'delivered') return;
 
     const customer = customers.find(c => c.id === order.customerId);
     const customerName = customer?.name || order.customerName;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yearStr = todayStr.split('-')[0];
 
-    // 1. Revenue Entry: Debit Customer, Credit Printing Revenue
+    // Generate Sales Invoice ID
+    const invCount = (salesInvoices?.length || 0) + 1;
+    const invId = `INV-${yearStr}-${String(invCount).padStart(4, '0')}`;
+
+    // 1. Calculate Unit Price
+    const unitPrice = order.quantity > 0 ? (order.clientSalePrice / order.quantity) : order.clientSalePrice;
+
+    // 2. Create the real Sales Invoice object
+    const newInvoice: SalesInvoice = {
+      id: invId,
+      customerId: order.customerId,
+      customerName: customerName,
+      companyName: customer?.companyName || order.companyName,
+      date: todayStr,
+      items: [
+        {
+          productId: `PRNT-${order.code}`,
+          productName: order.productTitle,
+          quantity: order.quantity,
+          price: unitPrice,
+          total: order.clientSalePrice,
+          unit: (order.unit as any) || 'عدد',
+          itemType: 'expense', // Marked as custom service/expense item so it does not fail physical raw stock lookup
+          cost: order.totalActualCost
+        }
+      ],
+      subTotal: order.clientSalePrice,
+      total: order.clientSalePrice,
+      paymentMethod: 'اجل',
+      invoiceType: 'sale',
+      notes: `فاتورة مبيعات مسندة عن أمر تشغيل مطبوعات رقم ${order.code}${order.notes ? ` - ${order.notes}` : ''}`,
+      status: 'active',
+      branchId: currentBranchId
+    };
+
+    if (setSalesInvoices) {
+      setSalesInvoices(prev => [newInvoice, ...prev]);
+    }
+
+    // 3. Revenue Entry: Debit Customer, Credit Printing Revenue
     const revenueEntryId = createJournalEntry({
-      description: `إيراد تسليم أمر شغل مطبوعات ${order.code} - العميل: ${customerName}`,
-      date: new Date().toISOString().split('T')[0],
+      description: `فاتورة مبيعات ${invId} - تسليم أمر شغل مطبوعات ${order.code} - العميل: ${customerName}`,
+      date: todayStr,
       referenceType: 'SalesInvoice',
-      referenceId: order.code,
+      referenceId: invId,
       branchId: currentBranchId,
       lines: [
         {
@@ -489,14 +534,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       ]
     });
 
-    // 2. COGS Entry: Debit COGS (Printing), Credit WIP (Printing Job)
+    // 4. COGS Entry: Debit COGS (Printing), Credit WIP (Printing Job)
     let cogsEntryId: string | undefined = undefined;
     if (order.totalActualCost > 0) {
       cogsEntryId = createJournalEntry({
-        description: `إقفال تكلفة أوامر تشغيل مطبوعات (COGS) - أمر شغل ${order.code}`,
-        date: new Date().toISOString().split('T')[0],
+        description: `إقفال تكلفة أوامر تشغيل مطبوعات (COGS) - أمر شغل ${order.code} - فاتورة ${invId}`,
+        date: todayStr,
         referenceType: 'SalesInvoice',
-        referenceId: order.code,
+        referenceId: invId,
         branchId: currentBranchId,
         lines: [
           {
@@ -518,15 +563,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const updatedOrder: PrintingJobOrder = {
       ...order,
       status: 'delivered',
-      salesInvoiceId: revenueEntryId,
+      salesInvoiceId: invId,
       cogsJournalEntryId: cogsEntryId
     };
 
     setJobOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
     if (viewingJob?.id === order.id) setViewingJob(updatedOrder);
 
-    logAction(`تسليم أمر شغل المطبوعات ${order.code} للعميل ${customerName} وترحيل الإيراد وتكلفة المبيعات`);
-    showNotification(`تم تسليم الطلبية وإصدار الفاتورة وإقفال التكاليف في قائمة الدخل بنجاح 📦`, 'success');
+    logAction(`تسليم أمر شغل المطبوعات ${order.code} وإصدار فاتورة بيع ${invId} للعميل ${customerName}`);
+    showNotification(`تم إنشاء فاتورة المبيعات (${invId}) في قسم المبيعات وتسليم الطلبية بنجاح 📦`, 'success');
   };
 
   // ==================== Feature 5: Consolidated Vendor Invoices ====================
@@ -941,12 +986,23 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </div>
                         </td>
 
-                        {/* Status Badge */}
+                        {/* Status Badge & Invoice Link */}
                         <td className="p-3.5">
                           {order.status === 'delivered' ? (
-                            <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1">
-                              <span>📦</span> تم التسليم
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1">
+                                <span>📦</span> تم التسليم
+                              </span>
+                              {order.salesInvoiceId && (
+                                <button
+                                  onClick={() => onNavigate && onNavigate('sales')}
+                                  className="text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1"
+                                  title="فتح شاشة فواتير المبيعات"
+                                >
+                                  <span>🧾</span> {order.salesInvoiceId}
+                                </button>
+                              )}
+                            </div>
                           ) : order.status === 'completed' ? (
                             <span className="bg-blue-100 text-blue-800 font-bold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1">
                               <span>✅</span> مكتمل
@@ -1604,7 +1660,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   إغلاق
                 </button>
 
-                {viewingJob.status !== 'delivered' && (
+                {viewingJob.status === 'delivered' ? (
+                  <button
+                    onClick={() => {
+                      if (onNavigate) onNavigate('sales');
+                    }}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all"
+                  >
+                    <span>🧾</span>
+                    <span>عرض فاتورة البيع في المبيعات ({viewingJob.salesInvoiceId || 'فاتورة المبيعات'})</span>
+                  </button>
+                ) : (
                   <button
                     onClick={() => handleDeliverJobOrder(viewingJob)}
                     className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all"
