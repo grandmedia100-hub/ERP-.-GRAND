@@ -1250,38 +1250,6 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     showNotification(`تم حذف الفاتورة المجمعة وإلغاء الاستحقاق بنجاح ✅`, 'success');
   };
 
-  // ==================== Feature 6: Customer Profitability Analysis ====================
-  const customerProfitabilityData = useMemo(() => {
-    const list = reportCustomerId === 'all'
-      ? customers
-      : customers.filter(c => c.id === reportCustomerId);
-
-    return list.map(customer => {
-      const orders = jobOrders.filter(o => {
-        const matchCust = o.customerId === customer.id;
-        const matchStart = !reportDateStart || o.date >= reportDateStart;
-        const matchEnd = !reportDateEnd || o.date <= reportDateEnd;
-        return matchCust && matchStart && matchEnd;
-      });
-
-      const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.clientSalePrice) || 0), 0);
-      const totalCost = orders.reduce((sum, o) => sum + (Number(o.totalActualCost) || 0), 0);
-      const netProfit = totalRevenue - totalCost;
-      const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-
-      return {
-        customer,
-        orderCount: orders.length,
-        totalRevenue,
-        totalCost,
-        netProfit,
-        margin,
-        orders
-      };
-    }).filter(d => d.orderCount > 0 || reportCustomerId !== 'all')
-      .sort((a, b) => b.netProfit - a.netProfit);
-  }, [customers, jobOrders, reportCustomerId, reportDateStart, reportDateEnd]);
-
   return (
     <div className="space-y-6 pb-12 font-sans" dir="rtl">
       {/* ==================== Top Header & Action Bar ==================== */}
