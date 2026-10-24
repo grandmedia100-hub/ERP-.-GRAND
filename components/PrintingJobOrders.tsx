@@ -3,12 +3,13 @@ import type {
   PrintingJobOrder, JobOperationItem, PrintingOperationId, PrintingOperationDefinition,
   ConsolidatedVendorInvoice, ConsolidatedVendorInvoiceLine, Customer, Supplier, Account,
   JournalEntry, ModulePostingSettings, Permission, SalesInvoice, PurchaseInvoice,
-  BoxStructureType, CartonBoxSpecs
+  BoxStructureType, CartonBoxSpecs, OperationBillingStatus
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
 
-// ==================== 20 Standard Printing & Carton Operations Catalog ====================
+// ==================== 21 Standard Printing & Carton Operations Catalog ====================
 export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
+  { id: 'paper_supply', name: 'توريد ورق خام / بكر وشيتات', category: 'prepress', icon: '📜', defaultUnit: 'طن / رزمة / كجم' },
   { id: 'paper_cutting', name: 'قص ورق', category: 'prepress', icon: '✂️', defaultUnit: 'رزمة / فرخ' },
   { id: 'ctp_plates', name: 'ذنكات (CTP)', category: 'prepress', icon: '💿', defaultUnit: 'عدد زنكات' },
   { id: 'laser_die', name: 'فورمة تكسير', category: 'prepress', icon: '📐', defaultUnit: 'فورمة' },
@@ -189,23 +190,36 @@ export function calculateBoxBlank(
   }
 }
 
+export interface ImpositionResult {
+  upsPerSheet: number;
+  cols: number;
+  rows: number;
+  orientation: 'normal' | 'rotated';
+  sheetUsagePercent: number;
+  wastePercent: number;
+  totalSheetsRequired: number;
+  sheetsWithoutSpoilage: number;
+  spoilageSheets: number;
+  placedBoxLength: number;
+  placedBoxWidth: number;
+  totalUsedLength: number;
+  totalUsedWidth: number;
+  wasteLength: number;
+  wasteWidth: number;
+  sheetArea: number;
+  blanksArea: number;
+  wasteArea: number;
+}
+
 export function calculateImposition(
   sheetL: number,
   sheetW: number,
   blankL: number,
   blankW: number,
   orderQty: number,
-  spoilagePct: number
-): {
-  upsPerSheet: number;
-  cols: number;
-  rows: number;
-  orientation: 'normal' | 'rotated';
-  sheetUsagePercent: number;
-  totalSheetsRequired: number;
-  sheetsWithoutSpoilage: number;
-  spoilageSheets: number;
-} {
+  spoilagePct: number,
+  forcedOrientation?: 'auto' | 'normal' | 'rotated'
+): ImpositionResult {
   if (sheetL <= 0 || sheetW <= 0 || blankL <= 0 || blankW <= 0) {
     return {
       upsPerSheet: 1,
@@ -213,9 +227,19 @@ export function calculateImposition(
       rows: 1,
       orientation: 'normal',
       sheetUsagePercent: 0,
-      totalSheetsRequired: orderQty,
-      sheetsWithoutSpoilage: orderQty,
-      spoilageSheets: 0
+      wastePercent: 100,
+      totalSheetsRequired: orderQty || 1,
+      sheetsWithoutSpoilage: orderQty || 1,
+      spoilageSheets: 0,
+      placedBoxLength: blankL,
+      placedBoxWidth: blankW,
+      totalUsedLength: blankL,
+      totalUsedWidth: blankW,
+      wasteLength: 0,
+      wasteWidth: 0,
+      sheetArea: 0,
+      blanksArea: 0,
+      wasteArea: 0
     };
   }
 
@@ -233,22 +257,54 @@ export function calculateImposition(
   let cols = 1;
   let rows = 1;
   let orientation: 'normal' | 'rotated' = 'normal';
+  let placedBoxL = blankL;
+  let placedBoxW = blankW;
 
-  if (count2 > count1) {
-    ups = count2;
-    cols = cols2;
-    rows = rows2;
-    orientation = 'rotated';
-  } else {
+  const mode = forcedOrientation || 'auto';
+
+  if (mode === 'normal') {
     ups = Math.max(count1, 1);
     cols = Math.max(cols1, 1);
     rows = Math.max(rows1, 1);
     orientation = 'normal';
+    placedBoxL = blankL;
+    placedBoxW = blankW;
+  } else if (mode === 'rotated') {
+    ups = Math.max(count2, 1);
+    cols = Math.max(cols2, 1);
+    rows = Math.max(rows2, 1);
+    orientation = 'rotated';
+    placedBoxL = blankW;
+    placedBoxW = blankL;
+  } else {
+    // Auto best
+    if (count2 > count1) {
+      ups = count2;
+      cols = cols2;
+      rows = rows2;
+      orientation = 'rotated';
+      placedBoxL = blankW;
+      placedBoxW = blankL;
+    } else {
+      ups = Math.max(count1, 1);
+      cols = Math.max(cols1, 1);
+      rows = Math.max(rows1, 1);
+      orientation = 'normal';
+      placedBoxL = blankL;
+      placedBoxW = blankW;
+    }
   }
 
   const sheetArea = sheetL * sheetW;
   const blanksArea = ups * (blankL * blankW);
   const sheetUsagePercent = sheetArea > 0 ? Math.min((blanksArea / sheetArea) * 100, 100) : 0;
+  const wastePercent = Math.max(0, 100 - sheetUsagePercent);
+  const wasteArea = Math.max(0, sheetArea - blanksArea);
+
+  const totalUsedLength = cols * placedBoxL;
+  const totalUsedWidth = rows * placedBoxW;
+  const wasteLength = Math.max(0, parseFloat((sheetL - totalUsedLength).toFixed(1)));
+  const wasteWidth = Math.max(0, parseFloat((sheetW - totalUsedWidth).toFixed(1)));
 
   const sheetsWithoutSpoilage = Math.ceil((orderQty || 1) / ups);
   const spoilageSheets = Math.ceil(sheetsWithoutSpoilage * ((spoilagePct || 0) / 100));
@@ -260,30 +316,585 @@ export function calculateImposition(
     rows,
     orientation,
     sheetUsagePercent: parseFloat(sheetUsagePercent.toFixed(1)),
+    wastePercent: parseFloat(wastePercent.toFixed(1)),
     totalSheetsRequired,
     sheetsWithoutSpoilage,
-    spoilageSheets
+    spoilageSheets,
+    placedBoxLength: placedBoxL,
+    placedBoxWidth: placedBoxW,
+    totalUsedLength,
+    totalUsedWidth,
+    wasteLength,
+    wasteWidth,
+    sheetArea,
+    blanksArea,
+    wasteArea
   };
 }
+
+export interface SheetAdvisorOption {
+  key: string;
+  name: string;
+  sheetL: number;
+  sheetW: number;
+  ups: number;
+  usagePercent: number;
+  wastePercent: number;
+  sheetsNeeded: number;
+  isBest: boolean;
+}
+
+export function evaluateStandardSheets(
+  blankL: number,
+  blankW: number,
+  orderQty: number,
+  spoilagePct: number
+): SheetAdvisorOption[] {
+  const standardSheets = [
+    { key: '70x100', name: '70 × 100 سم (فرخ كامل)', sheetL: 100, sheetW: 70 },
+    { key: '66x88',  name: '66 × 88 سم (جاير)',      sheetL: 88,  sheetW: 66 },
+    { key: '60x90',  name: '60 × 90 سم (ميديوم)',    sheetL: 90,  sheetW: 60 },
+    { key: '50x70',  name: '50 × 70 سم (نصف فرخ)',  sheetL: 70,  sheetW: 50 },
+  ];
+
+  const results = standardSheets.map(s => {
+    const imp = calculateImposition(s.sheetL, s.sheetW, blankL, blankW, orderQty, spoilagePct, 'auto');
+    return {
+      key: s.key,
+      name: s.name,
+      sheetL: s.sheetL,
+      sheetW: s.sheetW,
+      ups: imp.upsPerSheet,
+      usagePercent: imp.sheetUsagePercent,
+      wastePercent: imp.wastePercent,
+      sheetsNeeded: imp.totalSheetsRequired,
+      isBest: false
+    };
+  });
+
+  let bestIdx = 0;
+  let maxUsage = -1;
+  results.forEach((r, idx) => {
+    if (r.ups > 0 && r.usagePercent > maxUsage) {
+      maxUsage = r.usagePercent;
+      bestIdx = idx;
+    }
+  });
+
+  if (results[bestIdx]) {
+    results[bestIdx].isBest = true;
+  }
+
+  return results;
+}
+
+// ==================== VISUAL COMPONENT 1: BOX STRUCTURE VIEWER ====================
+export const BoxStructureViewer: React.FC<{
+  structure: BoxStructureType;
+  L: number;
+  W: number;
+  H: number;
+  blankL: number;
+  blankW: number;
+}> = ({ structure, L, W, H, blankL, blankW }) => {
+  const [viewMode, setViewMode] = useState<'3d' | 'dieline'>('3d');
+  const opt = BOX_STRUCTURE_OPTIONS.find(b => b.type === structure);
+
+  return (
+    <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 space-y-3">
+      {/* Header & Tabs */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{opt?.icon || '📦'}</span>
+          <div>
+            <h4 className="font-bold text-xs text-amber-400">{opt?.name} ({opt?.fefcoCode})</h4>
+            <p className="text-[10px] text-slate-400">{opt?.description}</p>
+          </div>
+        </div>
+
+        <div className="flex bg-slate-800 p-0.5 rounded-lg text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setViewMode('3d')}
+            className={`px-3 py-1 rounded-md transition-all ${
+              viewMode === '3d' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            المجسم (3D)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('dieline')}
+            className={`px-3 py-1 rounded-md transition-all ${
+              viewMode === 'dieline' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            إفراد الفورمة (Dieline)
+          </button>
+        </div>
+      </div>
+
+      {/* Visual Canvas Area */}
+      <div className="h-44 w-full bg-slate-950/70 rounded-xl border border-slate-800/80 flex items-center justify-center p-2 relative overflow-hidden">
+        {viewMode === '3d' ? (
+          <div className="w-full h-full flex flex-col items-center justify-center">
+            {structure === 'auto_lock' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="60,35 140,35 160,65 80,65" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="40,60 80,65 80,120 40,110" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="80,65 160,65 160,120 80,120" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="160,65 180,55 180,105 160,120" fill="#312e81" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="80,65 60,30 140,30 160,65" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1.5" opacity="0.9" />
+                <polygon points="60,30 80,14 120,14 140,30" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <line x1="80" y1="120" x2="65" y2="130" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="3 2" />
+                <line x1="160" y1="120" x2="145" y2="130" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="3 2" />
+                <text x="120" y="96" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">قفل أوتوماتيك</text>
+                <text x="100" y="24" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">لسان علوي</text>
+              </svg>
+            )}
+
+            {structure === 'mailer_pizza' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="30,80 150,80 180,110 60,110" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="30,80 30,100 60,110 60,90" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="60,110 180,110 180,100 60,100" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="150,80 180,110 180,100 150,70" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="30,80 150,80 140,20 20,20" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1.5" opacity="0.9" />
+                <polygon points="20,20 140,20 135,10 25,10" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <polygon points="20,20 10,35 25,45 30,80" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1" opacity="0.8" />
+                <polygon points="140,20 150,35 145,45 150,80" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1" opacity="0.8" />
+                <text x="80" y="50" fill="#ffffff" fontSize="9" fontWeight="bold" textAnchor="middle">غطاء بيتزا بأذن</text>
+                <text x="120" y="100" fill="#e0e7ff" fontSize="9" fontWeight="bold" textAnchor="middle">قاعدة كرتون</text>
+              </svg>
+            )}
+
+            {structure === 'rsc' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="40,50 90,60 90,120 40,105" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="90,60 170,60 170,120 90,120" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="170,60 185,50 185,105 170,120" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="40,50 90,60 75,40 25,30" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1.5" />
+                <polygon points="90,60 170,60 155,40 105,40" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <line x1="90" y1="60" x2="170" y2="60" stroke="#fbbf24" strokeWidth="2.5" />
+                <text x="130" y="95" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">كرتونة عادية RSC</text>
+                <text x="130" y="52" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">شريط لاصق</text>
+              </svg>
+            )}
+
+            {structure === 'reverse_tuck' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="65,30 135,30 135,118 65,118" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="40,40 65,30 65,118 40,128" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="65,30 135,30 130,12 70,12" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <polygon points="40,128 65,118 60,135 35,135" fill="#312e81" stroke="#a5b4fc" strokeWidth="1.5" />
+                <text x="100" y="80" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">لسان عكسي</text>
+                <text x="100" y="23" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">لسان أمامي</text>
+                <text x="50" y="138" fill="#fbbf24" fontSize="7" fontWeight="bold">لسان خلفي</text>
+              </svg>
+            )}
+
+            {structure === 'two_piece' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="50,85 150,85 170,115 70,115" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="50,85 70,115 70,130 50,100" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="70,115 170,115 170,130 70,130" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="45,35 155,35 175,65 65,65" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1.5" />
+                <polygon points="45,35 65,65 65,75 45,45" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="65,65 175,65 175,75 65,75" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <text x="110" y="52" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">الغطاء (Lid)</text>
+                <text x="115" y="106" fill="#e0e7ff" fontSize="10" fontWeight="bold" textAnchor="middle">القاعدة (Base)</text>
+              </svg>
+            )}
+
+            {structure === 'drawer_sleeve' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <polygon points="40,45 120,45 140,75 60,75" fill="#312e81" stroke="#4f46e5" strokeWidth="1.5" />
+                <polygon points="40,45 60,75 60,115 40,85" fill="#3730a3" stroke="#6366f1" strokeWidth="1.5" />
+                <polygon points="60,75 140,75 140,115 60,115" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+                <polygon points="120,60 170,60 185,85 135,85" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1.5" />
+                <polygon points="135,85 185,85 185,110 135,110" fill="#6366f1" stroke="#c7d2fe" strokeWidth="1.5" />
+                <rect x="180" y="95" width="10" height="5" rx="2" fill="#fbbf24" />
+                <text x="95" y="100" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">كفر خارجي</text>
+                <text x="160" y="100" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">درج سحاب</text>
+              </svg>
+            )}
+
+            {structure === 'custom_diecut' && (
+              <svg viewBox="0 0 200 140" className="w-44 h-32">
+                <rect x="30" y="20" width="140" height="95" rx="4" fill="#1e1b4b" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="4 2" />
+                <rect x="50" y="40" width="100" height="55" rx="3" fill="#312e81" stroke="#818cf8" strokeWidth="1.5" />
+                <circle cx="100" cy="68" r="14" fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="3 2" />
+                <text x="100" y="72" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle">فورمة خاصة</text>
+                <text x="100" y="105" fill="#94a3b8" fontSize="8" textAnchor="middle">مسطح مخصص حسب الطلب</text>
+              </svg>
+            )}
+          </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center">
+            <svg viewBox="0 0 220 135" className="w-48 h-32">
+              <rect x="25" y="20" width="170" height="90" rx="2" fill="#1e1b4b" stroke="#818cf8" strokeWidth="1.5" />
+              <line x1="65" y1="20" x2="65" y2="110" stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 2" />
+              <line x1="105" y1="20" x2="105" y2="110" stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 2" />
+              <line x1="145" y1="20" x2="145" y2="110" stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 2" />
+              <line x1="25" y1="45" x2="195" y2="45" stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 2" />
+              <line x1="25" y1="85" x2="195" y2="85" stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 2" />
+              
+              <rect x="25" y="45" width="12" height="40" fill="#fbbf24" opacity="0.3" stroke="#f59e0b" strokeWidth="1" />
+              <text x="31" y="68" fill="#fbbf24" fontSize="7" fontWeight="bold" textAnchor="middle" transform="rotate(-90 31 68)">لزق</text>
+
+              <text x="85" y="68" fill="#ffffff" fontSize="9" fontWeight="bold" textAnchor="middle">الواجهة</text>
+              <text x="125" y="68" fill="#cbd5e1" fontSize="8" textAnchor="middle">الجانب</text>
+              <text x="165" y="68" fill="#cbd5e1" fontSize="8" textAnchor="middle">الظهر</text>
+
+              <text x="110" y="14" fill="#38bdf8" fontSize="8" fontWeight="bold" textAnchor="middle">عرض المسطح: {blankW} سم</text>
+              <text x="208" y="70" fill="#38bdf8" fontSize="8" fontWeight="bold" textAnchor="middle" transform="rotate(90 208 70)">طول: {blankL} سم</text>
+            </svg>
+          </div>
+        )}
+
+        <div className="absolute bottom-2 left-2 bg-slate-900/90 px-2 py-0.5 rounded text-[10px] text-slate-300 font-mono border border-slate-700">
+          {viewMode === '3d' ? '3D Folded Preview' : 'Flat Dieline Blueprint'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== VISUAL COMPONENT 2: SCALED IMPOSITION CANVAS ====================
+export const ImpositionSheetCanvas: React.FC<{
+  sheetL: number;
+  sheetW: number;
+  blankL: number;
+  blankW: number;
+  imp: ImpositionResult;
+  advisorSheets: SheetAdvisorOption[];
+  onSelectSheet: (sheetL: number, sheetW: number, key: string) => void;
+  orientationMode: 'auto' | 'normal' | 'rotated';
+  onToggleOrientation: (mode: 'auto' | 'normal' | 'rotated') => void;
+}> = ({
+  sheetL,
+  sheetW,
+  blankL,
+  blankW,
+  imp,
+  advisorSheets,
+  onSelectSheet,
+  orientationMode,
+  onToggleOrientation
+}) => {
+  const svgWidth = 560;
+  const ratio = sheetL > 0 ? (sheetW / sheetL) : 0.7;
+  const svgHeight = Math.max(220, Math.min(380, Math.round(svgWidth * ratio)));
+
+  const scaleX = sheetL > 0 ? svgWidth / sheetL : 1;
+  const scaleY = sheetW > 0 ? svgHeight / sheetW : 1;
+
+  const boxPixelW = imp.placedBoxLength * scaleX;
+  const boxPixelH = imp.placedBoxWidth * scaleY;
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-indigo-200 p-4 space-y-4 shadow-sm">
+      {/* Top Advisor Pills: Compare Standard Sheets */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-gray-800 flex items-center gap-1.5">
+            <span>⚡</span>
+            <span>مستشار المقاسات الذكي (مقارنة نسبة الهالك بين مقاسات الأفرخ):</span>
+          </span>
+          <span className="text-[11px] font-bold text-indigo-600">
+            اضغط لتجربة أي فرخ ومعاينة الهالك فوراً 👇
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {advisorSheets.map(s => {
+            const isCurrent = sheetL === s.sheetL && sheetW === s.sheetW;
+            const isGood = s.usagePercent >= 75;
+
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => onSelectSheet(s.sheetL, s.sheetW, s.key)}
+                className={`p-2 rounded-xl border text-right transition-all flex flex-col justify-between ${
+                  isCurrent
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300'
+                    : 'bg-gray-50 hover:bg-indigo-50 border-gray-200 text-gray-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs truncate">{s.name}</span>
+                  {s.isBest && (
+                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
+                      isCurrent ? 'bg-amber-400 text-slate-900' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      ⭐ الأوفر
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <span>{s.ups} علب/فرخ</span>
+                  <span className={`font-black ${
+                    isCurrent
+                      ? 'text-white'
+                      : isGood ? 'text-emerald-700' : 'text-rose-600'
+                  }`}>
+                    استغلال: {s.usagePercent}%
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Efficiency & Waste Gauge Bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center text-xs font-bold">
+          <span className="flex items-center gap-1.5 text-gray-800">
+            <span>📊</span>
+            <span>كفاءة التخطيط للفرخ المختار ({sheetL}×{sheetW} سم):</span>
+          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-indigo-700 font-mono font-black">المساحة المستغلة: {imp.sheetUsagePercent}%</span>
+            <span className={`font-mono font-black ${imp.wastePercent > 25 ? 'text-rose-600' : 'text-amber-600'}`}>
+              الهالك والأطراف: {imp.wastePercent}%
+            </span>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="w-full bg-rose-100 h-3 rounded-full overflow-hidden flex border border-gray-200">
+          <div
+            className="bg-indigo-600 h-full transition-all duration-300 flex items-center justify-center text-[9px] text-white font-bold"
+            style={{ width: `${imp.sheetUsagePercent}%` }}
+          />
+          <div
+            className="bg-stripes-rose h-full flex-1"
+            title={`هالك أطراف وسحلة: ${imp.wastePercent}%`}
+          />
+        </div>
+
+        {/* Status Verdict */}
+        <div className="text-[11px] font-bold mt-1">
+          {imp.wastePercent <= 15 ? (
+            <span className="text-emerald-700 flex items-center gap-1">
+              <span>🟢</span>
+              <span>ممتاز واقتصادي جداً! نسبة الهالك منخفضة ({imp.wastePercent}%) والتوزيع يحقق أعلى وفر مالي.</span>
+            </span>
+          ) : imp.wastePercent <= 25 ? (
+            <span className="text-amber-700 flex items-center gap-1">
+              <span>🟡</span>
+              <span>استغلال متوسط ومقبول (هالك: {imp.wastePercent}%). يمكنك تجربة تدوير الرص أو المقاسات بالأعلى.</span>
+            </span>
+          ) : (
+            <span className="text-rose-700 flex items-center gap-1">
+              <span>🔴</span>
+              <span>تنبيه هالك مرتفع ({imp.wastePercent}%)! مساحة الورق المهدرة كبيرة؛ يُنصح باختيار مقاس فرخ آخر من المقترحات بالأعلى لتقليل التكلفة.</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Orientation Controls */}
+      <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
+        <span className="font-bold text-gray-700">اتجاه رص العلب بالفرخ:</span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onToggleOrientation('normal')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all ${
+              orientationMode === 'normal' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            عادي (أفقي)
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleOrientation('rotated')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all ${
+              orientationMode === 'rotated' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            تدوير 90° (رأسي)
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleOrientation('auto')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all ${
+              orientationMode === 'auto' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            تلقائي (الأعلى كفاءة)
+          </button>
+        </div>
+      </div>
+
+      {/* Visual Scaled SVG Canvas */}
+      <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-x-auto">
+        <div className="relative w-full max-w-[560px]">
+          <svg
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="w-full h-auto rounded-xl border-2 border-slate-700 shadow-inner bg-slate-950"
+          >
+            <defs>
+              <pattern id="wasteHatch" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="0" x2="0" y2="12" stroke="#f43f5e" strokeWidth="2.5" opacity="0.4" />
+              </pattern>
+              <linearGradient id="boxGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#4f46e5" />
+                <stop offset="100%" stopColor="#3730a3" />
+              </linearGradient>
+            </defs>
+
+            {/* Background: Entire Sheet filled with Waste Pattern */}
+            <rect x="0" y="0" width={svgWidth} height={svgHeight} fill="url(#wasteHatch)" rx="6" />
+
+            {/* Placed Boxes Grid */}
+            {Array.from({ length: imp.rows }).map((_, rIdx) => {
+              return Array.from({ length: imp.cols }).map((_, cIdx) => {
+                const boxIndex = rIdx * imp.cols + cIdx;
+                if (boxIndex >= imp.upsPerSheet) return null;
+
+                const posX = cIdx * boxPixelW;
+                const posY = rIdx * boxPixelH;
+                const innerMargin = 2;
+
+                return (
+                  <g key={`${rIdx}-${cIdx}`}>
+                    <rect
+                      x={posX + innerMargin}
+                      y={posY + innerMargin}
+                      width={Math.max(10, boxPixelW - innerMargin * 2)}
+                      height={Math.max(10, boxPixelH - innerMargin * 2)}
+                      rx="4"
+                      fill="url(#boxGrad)"
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                    <text
+                      x={posX + boxPixelW / 2}
+                      y={posY + boxPixelH / 2 - 2}
+                      fill="#ffffff"
+                      fontSize={boxPixelW < 70 ? "9" : "11"}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      علبة {boxIndex + 1}
+                    </text>
+                    <text
+                      x={posX + boxPixelW / 2}
+                      y={posY + boxPixelH / 2 + 12}
+                      fill="#c7d2fe"
+                      fontSize={boxPixelW < 70 ? "7" : "9"}
+                      textAnchor="middle"
+                    >
+                      {imp.placedBoxLength}×{imp.placedBoxWidth}
+                    </text>
+                  </g>
+                );
+              });
+            })}
+
+            {/* Waste Margin Callout Overlays */}
+            {imp.wasteLength > 0 && (
+              <g>
+                <rect
+                  x={imp.cols * boxPixelW}
+                  y="0"
+                  width={Math.max(0, svgWidth - imp.cols * boxPixelW)}
+                  height={svgHeight}
+                  fill="#f43f5e"
+                  opacity="0.15"
+                />
+                <text
+                  x={imp.cols * boxPixelW + (svgWidth - imp.cols * boxPixelW) / 2}
+                  y={svgHeight / 2}
+                  fill="#fb7185"
+                  fontSize="10"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  transform={svgWidth - imp.cols * boxPixelW < 40 ? `rotate(-90 ${imp.cols * boxPixelW + (svgWidth - imp.cols * boxPixelW) / 2} ${svgHeight / 2})` : undefined}
+                >
+                  فضلة طول {imp.wasteLength} سم
+                </text>
+              </g>
+            )}
+
+            {imp.wasteWidth > 0 && (
+              <g>
+                <rect
+                  x="0"
+                  y={imp.rows * boxPixelH}
+                  width={imp.cols * boxPixelW}
+                  height={Math.max(0, svgHeight - imp.rows * boxPixelH)}
+                  fill="#f43f5e"
+                  opacity="0.15"
+                />
+                <text
+                  x={(imp.cols * boxPixelW) / 2}
+                  y={imp.rows * boxPixelH + (svgHeight - imp.rows * boxPixelH) / 2 + 4}
+                  fill="#fb7185"
+                  fontSize="10"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  فضلة عرض {imp.wasteWidth} سم
+                </text>
+              </g>
+            )}
+
+            {/* Sheet Dimension Tags */}
+            <text x="12" y="16" fill="#94a3b8" fontSize="10" fontWeight="bold">
+              فرخ: {sheetL} × {sheetW} سم
+            </text>
+            <text x={svgWidth - 12} y="16" fill="#38bdf8" fontSize="10" fontWeight="bold" textAnchor="end">
+              {imp.upsPerSheet} علب بالفرخ ({imp.cols} × {imp.rows})
+            </text>
+          </svg>
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center justify-between w-full max-w-[560px] text-[11px] text-slate-300 pt-2 px-1">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-indigo-600 border border-white"></span>
+              <span>العلب المطبوعة (مساحة مستغلة)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-rose-500/40 border border-rose-400"></span>
+              <span>الهالك المتبقي (أطراف وسحلة غير مستغلة)</span>
+            </span>
+          </div>
+
+          <div className="font-mono text-amber-400 font-bold">
+            مساحة الهالك: {imp.wasteArea.toFixed(0)} سم² من أصل {imp.sheetArea.toFixed(0)} سم²
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const PRINTING_TEMPLATES: { name: string; icon: string; desc: string; operations: PrintingOperationId[] }[] = [
   {
     name: 'علب كرتون مضلع مبطن أوفست (Litho-Laminated)',
     icon: '📦',
-    desc: 'ورق طباعة أوفست + زنكات + طباعة + سلوفان + شيتات سينجل فيس + كستوة/تبطين + فورمة + تكسير + لزق وتقفيل + تغليف',
-    operations: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
+    desc: 'توريد ورق + زنكات + طباعة + سلوفان + شيتات سينجل فيس + كستوة/تبطين + فورمة + تكسير + لزق وتقفيل + تغليف',
+    operations: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
   },
   {
     name: 'علب كرتون وتغليف فاخر (دوبلكس مصمت)',
     icon: '🎁',
-    desc: 'ورق + زنكات + فورمة + طباعة + متلايز + سلوفان + سبوت UV + بصمة + كوفراج + تكسير + شباك + لزق + تغليف',
-    operations: ['paper_cutting', 'ctp_plates', 'laser_die', 'printing', 'gold_metalized', 'lamination', 'spot_uv', 'hot_foil', 'embossing', 'die_cutting', 'pvc_window', 'gluing', 'packaging', 'shipping']
+    desc: 'توريد ورق + زنكات + فورمة + طباعة + متلايز + سلوفان + سبوت UV + بصمة + كوفراج + تكسير + شباك + لزق + تغليف',
+    operations: ['paper_supply', 'paper_cutting', 'ctp_plates', 'laser_die', 'printing', 'gold_metalized', 'lamination', 'spot_uv', 'hot_foil', 'embossing', 'die_cutting', 'pvc_window', 'gluing', 'packaging', 'shipping']
   },
   {
     name: 'بروشور وفلاير تجاري',
     icon: '📄',
-    desc: 'قص ورق + زنكات + طباعة + سلوفان + تكسير وريجة + تغليف + شحن',
-    operations: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'die_cutting', 'packaging', 'shipping']
+    desc: 'توريد ورق + قص + زنكات + طباعة + سلوفان + تكسير وريجة + تغليف + شحن',
+    operations: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'die_cutting', 'packaging', 'shipping']
   },
   {
     name: 'كتالوج / مجلة / مفكرة',
@@ -370,6 +981,47 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   const [editingJob, setEditingJob] = useState<PrintingJobOrder | null>(null);
   const [viewingJob, setViewingJob] = useState<PrintingJobOrder | null>(null);
   const [isConsolidatedModalOpen, setIsConsolidatedModalOpen] = useState(false);
+
+  // Material / Stage Physical Delivery Modal (تسجيل استلام الخامات والوزن الفعلي)
+  const [receiveDeliveryModal, setReceiveDeliveryModal] = useState<{
+    orderId: string;
+    opIndex: number;
+    orderCode: string;
+    opName: string;
+    supplierName: string;
+    unit: string;
+    estimatedQty: number;
+    actualQuantity: number;
+    deliveryNoteNumber: string;
+    notes: string;
+  } | null>(null);
+
+  // Supplier Invoice Reconciliation & Posting Modal (مطابقة واعتماد فاتورة المورد الرسمية)
+  const [reconcileSupplierModal, setReconcileSupplierModal] = useState<{
+    orderId: string;
+    opIndex: number;
+    orderCode: string;
+    customerName: string;
+    opName: string;
+    supplierId: string;
+    supplierName: string;
+    unit: string;
+    // Estimated
+    estimatedQty: number;
+    estimatedRate: number;
+    estimatedCost: number;
+    // Received
+    receivedQty: number;
+    deliveryNoteNumber: string;
+    // Actual Supplier Invoice inputs
+    supplierInvoiceNumber: string;
+    actualQuantity: number;
+    actualRate: number;
+    actualCost: number;
+    invoiceDate: string;
+    paymentMethod: 'نقدي' | 'اجل';
+    notes: string;
+  } | null>(null);
 
   // Profitability Report Filter
   const [reportCustomerId, setReportCustomerId] = useState<string>('all');
@@ -472,6 +1124,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     spoilagePercent: 5
   });
 
+  const [impositionOrientation, setImpositionOrientation] = useState<'auto' | 'normal' | 'rotated'>('auto');
+
   // Live Carton Box Calculation in Modal
   const modalBlankCalc = useMemo(() => {
     return calculateBoxBlank(
@@ -491,9 +1145,19 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       modalBlankCalc.blankLength,
       modalBlankCalc.blankWidth,
       formData.quantity,
+      formData.spoilagePercent,
+      impositionOrientation
+    );
+  }, [formData.sheetLength, formData.sheetWidth, modalBlankCalc, formData.quantity, formData.spoilagePercent, impositionOrientation]);
+
+  const modalAdvisorSheets = useMemo(() => {
+    return evaluateStandardSheets(
+      modalBlankCalc.blankLength,
+      modalBlankCalc.blankWidth,
+      formData.quantity,
       formData.spoilagePercent
     );
-  }, [formData.sheetLength, formData.sheetWidth, modalBlankCalc, formData.quantity, formData.spoilagePercent]);
+  }, [modalBlankCalc, formData.quantity, formData.spoilagePercent]);
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
     if (orderToEdit) {
@@ -968,6 +1632,178 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     showNotification(`تم اعتماد مرحلة (${op.name}) وتسجيل فاتورة المورد في المشتريات والحسابات بنجاح ✅`, 'success');
   };
 
+  // 1. Save Physical Delivery Receipt (تسجيل إذن الاستلام والوزن الفعلي دون ترحيل مالي)
+  const handleSaveDeliveryReceipt = (
+    orderId: string,
+    opIndex: number,
+    data: { actualQuantity: number; deliveryNoteNumber: string; notes: string }
+  ) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const op = order.operations[opIndex];
+    if (!op) return;
+
+    const newOps = [...order.operations];
+    newOps[opIndex] = {
+      ...op,
+      billingStatus: 'received_pending_invoice',
+      actualQuantity: data.actualQuantity,
+      deliveryNoteNumber: data.deliveryNoteNumber,
+      notes: data.notes ? `${op.notes ? `${op.notes} | ` : ''}إذن استلام: ${data.deliveryNoteNumber} (${data.actualQuantity} ${op.unit || ''})` : op.notes
+    };
+
+    const updatedOrder = { ...order, operations: newOps };
+    setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+    if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
+
+    logAction(`تسجيل استلام خامات مرحلة (${op.name}) بأمر شغل ${order.code} بإذن رقم (${data.deliveryNoteNumber}) بكمية ${data.actualQuantity} ${op.unit || ''}`);
+    showNotification(`تم تسجيل استلام الكمية الفعلية (${data.actualQuantity} ${op.unit || ''}) بنجاح. في انتظار فاتورة المورد للاعتماد المالي.`, 'success');
+    setReceiveDeliveryModal(null);
+  };
+
+  // 2. Reconcile and Confirm Official Supplier Invoice (مطابقة الفاتورة الرسمية والترحيل للمورد)
+  const handleConfirmSupplierInvoice = (
+    orderId: string,
+    opIndex: number,
+    data: {
+      supplierInvoiceNumber: string;
+      actualQuantity: number;
+      actualRate: number;
+      actualCost: number;
+      invoiceDate: string;
+      paymentMethod: 'نقدي' | 'اجل';
+      notes: string;
+    }
+  ) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const op = order.operations[opIndex];
+    if (!op) return;
+
+    const supplierId = op.supplierId;
+    if (!supplierId) {
+      showNotification('يرجى تحديد المورد المسؤول أولاً', 'error');
+      return;
+    }
+    const supplier = suppliers.find(s => s.id === supplierId);
+    const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل';
+
+    const actualCost = Number(data.actualCost) || 0;
+    if (actualCost <= 0) {
+      showNotification('يرجى إدخال إجمالي المبلغ الفعلي في فاتورة المورد', 'error');
+      return;
+    }
+
+    const cleanInvNum = data.supplierInvoiceNumber.trim();
+    if (!cleanInvNum) {
+      showNotification('يرجى إدخال رقم فاتورة المورد الرسمية أو كشف الحساب', 'error');
+      return;
+    }
+
+    const pinvCount = (purchaseInvoices?.length || 0) + 1;
+    const yearStr = (data.invoiceDate || new Date().toISOString().split('T')[0]).split('-')[0];
+    const pInvId = `PINV-${cleanInvNum.replace(/[^a-zA-Z0-9_-]/g, '') || `${yearStr}-${String(pinvCount).padStart(4, '0')}`}`;
+
+    // Create Purchase Invoice
+    const newPurchaseInvoice: PurchaseInvoice = {
+      id: pInvId,
+      supplierId,
+      supplierName,
+      companyName: supplier?.companyName,
+      date: data.invoiceDate || new Date().toISOString().split('T')[0],
+      items: [
+        {
+          productId: `SRV-${op.operationId}`,
+          productName: `${op.name} (فاتورة مورد: ${cleanInvNum} - أمر شغل ${order.code} - ${order.customerName})`,
+          quantity: data.actualQuantity || op.quantity || 1,
+          price: data.actualRate || actualCost,
+          total: actualCost,
+          unit: (op.unit as any) || 'عدد',
+          itemType: 'expense',
+          cost: actualCost
+        }
+      ],
+      subTotal: actualCost,
+      total: actualCost,
+      paymentMethod: data.paymentMethod || op.paymentMethod || 'اجل',
+      invoiceType: 'purchase',
+      notes: `فاتورة مورد رسمية رقم ${cleanInvNum} عن ${op.name} بأمر شغل ${order.code} للعميل ${order.customerName}${data.notes ? ` - ${data.notes}` : ''}`,
+      status: 'active',
+      branchId: currentBranchId
+    };
+
+    if (setPurchaseInvoices) {
+      setPurchaseInvoices(prev => [newPurchaseInvoice, ...prev]);
+    }
+
+    // Create Journal Entry
+    const entryDesc = `فاتورة مشتريات مورد ${cleanInvNum} (${pInvId}) - تكلفة ${op.name} - أمر شغل ${order.code} - مورد: ${supplierName}`;
+    const jeId = createJournalEntry({
+      description: entryDesc,
+      date: data.invoiceDate || new Date().toISOString().split('T')[0],
+      referenceType: 'PurchaseInvoice',
+      referenceId: pInvId,
+      branchId: currentBranchId,
+      lines: [
+        {
+          accountId: wipAccountId,
+          accountName: `${wipAccountName} (${order.code})`,
+          debit: actualCost,
+          credit: 0
+        },
+        {
+          accountId: payablesAccountId,
+          accountName: `الموردين - ${supplierName}`,
+          debit: 0,
+          credit: actualCost
+        }
+      ]
+    });
+
+    const estCost = Number(op.estimatedCost || op.cost) || 0;
+    const costVariance = actualCost - estCost;
+
+    const newOps = [...order.operations];
+    newOps[opIndex] = {
+      ...op,
+      status: 'completed',
+      billingStatus: 'confirmed_posted',
+      cost: actualCost,
+      actualCost: actualCost,
+      actualQuantity: data.actualQuantity || op.actualQuantity,
+      actualRate: data.actualRate || (data.actualQuantity ? actualCost / data.actualQuantity : actualCost),
+      supplierInvoiceNumber: cleanInvNum,
+      invoiceDate: data.invoiceDate,
+      paymentMethod: data.paymentMethod,
+      costVariance,
+      reconciledAt: new Date().toISOString(),
+      purchaseInvoiceId: pInvId,
+      journalEntryId: jeId,
+      completedAt: new Date().toISOString()
+    };
+
+    const totalActualCost = newOps.reduce((sum, o) => sum + (o.status === 'completed' ? (Number(o.cost) || 0) : 0), 0);
+    const grossProfit = order.clientSalePrice - totalActualCost;
+    const profitMarginPercent = order.clientSalePrice > 0 ? (grossProfit / order.clientSalePrice) * 100 : 0;
+    const nextStageIndex = opIndex === order.currentStageIndex ? Math.min(order.operations.length - 1, opIndex + 1) : order.currentStageIndex;
+
+    const updatedOrder: PrintingJobOrder = {
+      ...order,
+      operations: newOps,
+      currentStageIndex: nextStageIndex,
+      totalActualCost,
+      grossProfit,
+      profitMarginPercent
+    };
+
+    setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+    if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
+
+    logAction(`اعتماد ومطابقة فاتورة مورد رقم (${cleanInvNum}) لمرحلة (${op.name}) بأمر شغل ${order.code} لحساب ${supplierName} بقيمة ${actualCost} ج.م`);
+    showNotification(`تم اعتماد وترحيل فاتورة المورد (${cleanInvNum}) لحساب المورد والأستاذ العام بنجاح ✅`, 'success');
+    setReconcileSupplierModal(null);
+  };
+
   // Undo / Reset an approved stage (تراجع عن اعتماد مرحلة لتعديل التكلفة أو المورد)
   const handleUndoStage = (orderId: string, opIndex: number) => {
     const order = jobOrders.find(o => o.id === orderId);
@@ -997,13 +1833,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       ));
     }
 
-    // 3. Reset operation state to pending
+    // 3. Reset operation state to pending/unposted
     const newOps = [...order.operations];
     newOps[opIndex] = {
       ...op,
       status: 'pending',
+      billingStatus: op.actualQuantity ? 'received_pending_invoice' : 'provisional',
       journalEntryId: undefined,
       purchaseInvoiceId: undefined,
+      supplierInvoiceNumber: undefined,
+      reconciledAt: undefined,
+      costVariance: undefined,
+      cost: op.estimatedCost || op.cost,
       completedAt: undefined
     };
 
@@ -1322,6 +2163,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               supplierId: consForm.supplierId,
               supplierName,
               cost: Number(updatedOps[opIndex].cost || 0) + line.amount,
+              actualCost: Number(updatedOps[opIndex].cost || 0) + line.amount,
+              supplierInvoiceNumber: consForm.invoiceNumber,
+              billingStatus: 'confirmed_posted',
+              reconciledAt: new Date().toISOString(),
               status: 'completed',
               journalEntryId: jeId,
               purchaseInvoiceId: pInvId,
@@ -2514,6 +3359,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     </div>
                   )}
 
+                  {/* Visual 3D Box & Dieline Viewer */}
+                  <BoxStructureViewer
+                    structure={formData.boxStructure}
+                    L={formData.boxLength}
+                    W={formData.boxWidth}
+                    H={formData.boxHeight}
+                    blankL={modalBlankCalc.blankLength}
+                    blankW={modalBlankCalc.blankWidth}
+                  />
+
                   {/* 3. Paper, Flute & Sheet Setup */}
                   <div className="bg-white p-3.5 rounded-xl border border-indigo-100 space-y-3">
                     <span className="text-xs font-bold text-gray-800 block">
@@ -2640,6 +3495,19 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                       <span className="text-[10px] text-blue-600 block">شاملاً {modalImpCalc.spoilageSheets} فرخ هالك</span>
                     </div>
                   </div>
+
+                  {/* Scaled Imposition Canvas & Waste Advisor */}
+                  <ImpositionSheetCanvas
+                    sheetL={formData.sheetLength}
+                    sheetW={formData.sheetWidth}
+                    blankL={modalBlankCalc.blankLength}
+                    blankW={modalBlankCalc.blankWidth}
+                    imp={modalImpCalc}
+                    advisorSheets={modalAdvisorSheets}
+                    onSelectSheet={(l, w, key) => setFormData(prev => ({ ...prev, sheetLength: l, sheetWidth: w, sheetPreset: key }))}
+                    orientationMode={impositionOrientation}
+                    onToggleOrientation={setImpositionOrientation}
+                  />
                 </div>
               )}
 
@@ -2925,70 +3793,187 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {/* Expandable 3D Box & Scaled Sheet Canvas in Dossier */}
+                <details className="mt-3 bg-slate-950/70 rounded-xl p-3 border border-slate-800">
+                  <summary className="cursor-pointer text-xs font-bold text-amber-300 hover:text-amber-200 select-none flex items-center justify-between">
+                    <span>📐 معاينة مجسم العلبة 3D ومخطط السكينة وشيت القص والطباعة مع الهالك</span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">اضغط للعرض / الإخفاء</span>
+                  </summary>
+                  <div className="mt-3 space-y-4">
+                    <BoxStructureViewer
+                      structure={viewingJob.cartonSpecs.structureType}
+                      L={viewingJob.cartonSpecs.length || 15}
+                      W={viewingJob.cartonSpecs.width || 10}
+                      H={viewingJob.cartonSpecs.height || 20}
+                      blankL={viewingJob.cartonSpecs.blankLength}
+                      blankW={viewingJob.cartonSpecs.blankWidth}
+                    />
+                    <ImpositionSheetCanvas
+                      sheetL={viewingJob.cartonSpecs.sheetLength}
+                      sheetW={viewingJob.cartonSpecs.sheetWidth}
+                      blankL={viewingJob.cartonSpecs.blankLength}
+                      blankW={viewingJob.cartonSpecs.blankWidth}
+                      imp={calculateImposition(
+                        viewingJob.cartonSpecs.sheetLength,
+                        viewingJob.cartonSpecs.sheetWidth,
+                        viewingJob.cartonSpecs.blankLength,
+                        viewingJob.cartonSpecs.blankWidth,
+                        viewingJob.quantity,
+                        viewingJob.cartonSpecs.spoilagePercent || 5,
+                        'auto'
+                      )}
+                      advisorSheets={evaluateStandardSheets(
+                        viewingJob.cartonSpecs.blankLength,
+                        viewingJob.cartonSpecs.blankWidth,
+                        viewingJob.quantity,
+                        viewingJob.cartonSpecs.spoilagePercent || 5
+                      )}
+                      onSelectSheet={() => {}}
+                      orientationMode="auto"
+                      onToggleOrientation={() => {}}
+                    />
+                  </div>
+                </details>
               </div>
             )}
 
             {/* Stages / Operations List */}
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               <div className="flex justify-between items-center mb-1">
-                <h3 className="text-sm font-black text-gray-800">
-                  مراحل وخط سير التشغيل ({viewingJob.operations.length} مرحلة):
-                </h3>
-                <span className="text-xs text-gray-500">
-                  اضغط "اعتماد وترحيل القيد" لتسجيل استحقاق كل مورد فور إتمام مرحلته
-                </span>
+                <div>
+                  <h3 className="text-sm font-black text-gray-800">
+                    مراحل وخط سير التشغيل ({viewingJob.operations.length} مرحلة):
+                  </h3>
+                  <span className="text-[11px] text-gray-500 block mt-0.5">
+                    العمليات لدى الموردين تبدأ كـ (تقديري أولي ⏳) ثم (استلام فعلي 📦) ولا ترحل لحساب المورد إلا عند مطابقة الفاتورة الرسمية (🧾).
+                  </span>
+                </div>
               </div>
 
               {viewingJob.operations.map((op, idx) => {
                 const isCompleted = op.status === 'completed';
+                const isExternal = op.executionType === 'external';
+                const isConfirmedPosted = isCompleted && !!op.purchaseInvoiceId;
+                const isReceivedPending = op.billingStatus === 'received_pending_invoice';
+                const isProvisional = isExternal && !isConfirmedPosted && !isReceivedPending;
+                const opSupplier = suppliers.find(s => s.id === op.supplierId);
 
                 return (
                   <div
                     key={op.id}
                     className={`p-4 rounded-xl border transition-all ${
-                      isCompleted
+                      isConfirmedPosted
                         ? 'bg-emerald-50/40 border-emerald-200'
+                        : isReceivedPending
+                        ? 'bg-blue-50/40 border-blue-200'
+                        : isCompleted
+                        ? 'bg-gray-50 border-gray-200'
                         : 'bg-white border-gray-200 shadow-xs'
                     }`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      {/* Left: Operation Name & Mode */}
+                      {/* Left: Operation Name & Status Badges */}
                       <div className="flex items-center gap-3">
                         <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                          isCompleted ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
+                          isConfirmedPosted
+                            ? 'bg-emerald-600 text-white'
+                            : isReceivedPending
+                            ? 'bg-blue-600 text-white'
+                            : isCompleted
+                            ? 'bg-gray-600 text-white'
+                            : 'bg-gray-200 text-gray-700'
                         }`}>
                           {isCompleted ? '✓' : idx + 1}
                         </span>
 
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-bold text-gray-900 text-sm">{op.name}</h4>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               op.executionType === 'internal'
                                 ? 'bg-purple-100 text-purple-800'
                                 : 'bg-blue-100 text-blue-800'
                             }`}>
-                              {op.executionType === 'internal' ? '🏢 تصنيع داخلي' : '🚚 لدى الغير'}
+                              {op.executionType === 'internal' ? '🏢 داخلي' : '🚚 لدى الغير'}
                             </span>
+
+                            {/* Billing Status Pill */}
+                            {isExternal && (
+                              <>
+                                {isConfirmedPosted ? (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <span>✅</span>
+                                    <span>مرحّل للمورد (فاتورة {op.supplierInvoiceNumber || op.invoiceNumber})</span>
+                                  </span>
+                                ) : isReceivedPending ? (
+                                  <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <span>📦</span>
+                                    <span>مستلم بالمخزن (بانتظار الفاتورة)</span>
+                                  </span>
+                                ) : (
+                                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <span>⏳</span>
+                                    <span>تقديري أولي (غير مرحّل مالياً)</span>
+                                  </span>
+                                )}
+                              </>
+                            )}
                           </div>
 
-                          <span className="text-xs text-gray-500 block">
-                            {isCompleted
-                              ? `مكتملة ومرحّلة بنجاح ${op.completedAt ? `(${new Date(op.completedAt).toLocaleDateString('ar-EG')})` : ''}`
-                              : 'في انتظار الاعتماد'}
+                          <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                            {isConfirmedPosted ? (
+                              <>
+                                <span className="text-emerald-800 font-bold">
+                                  معتمد بفاتورة رسمية: {op.cost.toLocaleString('en-US')} ج.م
+                                </span>
+                                {op.costVariance !== undefined && op.costVariance !== 0 && (
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                    op.costVariance < 0
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {op.costVariance < 0
+                                      ? `وفـر: ${Math.abs(op.costVariance).toLocaleString('en-US')} ج.م`
+                                      : `زيادة: +${op.costVariance.toLocaleString('en-US')} ج.م`}
+                                  </span>
+                                )}
+                                {op.reconciledAt && (
+                                  <span className="text-gray-400 text-[10px]">
+                                    ({new Date(op.reconciledAt).toLocaleDateString('ar-EG')})
+                                  </span>
+                                )}
+                              </>
+                            ) : isReceivedPending ? (
+                              <span className="text-blue-700 font-bold">
+                                مستلم فعلياً: {op.actualQuantity} {op.unit || ''}
+                                {op.deliveryNoteNumber ? ` (إذن: ${op.deliveryNoteNumber})` : ''}
+                                {op.cost > 0 ? ` • التقديري: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
+                              </span>
+                            ) : isExternal ? (
+                              <span className="text-amber-700 font-medium">
+                                التكلفة التقديرية: {op.cost ? `${op.cost.toLocaleString('en-US')} ج.م` : 'لم تحدد'}
+                                {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
+                              </span>
+                            ) : (
+                              <span>
+                                {isCompleted ? 'مكتملة داخلياً' : 'في انتظار بدء التشغيل الداخلي'}
+                              </span>
+                            )}
+
                             {op.goodQuantity !== undefined && (
-                              <span className="text-emerald-700 font-bold mr-2 text-[11px]">
+                              <span className="text-emerald-700 font-bold text-[11px]">
                                 (إنتاج سليم: {op.goodQuantity.toLocaleString('en-US')} {op.scrapQuantity ? ` | هالك: ${op.scrapQuantity}` : ''})
                               </span>
                             )}
-                          </span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Right: Supplier, Cost & Action */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Toggle Internal / External if not completed */}
-                        {!isCompleted && (
+                      {/* Right: Supplier, Cost & Actions */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Toggle Internal / External if not confirmed */}
+                        {!isConfirmedPosted && !isCompleted && (
                           <select
                             value={op.executionType}
                             onChange={e => {
@@ -3003,17 +3988,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </select>
                         )}
 
-                        {/* Supplier Selector if External */}
-                        {op.executionType === 'external' && (
+                        {/* Supplier Selector if External and not confirmed */}
+                        {isExternal && !isConfirmedPosted && (
                           <select
-                            disabled={isCompleted}
                             value={op.supplierId || ''}
                             onChange={e => {
                               const newOps = [...viewingJob.operations];
                               newOps[idx].supplierId = e.target.value;
                               setViewingJob({ ...viewingJob, operations: newOps });
                             }}
-                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[160px] disabled:bg-gray-100"
+                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[150px]"
                           >
                             <option value="">-- اختر المورد --</option>
                             {suppliers.map(s => (
@@ -3022,45 +4006,123 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </select>
                         )}
 
-                        {/* Cost Input */}
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            disabled={isCompleted}
-                            placeholder="التكلفة ج.م"
-                            value={op.cost || ''}
-                            onChange={e => {
-                              const newOps = [...viewingJob.operations];
-                              newOps[idx].cost = Number(e.target.value) || 0;
-                              setViewingJob({ ...viewingJob, operations: newOps });
-                            }}
-                            className="w-24 p-1.5 border border-gray-200 rounded-lg text-xs font-bold disabled:bg-gray-100"
-                          />
-                          <span className="text-xs text-gray-500">ج.م</span>
-                        </div>
+                        {/* Estimated Cost Input if External and not confirmed */}
+                        {isExternal && !isConfirmedPosted && (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              placeholder="تقديري ج.م"
+                              value={op.cost || ''}
+                              onChange={e => {
+                                const newOps = [...viewingJob.operations];
+                                newOps[idx].cost = Number(e.target.value) || 0;
+                                newOps[idx].estimatedCost = Number(e.target.value) || 0;
+                                setViewingJob({ ...viewingJob, operations: newOps });
+                              }}
+                              className="w-24 p-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-xs font-bold text-center"
+                              title="التكلفة التقديرية الأولية قبل وصول الفاتورة"
+                            />
+                            <span className="text-[11px] text-gray-500">ج.م</span>
+                          </div>
+                        )}
 
-                        {/* Complete & Post Button */}
-                        {!isCompleted ? (
+                        {/* ACTION 1: Record Physical Delivery (if external and not posted) */}
+                        {isExternal && !isConfirmedPosted && (
                           <button
+                            type="button"
+                            onClick={() => {
+                              if (!op.supplierId) {
+                                showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
+                                return;
+                              }
+                              setReceiveDeliveryModal({
+                                orderId: viewingJob.id,
+                                opIndex: idx,
+                                orderCode: viewingJob.code,
+                                opName: op.name,
+                                supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                unit: op.unit || 'طن',
+                                estimatedQty: op.estimatedQuantity || op.quantity || 0,
+                                actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
+                                deliveryNoteNumber: op.deliveryNoteNumber || '',
+                                notes: op.notes || ''
+                              });
+                            }}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
+                            title="تسجيل وصول الخامات أو المصنعية الفعلية بالمخزن مع رقم الإذن دون ترحيل مالي"
+                          >
+                            <span>📦</span>
+                            <span>{isReceivedPending ? 'تعديل الاستلام' : 'استلام خامات'}</span>
+                          </button>
+                        )}
+
+                        {/* ACTION 2: Reconcile Official Supplier Invoice (if external and not posted) */}
+                        {isExternal && !isConfirmedPosted && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!op.supplierId) {
+                                showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
+                                return;
+                              }
+                              const est = Number(op.estimatedCost || op.cost) || 0;
+                              setReconcileSupplierModal({
+                                orderId: viewingJob.id,
+                                opIndex: idx,
+                                orderCode: viewingJob.code,
+                                customerName: viewingJob.customerName,
+                                opName: op.name,
+                                supplierId: op.supplierId,
+                                supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                unit: op.unit || 'طن',
+                                estimatedQty: op.estimatedQuantity || op.quantity || 0,
+                                estimatedRate: op.estimatedRate || 0,
+                                estimatedCost: est,
+                                receivedQty: op.actualQuantity || 0,
+                                deliveryNoteNumber: op.deliveryNoteNumber || '',
+                                supplierInvoiceNumber: op.supplierInvoiceNumber || '',
+                                actualQuantity: op.actualQuantity || op.estimatedQuantity || op.quantity || 0,
+                                actualRate: op.actualRate || op.estimatedRate || 0,
+                                actualCost: op.actualCost || est,
+                                invoiceDate: new Date().toISOString().split('T')[0],
+                                paymentMethod: op.paymentMethod || 'اجل',
+                                notes: ''
+                              });
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
+                            title="مطابقة فاتورة أو كشف حساب المورد النهائي وترحيل القيد لحساب المورد رسمياً"
+                          >
+                            <span>🧾</span>
+                            <span>مطابقة الفاتورة والترحيل</span>
+                          </button>
+                        )}
+
+                        {/* ACTION 3: Internal Operation Completion */}
+                        {!isExternal && !isCompleted && (
+                          <button
+                            type="button"
                             onClick={() => handleExecuteStage(viewingJob.id, idx, {
                               cost: op.cost,
-                              supplierId: op.supplierId,
-                              executionType: op.executionType
+                              executionType: 'internal'
                             })}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
                           >
-                            <span>اعتماد وترحيل القيد ✅</span>
+                            <span>إتمام المرحلة داخلياً ✅</span>
                           </button>
-                        ) : (
+                        )}
+
+                        {/* ACTION 4: Already Posted / Completed - Show status and Undo */}
+                        {(isConfirmedPosted || (!isExternal && isCompleted)) && (
                           <div className="flex items-center gap-2">
                             <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
                               <span>✓</span>
-                              <span>مرحّل بالحسابات</span>
+                              <span>{isConfirmedPosted ? 'مرحّل بالحسابات' : 'مكتمل داخلياً'}</span>
                               {op.cost > 0 && <span className="font-mono">({op.cost.toLocaleString('en-US')} ج.م)</span>}
                             </span>
 
                             {viewingJob.status !== 'delivered' && (
                               <button
+                                type="button"
                                 onClick={() => handleUndoStage(viewingJob.id, idx)}
                                 className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1"
                                 title="إلغاء اعتماد المرحلة لتصحيح التكلفة أو تغيير المورد وإعادة ترحيلها"
@@ -3314,6 +4376,389 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm"
               >
                 حفظ وترحيل الفاتورة وتوزيع التكاليف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: PHYSICAL DELIVERY RECEIPT ==================== */}
+      {receiveDeliveryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100">
+            <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-sm flex items-center gap-2">
+                  <span>📦</span>
+                  <span>تسجيل الاستلام الفعلي للخامات / المصنعية</span>
+                </h3>
+                <p className="text-[11px] text-blue-100 mt-0.5">
+                  أمر شغل: {receiveDeliveryModal.orderCode} • {receiveDeliveryModal.opName}
+                </p>
+              </div>
+              <button
+                onClick={() => setReceiveDeliveryModal(null)}
+                className="text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-gray-700">المورد:</span>
+                  <span className="font-black text-blue-900">{receiveDeliveryModal.supplierName}</span>
+                </div>
+                {receiveDeliveryModal.estimatedQty > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">الكمية/الوزن المطلوب تقديرياً:</span>
+                    <span className="font-mono font-bold text-indigo-700">
+                      {receiveDeliveryModal.estimatedQty} {receiveDeliveryModal.unit}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  الكمية / الوزن الفعلي المستلم * ({receiveDeliveryModal.unit || 'طن / فرخ / كجم'})
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="مثال: 2.540 أو 5100"
+                  value={receiveDeliveryModal.actualQuantity || ''}
+                  onChange={e => setReceiveDeliveryModal({
+                    ...receiveDeliveryModal,
+                    actualQuantity: parseFloat(e.target.value) || 0
+                  })}
+                  className="w-full p-2.5 border border-blue-300 rounded-xl font-black text-blue-900 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-[10px] text-gray-500 mt-1 block">
+                  سجل الوزن الفعلي على البسكول أو عدد الطرود/الأفرخ المستلمة فعلياً
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  رقم إذن الاستلام / بوليصة الشحن / وزن البسكول
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثال: بوليصة 10482 أو إذن مخزن 301"
+                  value={receiveDeliveryModal.deliveryNoteNumber}
+                  onChange={e => setReceiveDeliveryModal({
+                    ...receiveDeliveryModal,
+                    deliveryNoteNumber: e.target.value
+                  })}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">ملاحظات الاستلام أو الجودة</label>
+                <textarea
+                  rows={2}
+                  placeholder="أي ملاحظات تخص حالة الورق، التغليف، أو عيوب تشغيل..."
+                  value={receiveDeliveryModal.notes}
+                  onChange={e => setReceiveDeliveryModal({
+                    ...receiveDeliveryModal,
+                    notes: e.target.value
+                  })}
+                  className="w-full p-2 border border-gray-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                ℹ️ <strong>تنبيه مالي:</strong> تسجيل الاستلام يثبت وصول الخامات للمخزن فقط، <strong>ولا يرحل أي مبالغ لحساب المورد</strong> حتى وصول الفاتورة الرسمية أو كشف الحساب ومطابقتها.
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReceiveDeliveryModal(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveDeliveryReceipt(
+                  receiveDeliveryModal.orderId,
+                  receiveDeliveryModal.opIndex,
+                  {
+                    actualQuantity: receiveDeliveryModal.actualQuantity,
+                    deliveryNoteNumber: receiveDeliveryModal.deliveryNoteNumber,
+                    notes: receiveDeliveryModal.notes
+                  }
+                )}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                <span>📦</span>
+                <span>حفظ إذن الاستلام الفعلي</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: SUPPLIER INVOICE RECONCILIATION & POSTING ==================== */}
+      {reconcileSupplierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-gray-100 my-6">
+            <div className="p-4 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-sm flex items-center gap-2">
+                  <span>🧾</span>
+                  <span>مطابقة واعتماد فاتورة المورد الرسمية والترحيل للحسابات</span>
+                </h3>
+                <p className="text-[11px] text-emerald-100 mt-0.5">
+                  أمر شغل: {reconcileSupplierModal.orderCode} • عميل: {reconcileSupplierModal.customerName}
+                </p>
+              </div>
+              <button
+                onClick={() => setReconcileSupplierModal(null)}
+                className="text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Stage & Supplier Banner */}
+              <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 flex flex-wrap justify-between items-center gap-2">
+                <div>
+                  <span className="text-gray-500 block text-[10px]">المرحلة التشغيلية:</span>
+                  <span className="font-black text-gray-900 text-sm">{reconcileSupplierModal.opName}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block text-[10px]">المورد:</span>
+                  <span className="font-black text-emerald-800 text-sm">{reconcileSupplierModal.supplierName}</span>
+                </div>
+              </div>
+
+              {/* Comparison: Estimated vs Received */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                  <span className="font-bold text-amber-900 block mb-1">⏳ المسجل مبدئياً بأمر الشغل:</span>
+                  <div className="space-y-1 text-gray-700">
+                    <div className="flex justify-between">
+                      <span>الكمية/الوزن:</span>
+                      <span className="font-mono font-bold">{reconcileSupplierModal.estimatedQty || '-'} {reconcileSupplierModal.unit}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>التكلفة التقديرية:</span>
+                      <span className="font-mono font-bold text-amber-800">
+                        {reconcileSupplierModal.estimatedCost.toLocaleString('en-US')} ج.م
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                  <span className="font-bold text-blue-900 block mb-1">📦 إذن الاستلام الفعلي بالمخزن:</span>
+                  <div className="space-y-1 text-gray-700">
+                    <div className="flex justify-between">
+                      <span>الكمية/الوزن المستلم:</span>
+                      <span className="font-mono font-bold text-blue-800">
+                        {reconcileSupplierModal.receivedQty || '-'} {reconcileSupplierModal.unit}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>رقم إذن الاستلام:</span>
+                      <span className="font-mono">{reconcileSupplierModal.deliveryNoteNumber || 'لا يوجد'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Official Supplier Invoice Inputs */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                <span className="font-black text-gray-900 block text-xs">
+                  بيانات فاتورة / كشف حساب المورد الفعلي:
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      رقم فاتورة المورد الرسمية *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="مثال: INV-98432 أو كشف حساب 42"
+                      value={reconcileSupplierModal.supplierInvoiceNumber}
+                      onChange={e => setReconcileSupplierModal({
+                        ...reconcileSupplierModal,
+                        supplierInvoiceNumber: e.target.value
+                      })}
+                      className="w-full p-2.5 border border-gray-300 rounded-xl font-bold text-gray-900 text-xs focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">تاريخ الفاتورة</label>
+                    <input
+                      type="date"
+                      value={reconcileSupplierModal.invoiceDate}
+                      onChange={e => setReconcileSupplierModal({
+                        ...reconcileSupplierModal,
+                        invoiceDate: e.target.value
+                      })}
+                      className="w-full p-2.5 border border-gray-300 rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">الكمية/الوزن المفوتر</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={reconcileSupplierModal.actualQuantity || ''}
+                      onChange={e => {
+                        const q = parseFloat(e.target.value) || 0;
+                        const rate = reconcileSupplierModal.actualRate || 0;
+                        const newCost = (rate > 0 && q > 0) ? Math.round(q * rate) : reconcileSupplierModal.actualCost;
+                        setReconcileSupplierModal({
+                          ...reconcileSupplierModal,
+                          actualQuantity: q,
+                          actualCost: newCost
+                        });
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">سعر الوحدة/الطن ج.م</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={reconcileSupplierModal.actualRate || ''}
+                      onChange={e => {
+                        const rate = parseFloat(e.target.value) || 0;
+                        const q = reconcileSupplierModal.actualQuantity || 0;
+                        const newCost = (rate > 0 && q > 0) ? Math.round(q * rate) : reconcileSupplierModal.actualCost;
+                        setReconcileSupplierModal({
+                          ...reconcileSupplierModal,
+                          actualRate: rate,
+                          actualCost: newCost
+                        });
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-emerald-800 mb-1">إجمالي الفاتورة الفعلي (ج.م) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={reconcileSupplierModal.actualCost || ''}
+                      onChange={e => setReconcileSupplierModal({
+                        ...reconcileSupplierModal,
+                        actualCost: parseFloat(e.target.value) || 0
+                      })}
+                      className="w-full p-2 border-2 border-emerald-500 rounded-xl font-black text-emerald-900 text-center text-sm bg-emerald-50/40"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">طريقة السداد</label>
+                    <select
+                      value={reconcileSupplierModal.paymentMethod}
+                      onChange={e => setReconcileSupplierModal({
+                        ...reconcileSupplierModal,
+                        paymentMethod: e.target.value as any
+                      })}
+                      className="w-full p-2 border border-gray-300 rounded-xl text-xs"
+                    >
+                      <option value="اجل">أجل (حساب جاري المورد)</option>
+                      <option value="نقدي">نقدي (من الخزينة)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">ملاحظات المطابقة</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: متطابق مع كشف حساب شهر أكتوبر"
+                      value={reconcileSupplierModal.notes}
+                      onChange={e => setReconcileSupplierModal({
+                        ...reconcileSupplierModal,
+                        notes: e.target.value
+                      })}
+                      className="w-full p-2 border border-gray-300 rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Variance Analysis Pill */}
+              {(() => {
+                const diff = (reconcileSupplierModal.actualCost || 0) - (reconcileSupplierModal.estimatedCost || 0);
+                return (
+                  <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                    diff < 0
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : diff > 0
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span>{diff < 0 ? '🟢' : diff > 0 ? '🟠' : '🔵'}</span>
+                      <span>
+                        {diff < 0
+                          ? `وفر في التكلفة مقارنة بالتقديري: ${Math.abs(diff).toLocaleString('en-US')} ج.م`
+                          : diff > 0
+                          ? `تكلفة إضافية مقارنة بالتقديري: +${diff.toLocaleString('en-US')} ج.م`
+                          : 'مطابق تماماً للتكلفة التقديرية المبدئية'}
+                      </span>
+                    </div>
+                    <span className="font-mono text-sm font-black">
+                      {reconcileSupplierModal.actualCost.toLocaleString('en-US')} ج.م
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-700">
+                💡 <strong>الأثر المالي:</strong> عند الضغط على زر الاعتماد أدناه، سيتم تلقائياً إصدار فاتورة مشتريات رسمية برقم <strong>{reconcileSupplierModal.supplierInvoiceNumber || '...'}</strong> وترحيل قيد دائن لحساب المورد <strong>{reconcileSupplierModal.supplierName}</strong> في كشف الحساب والأستاذ العام بمبلغ <strong>{reconcileSupplierModal.actualCost.toLocaleString('en-US')} ج.م</strong>.
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReconcileSupplierModal(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmSupplierInvoice(
+                  reconcileSupplierModal.orderId,
+                  reconcileSupplierModal.opIndex,
+                  {
+                    supplierInvoiceNumber: reconcileSupplierModal.supplierInvoiceNumber,
+                    actualQuantity: reconcileSupplierModal.actualQuantity,
+                    actualRate: reconcileSupplierModal.actualRate,
+                    actualCost: reconcileSupplierModal.actualCost,
+                    invoiceDate: reconcileSupplierModal.invoiceDate,
+                    paymentMethod: reconcileSupplierModal.paymentMethod,
+                    notes: reconcileSupplierModal.notes
+                  }
+                )}
+                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-all"
+              >
+                <span>✅</span>
+                <span>اعتماد وترحيل الفاتورة رسمياً لحساب المورد</span>
               </button>
             </div>
           </div>

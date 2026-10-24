@@ -765,6 +765,7 @@ export interface ModulePostingSettings {
 
 // ==================== Printing Job Orders Types ====================
 export type PrintingOperationId =
+  | 'paper_supply'       // 0. توريد خامات ورق وبكر وشيتات من المورد
   | 'paper_cutting'      // 1. قص ورق
   | 'ctp_plates'         // 2. ذنكات
   | 'laser_die'          // 3. فورمة
@@ -785,6 +786,8 @@ export type PrintingOperationId =
   | 'spiral_binding'     // 18. سلك لولبي
   | 'packaging'          // 19. تغليف وتحزيم
   | 'shipping';          // 20. شحن
+
+export type OperationBillingStatus = 'provisional' | 'received_pending_invoice' | 'confirmed_posted';
 
 export type BoxStructureType = 
   | 'auto_lock'          // علبة قفل أوتوماتيك سفلي (FEFCO 0711)
@@ -830,14 +833,28 @@ export interface JobOperationItem {
   executionType: 'external' | 'internal'; // لدى الغير / تصنيع داخلي
   status: 'pending' | 'in_progress' | 'completed';
   
-  // External (Subcontracting)
+  // External (Subcontracting & Material Supplies)
   supplierId?: string;
   supplierName?: string;
   invoiceNumber?: string;
-  cost: number;
+  supplierInvoiceNumber?: string; // رقم فاتورة أو إذن المورد الفعلي
+  deliveryNoteNumber?: string; // رقم إذن الاستلام أو بوليصة الشحن أو وزن البسكول
+  cost: number; // التكلفة الحالية (تقديرية مبدئية أو فعلية معتمدة)
   paymentMethod?: 'نقدي' | 'اجل';
   journalEntryId?: string;
   purchaseInvoiceId?: string;
+
+  // Provisional vs Actual Reconciliation (دورة التقديري الأولي قبل ترحيل كشف حساب المورد)
+  billingStatus?: OperationBillingStatus; // 'provisional' | 'received_pending_invoice' | 'confirmed_posted'
+  estimatedQuantity?: number; // الكمية أو الوزن التقديري المطلوب (مثلاً 2.5 طن)
+  estimatedRate?: number; // السعر التقديري للوحدة أو الطن
+  estimatedCost?: number; // التكلفة التقديرية الأولية
+  actualQuantity?: number; // الكمية أو الوزن الفعلي المستلم أو المفوتر
+  actualRate?: number; // السعر الفعلي النهائي للوحدة في فاتورة المورد
+  actualCost?: number; // إجمالي المبلغ الفعلي النهائي في فاتورة/كشف حساب المورد
+  costVariance?: number; // الفرق المالي بين الفعلي والتقديري (actualCost - estimatedCost)
+  invoiceDate?: string; // تاريخ الفاتورة الفعلي
+  reconciledAt?: string; // تاريخ وتوقيت الاعتماد والترحيل النهائي
   
   // Internal (In-House)
   machineName?: string;
