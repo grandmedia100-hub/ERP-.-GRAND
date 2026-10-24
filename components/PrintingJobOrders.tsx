@@ -2,11 +2,12 @@ import React, { useState, useMemo } from 'react';
 import type {
   PrintingJobOrder, JobOperationItem, PrintingOperationId, PrintingOperationDefinition,
   ConsolidatedVendorInvoice, ConsolidatedVendorInvoiceLine, Customer, Supplier, Account,
-  JournalEntry, ModulePostingSettings, Permission, SalesInvoice, PurchaseInvoice
+  JournalEntry, ModulePostingSettings, Permission, SalesInvoice, PurchaseInvoice,
+  BoxStructureType, CartonBoxSpecs
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
 
-// ==================== 18 Standard Printing Operations Catalog ====================
+// ==================== 20 Standard Printing & Carton Operations Catalog ====================
 export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
   { id: 'paper_cutting', name: 'قص ورق', category: 'prepress', icon: '✂️', defaultUnit: 'رزمة / فرخ' },
   { id: 'ctp_plates', name: 'ذنكات (CTP)', category: 'prepress', icon: '💿', defaultUnit: 'عدد زنكات' },
@@ -20,6 +21,8 @@ export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
   { id: 'silver_metalized', name: 'متلايز فضي', category: 'press', icon: '🪙', defaultUnit: 'فرخ' },
   { id: 'hot_foil', name: 'بصمة (Hot Foil)', category: 'coating', icon: '🏷️', defaultUnit: 'ضربة' },
   { id: 'embossing', name: 'كوفراج (بارز/غائر)', category: 'coating', icon: '🖼️', defaultUnit: 'ضربة' },
+  { id: 'corrugated_flute', name: 'شيتات كرتون مضلع سينجل فيس', category: 'converting', icon: '📦', defaultUnit: 'لوح / شيت' },
+  { id: 'flute_lamination', name: 'كستوة / لصف / تبطين (Lamination)', category: 'converting', icon: '🥞', defaultUnit: 'فرخ' },
   { id: 'die_cutting', name: 'تكسير وريجة', category: 'converting', icon: '⚙️', defaultUnit: 'فرخ' },
   { id: 'gluing', name: 'لزق وتجميع', category: 'converting', icon: '🧴', defaultUnit: 'علبة' },
   { id: 'staple_binding', name: 'دبوس (تجليد)', category: 'binding', icon: '📎', defaultUnit: 'نسخة' },
@@ -28,10 +31,251 @@ export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
   { id: 'shipping', name: 'شحن ونقل', category: 'logistics', icon: '🚚', defaultUnit: 'نقلة' },
 ];
 
+export interface BoxStructureOption {
+  type: BoxStructureType;
+  name: string;
+  fefcoCode: string;
+  icon: string;
+  description: string;
+  example: string;
+}
+
+export const BOX_STRUCTURE_OPTIONS: BoxStructureOption[] = [
+  {
+    type: 'auto_lock',
+    name: 'علبة قفل أوتوماتيك سفلي (3 نقاط)',
+    fefcoCode: 'FEFCO 0711',
+    icon: '📦',
+    description: 'تُفرد وتُقفل من الأسفل تلقائياً، لسان علوي ولزق جانبي 3 نقاط. الأكثر استخداماً للعلب الفاخرة والأجهزة.',
+    example: 'علب أدوات كهربائية، عطور، قطع غيار، أواني'
+  },
+  {
+    type: 'mailer_pizza',
+    name: 'علبة أذن / بريد / بيتزا ذاتية القفل',
+    fefcoCode: 'FEFCO 0427',
+    icon: '🍕',
+    description: 'تفتح للأعلى بدون أي لزق إطلاقاً، جوانب مزدوجة القوة وآذان تثبيت أمامية وجانبية متداخلة.',
+    example: 'علب بيتزا، شحن إلكتروني، أحذية، ملابس'
+  },
+  {
+    type: 'rsc',
+    name: 'كرتونة عادية ألسنة متطابقة بسلوتيب',
+    fefcoCode: 'FEFCO 0201',
+    icon: '📫',
+    description: 'الكرتونة المضلعة القياسية، 4 ألسنة علوية و4 سفلية تقفل بسلوتيب أو دبابيس، لسان لزق جانبي.',
+    example: 'كراتين شحن وتوزيع، كراتين بسكويت ومواد غذائية'
+  },
+  {
+    type: 'reverse_tuck',
+    name: 'علبة لسان عادي عكسي فوق وتحت',
+    fefcoCode: 'Reverse Tuck',
+    icon: '💊',
+    description: 'لسان الغطاء العلوي يقفل للأمام، ولسان القاعدة يقفل للخلف، تقفيل خفيف وسريع بلزق طولي نقطة واحدة.',
+    example: 'علب لمبات، مستحضرات تجميل، أدوية خفيفة'
+  },
+  {
+    type: 'two_piece',
+    name: 'علبة غطاء وقاعدة منفصلين',
+    fefcoCode: 'FEFCO 0301',
+    icon: '👟',
+    description: 'قاعدة سفلية مستقلة مع غطاء كرتون مستقل يركب فوقها. مسطحين منفصلين (قاعدة + غطاء).',
+    example: 'علب أحذية، أطقم هدايا، كراتين تليفزيونات وشاشات'
+  },
+  {
+    type: 'drawer_sleeve',
+    name: 'علبة درج وكفر متداخل',
+    fefcoCode: 'Sleeve & Drawer',
+    icon: '🗄️',
+    description: 'كفر خارجي مفرغ ودرج داخلي يسحب للخارج كالمكتب. تقفيل أنيق جداً.',
+    example: 'علب تمور، حلويات، فحم سريع الاشتعال'
+  },
+  {
+    type: 'custom_diecut',
+    name: 'نمط مخصص / فورمة خاصة (مسطح مباشر)',
+    fefcoCode: 'Custom Blank',
+    icon: '📐',
+    description: 'لأي تصميم هندسي خاص أو شباك PVC أو فورمة تكسير جاهزة لدى العميل. إدخال مقاس المسطح مباشرة.',
+    example: 'صواني عرض، علب هاندل بمقبض، أشكال إبداعية'
+  }
+];
+
+export function calculateBoxBlank(
+  structure: BoxStructureType,
+  L: number,
+  W: number,
+  H: number,
+  customL: number,
+  customW: number
+): { blankLength: number; blankWidth: number; description: string } {
+  if (structure === 'custom_diecut') {
+    return {
+      blankLength: Number(customL) || 0,
+      blankWidth: Number(customW) || 0,
+      description: 'مسطح فورمة مخصصة محدد يدوياً'
+    };
+  }
+
+  const l = Number(L) || 0;
+  const w = Number(W) || 0;
+  const h = Number(H) || 0;
+
+  switch (structure) {
+    case 'auto_lock': {
+      // علبة قفل أوتوماتيك سفلي 3 نقاط (FEFCO 0711)
+      const blankW = parseFloat((2 * l + 2 * w + 2.5).toFixed(1));
+      const blankL = parseFloat((h + 1.35 * w + 2.5).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'علبة قفل أوتوماتيك 3 نقاط (FEFCO 0711) - لسان لزق 2.5 سم وقفل سفلي متداخل'
+      };
+    }
+    case 'mailer_pizza': {
+      // علبة أذن / بيتزا / بريد ذاتية القفل (FEFCO 0427)
+      const blankL = parseFloat((l + 4 * h + 2).toFixed(1));
+      const blankW = parseFloat((2 * w + 4 * h + 3).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'علبة بريد/بيتزا ذاتية القفل بأذن (FEFCO 0427) - بدون لزق'
+      };
+    }
+    case 'rsc': {
+      // كرتونة عادية ألسنة متطابقة بسلوتيب (FEFCO 0201)
+      const blankW = parseFloat((2 * l + 2 * w + 3.5).toFixed(1));
+      const blankL = parseFloat((h + w + 1).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'كرتونة عادية ألسنة متطابقة (FEFCO 0201) - لسان 3.5 سم وألسنة تقفيل وسلوتيب'
+      };
+    }
+    case 'reverse_tuck': {
+      // علبة لسان عادي عكسي فوق وتحت
+      const blankW = parseFloat((2 * l + 2 * w + 2).toFixed(1));
+      const blankL = parseFloat((h + 1.5 * w + 3).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'علبة لسان عادي عكسي فوق وتحت (Reverse Tuck)'
+      };
+    }
+    case 'two_piece': {
+      // علبة غطاء وقاعدة منفصلين (Two Piece)
+      const blankL = parseFloat((l + 2 * h + 2).toFixed(1));
+      const blankW = parseFloat((w + 2 * h + 2).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'علبة غطاء وقاعدة منفصلين (FEFCO 0301) - مسطح القاعدة أو الغطاء'
+      };
+    }
+    case 'drawer_sleeve': {
+      // علبة درج وكفر
+      const blankW = parseFloat((2 * l + 2 * h + 2).toFixed(1));
+      const blankL = parseFloat((w + 1).toFixed(1));
+      return {
+        blankLength: blankL,
+        blankWidth: blankW,
+        description: 'علبة درج وكفر (Sleeve & Drawer) - مسطح الكفر الخارجي'
+      };
+    }
+    default:
+      return {
+        blankLength: Number(customL) || 0,
+        blankWidth: Number(customW) || 0,
+        description: 'مسطح مخصص'
+      };
+  }
+}
+
+export function calculateImposition(
+  sheetL: number,
+  sheetW: number,
+  blankL: number,
+  blankW: number,
+  orderQty: number,
+  spoilagePct: number
+): {
+  upsPerSheet: number;
+  cols: number;
+  rows: number;
+  orientation: 'normal' | 'rotated';
+  sheetUsagePercent: number;
+  totalSheetsRequired: number;
+  sheetsWithoutSpoilage: number;
+  spoilageSheets: number;
+} {
+  if (sheetL <= 0 || sheetW <= 0 || blankL <= 0 || blankW <= 0) {
+    return {
+      upsPerSheet: 1,
+      cols: 1,
+      rows: 1,
+      orientation: 'normal',
+      sheetUsagePercent: 0,
+      totalSheetsRequired: orderQty,
+      sheetsWithoutSpoilage: orderQty,
+      spoilageSheets: 0
+    };
+  }
+
+  // Normal: sheetL / blankL, sheetW / blankW
+  const cols1 = Math.floor(sheetL / blankL);
+  const rows1 = Math.floor(sheetW / blankW);
+  const count1 = Math.max(cols1 * rows1, 0);
+
+  // Rotated: sheetL / blankW, sheetW / blankL
+  const cols2 = Math.floor(sheetL / blankW);
+  const rows2 = Math.floor(sheetW / blankL);
+  const count2 = Math.max(cols2 * rows2, 0);
+
+  let ups = 1;
+  let cols = 1;
+  let rows = 1;
+  let orientation: 'normal' | 'rotated' = 'normal';
+
+  if (count2 > count1) {
+    ups = count2;
+    cols = cols2;
+    rows = rows2;
+    orientation = 'rotated';
+  } else {
+    ups = Math.max(count1, 1);
+    cols = Math.max(cols1, 1);
+    rows = Math.max(rows1, 1);
+    orientation = 'normal';
+  }
+
+  const sheetArea = sheetL * sheetW;
+  const blanksArea = ups * (blankL * blankW);
+  const sheetUsagePercent = sheetArea > 0 ? Math.min((blanksArea / sheetArea) * 100, 100) : 0;
+
+  const sheetsWithoutSpoilage = Math.ceil((orderQty || 1) / ups);
+  const spoilageSheets = Math.ceil(sheetsWithoutSpoilage * ((spoilagePct || 0) / 100));
+  const totalSheetsRequired = sheetsWithoutSpoilage + spoilageSheets;
+
+  return {
+    upsPerSheet: ups,
+    cols,
+    rows,
+    orientation,
+    sheetUsagePercent: parseFloat(sheetUsagePercent.toFixed(1)),
+    totalSheetsRequired,
+    sheetsWithoutSpoilage,
+    spoilageSheets
+  };
+}
+
 export const PRINTING_TEMPLATES: { name: string; icon: string; desc: string; operations: PrintingOperationId[] }[] = [
   {
-    name: 'علب كرتون وتغليف فاخر',
+    name: 'علب كرتون مضلع مبطن أوفست (Litho-Laminated)',
     icon: '📦',
+    desc: 'ورق طباعة أوفست + زنكات + طباعة + سلوفان + شيتات سينجل فيس + كستوة/تبطين + فورمة + تكسير + لزق وتقفيل + تغليف',
+    operations: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
+  },
+  {
+    name: 'علب كرتون وتغليف فاخر (دوبلكس مصمت)',
+    icon: '🎁',
     desc: 'ورق + زنكات + فورمة + طباعة + متلايز + سلوفان + سبوت UV + بصمة + كوفراج + تكسير + شباك + لزق + تغليف',
     operations: ['paper_cutting', 'ctp_plates', 'laser_die', 'printing', 'gold_metalized', 'lamination', 'spot_uv', 'hot_foil', 'embossing', 'die_cutting', 'pvc_window', 'gluing', 'packaging', 'shipping']
   },
@@ -101,7 +345,20 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   onNavigate
 }) => {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'orders' | 'consolidated' | 'profitability'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'consolidated' | 'profitability' | 'kiosk'>('orders');
+
+  // Shop Floor Kiosk State (صالة الإنتاج والماكينات)
+  const [kioskStation, setKioskStation] = useState<PrintingOperationId>('paper_cutting');
+  const [kioskConfirmModal, setKioskConfirmModal] = useState<{
+    orderId: string;
+    opIndex: number;
+    orderCode: string;
+    opName: string;
+    targetQty: number;
+    goodQty: number;
+    scrapQty: number;
+    notes: string;
+  } | null>(null);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -174,44 +431,125 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     deliveryDate: string;
     notes: string;
     selectedOps: PrintingOperationId[];
+    jobType: 'commercial_printing' | 'offset_carton';
+    
+    // Smart Carton Calculator fields
+    boxStructure: BoxStructureType;
+    boxLength: number;
+    boxWidth: number;
+    boxHeight: number;
+    customBlankLength: number;
+    customBlankWidth: number;
+    sheetPreset: string;
+    sheetLength: number;
+    sheetWidth: number;
+    fluteType: 'E-Flute' | 'B-Flute' | 'C-Flute' | 'BC-Flute' | 'F-Flute' | 'بدون (دوبلكس مصمت)';
+    topPaperType: string;
+    spoilagePercent: number;
   }>({
     customerId: '',
     productTitle: '',
-    productCategory: 'مطبوعات تجارية',
-    quantity: 1000,
-    unit: 'عدد',
+    productCategory: 'كرتون مضلع وعلب مبطنة أوفست',
+    quantity: 5000,
+    unit: 'علبة',
     clientSalePrice: 0,
     deliveryDate: '',
     notes: '',
-    selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'packaging']
+    selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
+    jobType: 'offset_carton',
+    
+    boxStructure: 'auto_lock',
+    boxLength: 15,
+    boxWidth: 10,
+    boxHeight: 20,
+    customBlankLength: 35,
+    customBlankWidth: 50,
+    sheetPreset: '70x100',
+    sheetLength: 100,
+    sheetWidth: 70,
+    fluteType: 'E-Flute',
+    topPaperType: 'دوبلكس 250 جم',
+    spoilagePercent: 5
   });
+
+  // Live Carton Box Calculation in Modal
+  const modalBlankCalc = useMemo(() => {
+    return calculateBoxBlank(
+      formData.boxStructure,
+      formData.boxLength,
+      formData.boxWidth,
+      formData.boxHeight,
+      formData.customBlankLength,
+      formData.customBlankWidth
+    );
+  }, [formData.boxStructure, formData.boxLength, formData.boxWidth, formData.boxHeight, formData.customBlankLength, formData.customBlankWidth]);
+
+  const modalImpCalc = useMemo(() => {
+    return calculateImposition(
+      formData.sheetLength,
+      formData.sheetWidth,
+      modalBlankCalc.blankLength,
+      modalBlankCalc.blankWidth,
+      formData.quantity,
+      formData.spoilagePercent
+    );
+  }, [formData.sheetLength, formData.sheetWidth, modalBlankCalc, formData.quantity, formData.spoilagePercent]);
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
     if (orderToEdit) {
       setEditingJob(orderToEdit);
+      const specs = orderToEdit.cartonSpecs;
       setFormData({
         customerId: orderToEdit.customerId,
         productTitle: orderToEdit.productTitle,
-        productCategory: orderToEdit.productCategory || 'مطبوعات تجارية',
+        productCategory: orderToEdit.productCategory || 'كرتون مضلع وعلب مبطنة أوفست',
         quantity: orderToEdit.quantity,
         unit: orderToEdit.unit,
         clientSalePrice: orderToEdit.clientSalePrice,
         deliveryDate: orderToEdit.deliveryDate || '',
         notes: orderToEdit.notes || '',
-        selectedOps: orderToEdit.operations.map(o => o.operationId)
+        selectedOps: orderToEdit.operations.map(o => o.operationId),
+        jobType: orderToEdit.jobType || (specs ? 'offset_carton' : 'commercial_printing'),
+        
+        boxStructure: specs?.structureType || 'auto_lock',
+        boxLength: specs?.length || 15,
+        boxWidth: specs?.width || 10,
+        boxHeight: specs?.height || 20,
+        customBlankLength: specs?.blankLength || 35,
+        customBlankWidth: specs?.blankWidth || 50,
+        sheetPreset: 'custom',
+        sheetLength: specs?.sheetLength || 100,
+        sheetWidth: specs?.sheetWidth || 70,
+        fluteType: specs?.fluteType || 'E-Flute',
+        topPaperType: specs?.topPaperType || 'دوبلكس 250 جم',
+        spoilagePercent: specs?.spoilagePercent ?? 5
       });
     } else {
       setEditingJob(null);
       setFormData({
         customerId: customers[0]?.id || '',
         productTitle: '',
-        productCategory: 'مطبوعات تجارية',
-        quantity: 1000,
-        unit: 'عدد',
+        productCategory: 'كرتون مضلع وعلب مبطنة أوفست',
+        quantity: 5000,
+        unit: 'علبة',
         clientSalePrice: 0,
         deliveryDate: '',
         notes: '',
-        selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'packaging']
+        selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
+        jobType: 'offset_carton',
+        
+        boxStructure: 'auto_lock',
+        boxLength: 15,
+        boxWidth: 10,
+        boxHeight: 20,
+        customBlankLength: 35,
+        customBlankWidth: 50,
+        sheetPreset: '70x100',
+        sheetLength: 100,
+        sheetWidth: 70,
+        fluteType: 'E-Flute',
+        topPaperType: 'دوبلكس 250 جم',
+        spoilagePercent: 5
       });
     }
     setIsCreateModalOpen(true);
@@ -247,6 +585,45 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     }
 
     const customer = customers.find(c => c.id === formData.customerId);
+
+    // Compute smart carton box specifications if applicable
+    let cartonSpecs: CartonBoxSpecs | undefined = undefined;
+    if (formData.jobType === 'offset_carton') {
+      const blankCalc = calculateBoxBlank(
+        formData.boxStructure,
+        formData.boxLength,
+        formData.boxWidth,
+        formData.boxHeight,
+        formData.customBlankLength,
+        formData.customBlankWidth
+      );
+      const impCalc = calculateImposition(
+        formData.sheetLength,
+        formData.sheetWidth,
+        blankCalc.blankLength,
+        blankCalc.blankWidth,
+        formData.quantity,
+        formData.spoilagePercent
+      );
+      const opt = BOX_STRUCTURE_OPTIONS.find(b => b.type === formData.boxStructure);
+
+      cartonSpecs = {
+        structureType: formData.boxStructure,
+        structureName: opt?.name || formData.boxStructure,
+        length: formData.boxLength,
+        width: formData.boxWidth,
+        height: formData.boxHeight,
+        blankLength: blankCalc.blankLength,
+        blankWidth: blankCalc.blankWidth,
+        sheetLength: formData.sheetLength,
+        sheetWidth: formData.sheetWidth,
+        upsPerSheet: impCalc.upsPerSheet,
+        fluteType: formData.fluteType,
+        topPaperType: formData.topPaperType,
+        spoilagePercent: formData.spoilagePercent,
+        totalSheetsRequired: impCalc.totalSheetsRequired
+      };
+    }
 
     if (editingJob) {
       // Update existing
@@ -288,12 +665,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           operations: ops,
           totalActualCost: totalCost,
           grossProfit,
-          profitMarginPercent: margin
+          profitMarginPercent: margin,
+          jobType: formData.jobType,
+          cartonSpecs: cartonSpecs || ord.cartonSpecs
         };
       });
 
       setJobOrders(updatedOrders);
-      logAction(`تحديث أمر تشغيل مطبوعات: ${editingJob.code} للعميل ${customer?.name}`);
+      logAction(`تحديث أمر تشغيل: ${editingJob.code} للعميل ${customer?.name}`);
       showNotification('تم تحديث أمر الشغل بنجاح', 'success');
     } else {
       // Create new
@@ -335,7 +714,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         profitMarginPercent: 100,
         notes: formData.notes,
         createdAt: new Date().toISOString(),
-        branchId: currentBranchId
+        branchId: currentBranchId,
+        jobType: formData.jobType,
+        cartonSpecs
       };
 
       setJobOrders(prev => [newOrder, ...prev]);
@@ -385,6 +766,78 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     logAction(`تكرار أمر تشغيل مطبوعات: تم نسخ ${order.code} إلى ${newCode}`);
     showNotification(`تم تكرار الطلبية بنجاح برقم جديد: ${newCode}`, 'success');
   };
+
+  // ==================== Shop Floor Kiosk Handlers (صالة الإنتاج والماكينات) ====================
+  const handleStartKioskStage = (orderId: string, opIndex: number) => {
+    setJobOrders(prev => prev.map(order => {
+      if (order.id !== orderId) return order;
+      const newOps = [...order.operations];
+      newOps[opIndex] = {
+        ...newOps[opIndex],
+        status: 'in_progress',
+        startedAt: new Date().toISOString()
+      };
+      return { ...order, operations: newOps, status: 'in_progress' };
+    }));
+    showNotification('تم بدء تشغيل المرحلة على الماكينة بنجاح ▶️', 'info');
+  };
+
+  const handleOpenKioskComplete = (order: PrintingJobOrder, opIndex: number) => {
+    const op = order.operations[opIndex];
+    setKioskConfirmModal({
+      orderId: order.id,
+      opIndex,
+      orderCode: order.code,
+      opName: op.name,
+      targetQty: order.quantity,
+      goodQty: order.quantity,
+      scrapQty: 0,
+      notes: ''
+    });
+  };
+
+  const handleSubmitKioskComplete = () => {
+    if (!kioskConfirmModal) return;
+    const { orderId, opIndex, goodQty, scrapQty, notes } = kioskConfirmModal;
+
+    setJobOrders(prev => prev.map(order => {
+      if (order.id !== orderId) return order;
+      const newOps = [...order.operations];
+      newOps[opIndex] = {
+        ...newOps[opIndex],
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        goodQuantity: Number(goodQty) || 0,
+        scrapQuantity: Number(scrapQty) || 0,
+        operatorNotes: notes
+      };
+      const nextIdx = Math.min(opIndex + 1, newOps.length - 1);
+      const allDone = newOps.every(o => o.status === 'completed');
+      return {
+        ...order,
+        operations: newOps,
+        currentStageIndex: nextIdx,
+        status: allDone ? 'completed' : 'in_progress'
+      };
+    }));
+
+    logAction(`صالة الإنتاج: إتمام مرحلة (${kioskConfirmModal.opName}) بأمر شغل ${kioskConfirmModal.orderCode} (سليم: ${goodQty}، هالك: ${scrapQty})`);
+    showNotification(`تم إتمام وتسليم مرحلة (${kioskConfirmModal.opName}) ونقلها للمرحلة التالية بنجاح ✅`, 'success');
+    setKioskConfirmModal(null);
+  };
+
+  // Filter jobs for Kiosk view (only active jobs matching the selected kiosk station)
+  const kioskJobs = useMemo(() => {
+    return jobOrders.filter(order => {
+      if (order.status === 'delivered' || order.status === 'cancelled') return false;
+      const op = order.operations.find(o => o.operationId === kioskStation);
+      return Boolean(op);
+    }).map(order => {
+      const opIndex = order.operations.findIndex(o => o.operationId === kioskStation);
+      const op = order.operations[opIndex];
+      return { order, op, opIndex };
+    });
+  }, [jobOrders, kioskStation]);
 
   // ==================== Stage Execution & Accounting ====================
   const handleExecuteStage = (orderId: string, opIndex: number, updatedFields: Partial<JobOperationItem>) => {
@@ -1045,6 +1498,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           <span>📊</span>
           <span>تقرير أرباح العميل الحقيقية</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('kiosk')}
+          className={`py-3.5 px-4 font-bold text-sm border-b-2 flex items-center gap-2 transition-all ${
+            activeTab === 'kiosk'
+              ? 'border-emerald-600 text-emerald-800 bg-emerald-50/60'
+              : 'border-transparent text-gray-500 hover:text-emerald-700'
+          }`}
+        >
+          <span>🖥️</span>
+          <span>شاشات صالة الإنتاج (Kiosk)</span>
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+            شاشات الماكينات
+          </span>
+        </button>
       </div>
 
       {/* ==================== TAB 1: JOB ORDERS ==================== */}
@@ -1486,6 +1954,353 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         </div>
       )}
 
+      {/* ==================== TAB 4: SHOP FLOOR / KIOSK VIEW (شاشات الماكينات) ==================== */}
+      {activeTab === 'kiosk' && (
+        <div className="space-y-6">
+          {/* Kiosk Station Selector Bar */}
+          <div className="bg-slate-900 p-4 rounded-2xl shadow-lg border border-slate-800 text-white">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <h2 className="text-lg font-black tracking-tight">شاشات صالة الإنتاج والماكينات (Kiosk Floor Mode)</h2>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  واجهة لمس مخصصة لعمال الماكينات لمتابعة وبدء وتسليم مراحل التشغيل بدون أي بيانات مالية سرية
+                </p>
+              </div>
+
+              <div className="bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold text-amber-400">
+                🔒 وضع أمان صالة الإنتاج: حجب الأسعار والأرباح وحسابات العملاء تلقائياً
+              </div>
+            </div>
+
+            {/* Station Quick Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+              {[
+                { id: 'paper_cutting', name: 'قص الورق', icon: '✂️' },
+                { id: 'ctp_plates', name: 'الزنكات CTP', icon: '💿' },
+                { id: 'printing', name: 'طباعة أوفست', icon: '🖨️' },
+                { id: 'lamination', name: 'سلوفان وورنيش', icon: '✨' },
+                { id: 'corrugated_flute', name: 'شيتات سينجل فيس', icon: '📦' },
+                { id: 'flute_lamination', name: 'كستوة وتبطين', icon: '🥞' },
+                { id: 'laser_die', name: 'فورمة التكسير', icon: '📐' },
+                { id: 'die_cutting', name: 'ماكينة التكسير', icon: '⚙️' },
+                { id: 'gluing', name: 'لزق وتقفيل', icon: '🧴' },
+                { id: 'packaging', name: 'تحزيم وتغليف', icon: '📦' },
+                { id: 'shipping', name: 'شحن وتسليم', icon: '🚚' },
+              ].map(st => {
+                const count = jobOrders.filter(o => 
+                  o.status !== 'delivered' && 
+                  o.status !== 'cancelled' && 
+                  o.operations.some(op => op.operationId === st.id && op.status !== 'completed')
+                ).length;
+                const isSelected = kioskStation === st.id;
+
+                return (
+                  <button
+                    key={st.id}
+                    onClick={() => setKioskStation(st.id as PrintingOperationId)}
+                    className={`px-4 py-3 rounded-xl font-bold text-xs whitespace-nowrap flex items-center gap-2 transition-all ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/40 ring-2 ring-indigo-400'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-base">{st.icon}</span>
+                    <span>{st.name}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-900 text-slate-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Current Station Active Queue */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {kioskJobs.map(({ order, op, opIndex }) => {
+              const isPending = op.status === 'pending';
+              const isInProgress = op.status === 'in_progress';
+              const isDone = op.status === 'completed';
+              const specs = order.cartonSpecs;
+
+              return (
+                <div
+                  key={order.id}
+                  className={`bg-white rounded-2xl border-2 transition-all shadow-sm overflow-hidden flex flex-col justify-between ${
+                    isInProgress
+                      ? 'border-indigo-600 ring-2 ring-indigo-200'
+                      : isDone
+                      ? 'border-emerald-300 bg-emerald-50/20'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div className="p-5 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl font-black font-mono text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded-lg">
+                            {order.code}
+                          </span>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                            isInProgress
+                              ? 'bg-amber-100 text-amber-800 animate-pulse'
+                              : isDone
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {isInProgress ? '⚡ جاري العمل على الماكينة' : isDone ? '✅ مكتملة ومسلّمة' : '⏳ في انتظار التشغيل'}
+                          </span>
+                        </div>
+                        <h3 className="font-black text-gray-900 text-base mt-1.5">{order.productTitle}</h3>
+                        <p className="text-xs text-gray-500 font-medium">العميل: {order.customerName}</p>
+                      </div>
+
+                      <div className="text-left bg-gray-50 p-2.5 rounded-xl border border-gray-200 min-w-[100px]">
+                        <span className="text-[10px] font-bold text-gray-500 block">الكمية المطلوبة</span>
+                        <span className="text-lg font-black text-gray-900 font-mono">
+                          {order.quantity.toLocaleString('en-US')}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-600 block">{order.unit}</span>
+                      </div>
+                    </div>
+
+                    {/* Technical Specs & Carton Layout Box */}
+                    {specs ? (
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                            <span>📦</span>
+                            <span>{specs.structureName}</span>
+                          </span>
+                          {specs.fluteType && (
+                            <span className="bg-indigo-100 text-indigo-800 font-black px-2 py-0.5 rounded text-[11px]">
+                              {specs.fluteType} {specs.topPaperType ? `+ ${specs.topPaperType}` : ''}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-slate-700 font-medium">
+                          {specs.length && specs.width && specs.height ? (
+                            <div>• الأبعاد: <strong className="font-mono text-slate-900">{specs.length} × {specs.width} × {specs.height}</strong> سم</div>
+                          ) : null}
+                          <div>• مسطح التكسير: <strong className="font-mono text-indigo-700">{specs.blankLength} × {specs.blankWidth}</strong> سم</div>
+                          <div>• مقاس الفرخ: <strong className="font-mono text-slate-900">{specs.sheetLength} × {specs.sheetWidth}</strong> سم</div>
+                          <div>• عدد العلب بالفرخ: <strong className="font-mono text-emerald-700">{specs.upsPerSheet} علبة</strong></div>
+                          <div className="col-span-2 text-amber-900 bg-amber-50 p-1.5 rounded border border-amber-200 font-bold">
+                            ⚠️ إجمالي الأفرخ المطلوب سحبها لهذه الماكينة: <span className="font-mono text-sm">{specs.totalSheetsRequired.toLocaleString('en-US')}</span> فرخ
+                          </div>
+                        </div>
+
+                        {/* Mini Imposition Grid */}
+                        <div className="pt-2 border-t border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-500 block mb-1">
+                            مخطط رص وتقسيم العلب بالفرخ ({specs.upsPerSheet} علبة):
+                          </span>
+                          <div className="w-full bg-slate-200 p-2 rounded-lg border border-slate-300 flex items-center justify-center">
+                            <div className="grid gap-1 bg-white p-1 rounded border border-slate-300 w-full max-w-[200px]" style={{
+                              gridTemplateColumns: `repeat(${Math.min(specs.upsPerSheet > 4 ? 4 : specs.upsPerSheet, 4)}, minmax(0, 1fr))`
+                            }}>
+                              {Array.from({ length: Math.min(specs.upsPerSheet, 12) }).map((_, i) => (
+                                <div key={i} className="h-6 bg-indigo-100 border border-indigo-300 rounded text-[9px] font-bold text-indigo-700 flex items-center justify-center">
+                                  علبة {i + 1}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs text-gray-700">
+                        <span className="font-bold text-gray-800">مواصفات المطبوع التجاري:</span>
+                        <div className="mt-1 font-medium">{order.productTitle} - كمية: {order.quantity.toLocaleString('en-US')} {order.unit}</div>
+                      </div>
+                    )}
+
+                    {order.notes && (
+                      <div className="text-xs bg-yellow-50/80 border border-yellow-200 p-2.5 rounded-lg text-yellow-900">
+                        <span className="font-bold">ملاحظات فنية:</span> {order.notes}
+                      </div>
+                    )}
+
+                    {isDone && (
+                      <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs flex justify-between items-center text-emerald-900 font-bold">
+                        <span>✓ تم إنجاز المرحلة</span>
+                        <span>سليم: {(op.goodQuantity ?? order.quantity).toLocaleString('en-US')} | هالك: {op.scrapQuantity ?? 0}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kiosk Action Buttons */}
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
+                    {isPending ? (
+                      <button
+                        onClick={() => handleStartKioskStage(order.id, opIndex)}
+                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98]"
+                      >
+                        <span className="text-lg">▶️</span>
+                        <span>بدء التشغيل على الماكينة</span>
+                      </button>
+                    ) : isInProgress ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <button
+                          onClick={() => {
+                            const reason = window.prompt('سبب التوقف أو العطل المؤقت:');
+                            if (reason) logAction(`توقف مرحلة (${op.name}) بأمر شغل ${order.code}: ${reason}`);
+                          }}
+                          className="px-3 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold rounded-xl text-xs"
+                          title="تسجيل عطل أو توقف مؤقت"
+                        >
+                          ⏸️ عطل / توقف
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenKioskComplete(order, opIndex)}
+                          className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-600/30 transition-all active:scale-[0.98]"
+                        >
+                          <span className="text-lg">✅</span>
+                          <span>إنهاء وتسليم للمرحلة التالية</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full text-center py-2 text-xs font-bold text-emerald-700">
+                        تم تسليم هذه المرحلة للمحطة اللاحقة ✓
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {kioskJobs.length === 0 && (
+              <div className="col-span-1 md:col-span-2 p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-3">
+                <span className="text-5xl block">🎉</span>
+                <h3 className="text-lg font-black text-gray-800">لا توجد طلبيات قيد الانتظار في هذه المحطة حالياً</h3>
+                <p className="text-xs text-gray-500 max-w-md mx-auto">
+                  جميع أوامر الشغل الخاصة بمحطة ({STANDARD_PRINTING_OPERATIONS.find(o => o.id === kioskStation)?.name}) إما تم إنجازها أو لم تصل بعد من المراحل السابقة.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: KIOSK STAGE COMPLETION ==================== */}
+      {kioskConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100">
+            <div className="bg-emerald-700 p-5 text-white flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-black">تسجيل إنهاء المرحلة وتسليمها</h2>
+                <p className="text-xs text-emerald-100 mt-0.5">
+                  أمر شغل: {kioskConfirmModal.orderCode} | المرحلة: {kioskConfirmModal.opName}
+                </p>
+              </div>
+              <button
+                onClick={() => setKioskConfirmModal(null)}
+                className="text-white hover:text-emerald-200 text-2xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Good Units Count */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  العدد السليم المنجز *
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setKioskConfirmModal(prev => prev ? ({ ...prev, goodQty: Math.max(0, prev.goodQty - 50) }) : null)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-xs"
+                  >
+                    -50
+                  </button>
+                  <input
+                    type="number"
+                    value={kioskConfirmModal.goodQty}
+                    onChange={e => setKioskConfirmModal(prev => prev ? ({ ...prev, goodQty: Number(e.target.value) || 0 }) : null)}
+                    className="w-full p-3 border-2 border-emerald-400 rounded-xl text-center text-xl font-black text-emerald-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setKioskConfirmModal(prev => prev ? ({ ...prev, goodQty: prev.goodQty + 50 }) : null)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-xs"
+                  >
+                    +50
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrap / Waste Units Count */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  عدد الوحدات التالفة / الهالك (أفرخ ضبط أو تلف)
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setKioskConfirmModal(prev => prev ? ({ ...prev, scrapQty: Math.max(0, prev.scrapQty - 5) }) : null)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-xs"
+                  >
+                    -5
+                  </button>
+                  <input
+                    type="number"
+                    value={kioskConfirmModal.scrapQty}
+                    onChange={e => setKioskConfirmModal(prev => prev ? ({ ...prev, scrapQty: Number(e.target.value) || 0 }) : null)}
+                    className="w-full p-2.5 border-2 border-rose-300 rounded-xl text-center text-lg font-black text-rose-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setKioskConfirmModal(prev => prev ? ({ ...prev, scrapQty: prev.scrapQty + 5 }) : null)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-xs"
+                  >
+                    +5
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ملاحظات المشغل / الوردية (اختياري)</label>
+                <textarea
+                  rows={2}
+                  placeholder="أي ملاحظة بخصوص جودة السحب أو سبب الهالك..."
+                  value={kioskConfirmModal.notes}
+                  onChange={e => setKioskConfirmModal(prev => prev ? ({ ...prev, notes: e.target.value }) : null)}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setKioskConfirmModal(null)}
+                className="px-5 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-xl text-sm hover:bg-gray-300 transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitKioskComplete}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-sm shadow-md transition-all active:scale-[0.98]"
+              >
+                تأكيد وتسليم للمرحلة التالية ✅
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ==================== MODAL: ADD / EDIT JOB ORDER ==================== */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
@@ -1506,6 +2321,328 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             </div>
 
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* Job Type Selector Tabs */}
+              <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      jobType: 'offset_carton',
+                      productCategory: 'علب وتغليف كرتون فاخر',
+                      selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
+                    }));
+                  }}
+                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
+                    formData.jobType === 'offset_carton'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="text-base">📦</span>
+                  <span>تصنيع كرتون مضلع وعلب مبطنة أوفست (مع حاسبة التقفيل والمسطح)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      jobType: 'commercial_printing',
+                      productCategory: 'مطبوعات تجارية',
+                      selectedOps: ['paper_cutting', 'ctp_plates', 'printing', 'lamination', 'die_cutting', 'packaging']
+                    }));
+                  }}
+                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
+                    formData.jobType === 'commercial_printing'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="text-base">📄</span>
+                  <span>مطبوعات ورقية تجارية مخصصة (بروشور / كتالوج / ملصقات)</span>
+                </button>
+              </div>
+
+              {/* If offset_carton is selected, show Smart Box Specs & Imposition Calculator */}
+              {formData.jobType === 'offset_carton' && (
+                <div className="bg-gradient-to-br from-indigo-50/70 via-blue-50/50 to-purple-50/60 p-5 rounded-2xl border-2 border-indigo-200 space-y-4">
+                  <div className="flex items-center justify-between border-b border-indigo-200 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📐</span>
+                      <div>
+                        <h3 className="text-sm font-black text-indigo-950">حاسبة مسطحات وتقفيل الكرتون الأوفست الذكية</h3>
+                        <p className="text-[11px] text-indigo-700">تطبيق معادلات التفريد (Blank Size) وتخطيط الفرخ (Imposition) حسب طراز التقفيل</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const opt = BOX_STRUCTURE_OPTIONS.find(b => b.type === formData.boxStructure);
+                        const title = formData.boxStructure === 'custom_diecut'
+                          ? `علبة كرتون مبطنة (فورمة خاصة ${modalBlankCalc.blankLength}×${modalBlankCalc.blankWidth} سم) - ${formData.fluteType} ${formData.topPaperType}`
+                          : `علبة كرتون مبطنة (${opt?.fefcoCode || ''}) مقاس ${formData.boxLength}×${formData.boxWidth}×${formData.boxHeight} سم - مسطح ${modalBlankCalc.blankLength}×${modalBlankCalc.blankWidth} سم - ${formData.fluteType}`;
+                        setFormData(prev => ({
+                          ...prev,
+                          productTitle: title,
+                          notes: `مواصفات الكرتون: ${opt?.name} | مسطح التكسير: ${modalBlankCalc.blankLength}×${modalBlankCalc.blankWidth} سم | الفرخ: ${formData.sheetLength}×${formData.sheetWidth} سم (${modalImpCalc.upsPerSheet} علب بالفرخ) | ${formData.fluteType} + ${formData.topPaperType}`
+                        }));
+                        showNotification('تم ملء بيانات الوصف والملاحظات من الحاسبة بنجاح ⚡', 'success');
+                      }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1"
+                      title="ملء اسم المطبوع والملاحظات الفنية تلقائياً من مواصفات الحاسبة"
+                    >
+                      <span>⚡</span>
+                      <span>ملء الوصف تلقائياً</span>
+                    </button>
+                  </div>
+
+                  {/* 1. Box Structure Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 mb-1.5">
+                      1. اختر شكل / طراز تقفيل العلبة:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {BOX_STRUCTURE_OPTIONS.map(bs => {
+                        const isSelected = formData.boxStructure === bs.type;
+                        return (
+                          <div
+                            key={bs.type}
+                            onClick={() => setFormData(prev => ({ ...prev, boxStructure: bs.type }))}
+                            className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all text-right ${
+                              isSelected
+                                ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-300'
+                                : 'bg-white/80 border-gray-200 hover:border-indigo-300 hover:bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-base">{bs.icon}</span>
+                              <span className="font-black text-xs text-gray-900 truncate">{bs.name}</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-indigo-700 block mt-0.5">
+                              {bs.fefcoCode}
+                            </span>
+                            <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                              {bs.example}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Dimensions or Direct Blank */}
+                  {formData.boxStructure !== 'custom_diecut' ? (
+                    <div className="bg-white p-3.5 rounded-xl border border-indigo-100 space-y-3">
+                      <span className="text-xs font-bold text-gray-800 block">
+                        2. أبعاد العلبة الداخلية (سم):
+                      </span>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">الطول (L) سم</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={formData.boxLength}
+                            onChange={e => setFormData(prev => ({ ...prev, boxLength: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">العرض (W) سم</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={formData.boxWidth}
+                            onChange={e => setFormData(prev => ({ ...prev, boxWidth: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">الارتفاع (H) سم</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={formData.boxHeight}
+                            onChange={e => setFormData(prev => ({ ...prev, boxHeight: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-center"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Calculated Blank Banner */}
+                      <div className="bg-indigo-50 border border-indigo-200 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-indigo-900">📐 مسطح التكسير المفروش المحسوب:</span>
+                          <span className="font-mono font-black text-indigo-700 text-sm bg-white px-2 py-0.5 rounded border border-indigo-200">
+                            {modalBlankCalc.blankLength} سم (طول) × {modalBlankCalc.blankWidth} سم (عرض)
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-indigo-600 font-medium">
+                          {modalBlankCalc.description}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-3.5 rounded-xl border border-indigo-100 space-y-3">
+                      <span className="text-xs font-bold text-gray-800 block">
+                        2. إدخال مقاس مسطح الفورمة الخاصة مباشرة (سم):
+                      </span>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">طول مسطح التكسير (سم)</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={formData.customBlankLength}
+                            onChange={e => setFormData(prev => ({ ...prev, customBlankLength: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">عرض مسطح التكسير (سم)</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={formData.customBlankWidth}
+                            onChange={e => setFormData(prev => ({ ...prev, customBlankWidth: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-center"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Paper, Flute & Sheet Setup */}
+                  <div className="bg-white p-3.5 rounded-xl border border-indigo-100 space-y-3">
+                    <span className="text-xs font-bold text-gray-800 block">
+                      3. مواصفات الخامات وفرخ الطباعة الأوفست:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">نوع تمويج السينجل فيس</label>
+                        <select
+                          value={formData.fluteType}
+                          onChange={e => setFormData(prev => ({ ...prev, fluteType: e.target.value as any }))}
+                          className="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold"
+                        >
+                          <option value="E-Flute">E-Flute (ميكروفلوت ناعم 1.5 مم)</option>
+                          <option value="B-Flute">B-Flute (فلوت متوسط 3 مم)</option>
+                          <option value="C-Flute">C-Flute (فلوت كبير 4 مم)</option>
+                          <option value="BC-Flute">BC-Flute (دبل وول 5 راء 7 مم)</option>
+                          <option value="F-Flute">F-Flute (ألترا ناعم 0.8 مم)</option>
+                          <option value="بدون (دوبلكس مصمت)">بدون (دوبلكس / بريستول مصمت)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">ورق الطباعة العلوي</label>
+                        <input
+                          type="text"
+                          value={formData.topPaperType}
+                          onChange={e => setFormData(prev => ({ ...prev, topPaperType: e.target.value }))}
+                          placeholder="مثال: دوبلكس 250 جم"
+                          className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">مقاس فرخ الطباعة الأوفست</label>
+                        <select
+                          value={formData.sheetPreset}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '70x100') setFormData(prev => ({ ...prev, sheetPreset: val, sheetLength: 100, sheetWidth: 70 }));
+                            else if (val === '66x88') setFormData(prev => ({ ...prev, sheetPreset: val, sheetLength: 88, sheetWidth: 66 }));
+                            else if (val === '60x90') setFormData(prev => ({ ...prev, sheetPreset: val, sheetLength: 90, sheetWidth: 60 }));
+                            else if (val === '50x70') setFormData(prev => ({ ...prev, sheetPreset: val, sheetLength: 70, sheetWidth: 50 }));
+                            else setFormData(prev => ({ ...prev, sheetPreset: 'custom' }));
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold"
+                        >
+                          <option value="70x100">70 × 100 سم (فرخ كامل)</option>
+                          <option value="66x88">66 × 88 سم</option>
+                          <option value="60x90">60 × 90 سم</option>
+                          <option value="50x70">50 × 70 سم (نصف فرخ)</option>
+                          <option value="custom">مقاس تفصيل مخصص...</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">نسبة هالك الضبط (%)</label>
+                        <input
+                          type="number"
+                          value={formData.spoilagePercent}
+                          onChange={e => setFormData(prev => ({ ...prev, spoilagePercent: Number(e.target.value) || 0 }))}
+                          className="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold text-center"
+                        />
+                      </div>
+                    </div>
+
+                    {formData.sheetPreset === 'custom' && (
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">طول الفرخ (سم)</label>
+                          <input
+                            type="number"
+                            value={formData.sheetLength}
+                            onChange={e => setFormData(prev => ({ ...prev, sheetLength: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-xs text-center"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 mb-1">عرض الفرخ (سم)</label>
+                          <input
+                            type="number"
+                            value={formData.sheetWidth}
+                            onChange={e => setFormData(prev => ({ ...prev, sheetWidth: parseFloat(e.target.value) || 0 }))}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-xs text-center"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. Imposition Live KPI Banner */}
+                  <div className="bg-white p-4 rounded-xl border border-indigo-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-100">
+                      <span className="text-[10px] font-bold text-gray-500 block">عدد العلب بالفرخ (Ups)</span>
+                      <span className="text-xl font-black text-indigo-700 font-mono">
+                        {modalImpCalc.upsPerSheet} علبة
+                      </span>
+                      <span className="text-[10px] text-indigo-600 block">({modalImpCalc.cols} × {modalImpCalc.rows})</span>
+                    </div>
+
+                    <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
+                      <span className="text-[10px] font-bold text-gray-500 block">استغلال مساحة الفرخ</span>
+                      <span className="text-xl font-black text-emerald-700 font-mono">
+                        {modalImpCalc.sheetUsagePercent}%
+                      </span>
+                      <span className="text-[10px] text-emerald-600 block">
+                        {modalImpCalc.sheetUsagePercent >= 75 ? 'ممتاز واقتصادي' : 'يوجد هالك جانبي'}
+                      </span>
+                    </div>
+
+                    <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-100">
+                      <span className="text-[10px] font-bold text-gray-500 block">الأفرخ الصافية</span>
+                      <span className="text-xl font-black text-amber-700 font-mono">
+                        {modalImpCalc.sheetsWithoutSpoilage.toLocaleString('en-US')}
+                      </span>
+                      <span className="text-[10px] text-amber-600 block">بدون هالك ضبط</span>
+                    </div>
+
+                    <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-100">
+                      <span className="text-[10px] font-bold text-gray-500 block">إجمالي الأفرخ المطلوب سحبها</span>
+                      <span className="text-xl font-black text-blue-800 font-mono">
+                        {modalImpCalc.totalSheetsRequired.toLocaleString('en-US')}
+                      </span>
+                      <span className="text-[10px] text-blue-600 block">شاملاً {modalImpCalc.spoilageSheets} فرخ هالك</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Row 1: Customer & Category */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1740,6 +2877,57 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               </div>
             </div>
 
+            {/* If Carton Specs exist, show the smart carton summary banner */}
+            {viewingJob.cartonSpecs && (
+              <div className="bg-slate-900 text-white p-4 border-b border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📦</span>
+                    <span className="font-black text-sm text-amber-400">
+                      مواصفات وتفريد الكرتون: {viewingJob.cartonSpecs.structureName}
+                    </span>
+                  </div>
+                  {viewingJob.cartonSpecs.fluteType && (
+                    <span className="bg-indigo-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                      {viewingJob.cartonSpecs.fluteType} {viewingJob.cartonSpecs.topPaperType ? `+ ${viewingJob.cartonSpecs.topPaperType}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {viewingJob.cartonSpecs.length && viewingJob.cartonSpecs.width && viewingJob.cartonSpecs.height ? (
+                    <div className="bg-slate-800/80 p-2 rounded-lg">
+                      <span className="text-[10px] text-slate-400 block">أبعاد العلبة (طول×عرض×ارتفاع)</span>
+                      <span className="font-bold text-white font-mono">
+                        {viewingJob.cartonSpecs.length} × {viewingJob.cartonSpecs.width} × {viewingJob.cartonSpecs.height} سم
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className="bg-slate-800/80 p-2 rounded-lg">
+                    <span className="text-[10px] text-slate-400 block">مسطح التكسير المفروش</span>
+                    <span className="font-bold text-emerald-400 font-mono">
+                      {viewingJob.cartonSpecs.blankLength} × {viewingJob.cartonSpecs.blankWidth} سم
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-800/80 p-2 rounded-lg">
+                    <span className="text-[10px] text-slate-400 block">فرخ الطباعة وتجميع العلب</span>
+                    <span className="font-bold text-amber-300 font-mono">
+                      {viewingJob.cartonSpecs.sheetLength}×{viewingJob.cartonSpecs.sheetWidth} سم ({viewingJob.cartonSpecs.upsPerSheet} علب/فرخ)
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-800/80 p-2 rounded-lg">
+                    <span className="text-[10px] text-slate-400 block">إجمالي أفرخ الورق المطلوب سحبها</span>
+                    <span className="font-bold text-blue-300 font-mono">
+                      {viewingJob.cartonSpecs.totalSheetsRequired.toLocaleString('en-US')} فرخ
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Stages / Operations List */}
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               <div className="flex justify-between items-center mb-1">
@@ -1784,10 +2972,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             </span>
                           </div>
 
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-500 block">
                             {isCompleted
                               ? `مكتملة ومرحّلة بنجاح ${op.completedAt ? `(${new Date(op.completedAt).toLocaleDateString('ar-EG')})` : ''}`
                               : 'في انتظار الاعتماد'}
+                            {op.goodQuantity !== undefined && (
+                              <span className="text-emerald-700 font-bold mr-2 text-[11px]">
+                                (إنتاج سليم: {op.goodQuantity.toLocaleString('en-US')} {op.scrapQuantity ? ` | هالك: ${op.scrapQuantity}` : ''})
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>

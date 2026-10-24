@@ -128,6 +128,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'execute_printing_job_stage', label: 'اعتماد مرحلة وترحيل قيد المورد', desc: 'إثبات مديونية المطبعة أو ورشة التشطيب في الحسابات', type: 'create' },
       { key: 'duplicate_printing_job', label: 'تكرار أمر الشغل (Re-Order)', desc: 'نسخ سريع لأمر شغل سابق لنفس العميل', type: 'create' },
       { key: 'view_customer_profitability_report', label: 'عرض تقرير أرباح العميل الحقيقية', desc: 'الاطلاع على صافي الأرباح المحققة من كل عميل', type: 'view' },
+      { key: 'access_printing_kiosk', label: 'شاشات صالة الإنتاج والماكينات (Kiosk)', desc: 'تشغيل واجهة التابلت الكبيرة لعمال الماكينات لنقل المراحل وتسجيل الهالك', type: 'view' },
     ]
   },
   {

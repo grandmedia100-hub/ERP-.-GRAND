@@ -76,6 +76,7 @@ export type Permission =
   | 'execute_printing_job_stage'
   | 'duplicate_printing_job'
   | 'view_customer_profitability_report'
+  | 'access_printing_kiosk'
 
   // 6. Treasury, Banks, Expenses & Partners
   | 'access_treasury'
@@ -777,11 +778,42 @@ export type PrintingOperationId =
   | 'hot_foil'           // 11. بصمة
   | 'embossing'          // 12. كوفراج
   | 'die_cutting'        // 13. تكسير
-  | 'gluing'             // 14. لزق
-  | 'staple_binding'     // 15. دبوس
-  | 'spiral_binding'     // 16. سلك لولبي
-  | 'packaging'          // 17. تغليف
-  | 'shipping';          // 18. شحن
+  | 'corrugated_flute'   // 14. شيتات كرتون مضلع سينجل فيس
+  | 'flute_lamination'   // 15. كستوة / لصف / تبطين
+  | 'gluing'             // 16. لزق وتقفيل
+  | 'staple_binding'     // 17. دبوس / تدبيس
+  | 'spiral_binding'     // 18. سلك لولبي
+  | 'packaging'          // 19. تغليف وتحزيم
+  | 'shipping';          // 20. شحن
+
+export type BoxStructureType = 
+  | 'auto_lock'          // علبة قفل أوتوماتيك سفلي (FEFCO 0711)
+  | 'mailer_pizza'       // علبة أذن / بيتزا / بريد ذاتية القفل (FEFCO 0427)
+  | 'rsc'                // كرتونة عادية ألسنة متطابقة بسلوتيب (FEFCO 0201)
+  | 'reverse_tuck'       // علبة لسان عادي عكسي فوق وتحت
+  | 'two_piece'          // علبة غطاء وقاعدة منفصلين (FEFCO 0301)
+  | 'drawer_sleeve'      // علبة درج وكفر
+  | 'custom_diecut';     // نمط مخصص / فورمة خاصة بمسطح مباشر
+
+export interface CartonBoxSpecs {
+  structureType: BoxStructureType;
+  structureName: string;
+  // Dimensions in cm
+  length?: number;
+  width?: number;
+  height?: number;
+  // Flat blank size in cm
+  blankLength: number;
+  blankWidth: number;
+  // Sheet & Imposition
+  sheetLength: number;
+  sheetWidth: number;
+  upsPerSheet: number;
+  fluteType?: 'E-Flute' | 'B-Flute' | 'C-Flute' | 'BC-Flute' | 'F-Flute' | 'بدون (دوبلكس مصمت)';
+  topPaperType?: string;
+  spoilagePercent: number;
+  totalSheetsRequired: number;
+}
 
 export interface PrintingOperationDefinition {
   id: PrintingOperationId;
@@ -818,6 +850,12 @@ export interface JobOperationItem {
   specifications?: string;
   notes?: string;
   completedAt?: string;
+
+  // Shop Floor / Kiosk Tracking (صالة الإنتاج والماكينات)
+  startedAt?: string;
+  goodQuantity?: number; // عدد الوحدات السليمة المنتجة
+  scrapQuantity?: number; // عدد وحدات الهالك/التالف
+  operatorNotes?: string;
 }
 
 export interface PrintingJobOrder {
@@ -832,6 +870,8 @@ export interface PrintingJobOrder {
   productCategory?: string; // علب كرتون / بروشور / كتالوج / كروت / أكياس
   quantity: number; // الكمية المطلوبة
   unit: string; // عدد / علبة / ألف / كرتونة
+  jobType?: 'commercial_printing' | 'offset_carton'; // نوع الشغل: مطبوعات ورقية تجارية أو كرتون مضلع مبطن أوفست
+  cartonSpecs?: CartonBoxSpecs; // المواصفات الذكية ومقاسات العلبة ومخطط الفرد والقص
   
   // Financials
   clientSalePrice: number; // سعر البيع المتفق عليه للعميل
