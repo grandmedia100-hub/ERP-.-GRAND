@@ -2094,23 +2094,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
-              {/* Quick Template Presets */}
-              <div className="border-t border-gray-100 pt-4">
-                <span className="text-xs font-bold text-gray-700 block mb-2">⚡ قوالب جاهزة سريعة لملء العمليات:</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {PRINTING_TEMPLATES.map((tmpl, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleApplyTemplate(tmpl.operations)}
-                      className="p-2.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-xl text-right text-xs transition-all"
-                    >
-                      <div className="font-bold text-gray-800">{tmpl.icon} {tmpl.name}</div>
-                      <div className="text-[10px] text-gray-500 truncate mt-0.5">{tmpl.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               {/* Operations Checklist (18 Operations) */}
               <div className="border-t border-gray-100 pt-4">
