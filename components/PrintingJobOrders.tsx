@@ -650,13 +650,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     orderId: string,
     opIndex: number,
     data: {
+      supplierId?: string;
+      supplierName?: string;
       supplierInvoiceNumber: string;
-      actualQuantity: number;
-      actualRate: number;
+      actualQuantity?: number;
+      actualRate?: number;
       actualCost: number;
-      invoiceDate: string;
-      paymentMethod: 'نقدي' | 'اجل';
-      notes: string;
+      invoiceDate?: string;
+      paymentMethod?: 'نقدي' | 'اجل';
+      notes?: string;
     }
   ) => {
     const order = jobOrders.find(o => o.id === orderId);
@@ -664,13 +666,23 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const op = order.operations[opIndex];
     if (!op) return;
 
-    const supplierId = op.supplierId;
+    // Resolve supplier robustly by ID or Name
+    const passedSupplierId = data.supplierId || op.supplierId || (viewingJob?.id === orderId ? viewingJob.operations[opIndex]?.supplierId : undefined);
+    let supplier = suppliers.find(s => s.id === passedSupplierId);
+    if (!supplier && (data.supplierName || op.supplierName)) {
+      const nameToMatch = (data.supplierName || op.supplierName || '').trim().toLowerCase();
+      supplier = suppliers.find(s =>
+        (s.name && s.name.trim().toLowerCase() === nameToMatch) ||
+        (s.companyName && s.companyName.trim().toLowerCase() === nameToMatch)
+      );
+    }
+
+    const supplierId = supplier?.id || passedSupplierId;
     if (!supplierId) {
       showNotification('يرجى تحديد المورد المسؤول أولاً', 'error');
       return;
     }
-    const supplier = suppliers.find(s => s.id === supplierId);
-    const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل';
+    const supplierName = supplier?.name || supplier?.companyName || data.supplierName || op.supplierName || 'مورد تشغيل';
 
     const actualCost = Number(data.actualCost) || 0;
     if (actualCost <= 0) {
@@ -2332,9 +2344,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           <select
                             value={op.executionType}
                             onChange={e => {
+                              const newType = e.target.value as any;
                               const newOps = [...viewingJob.operations];
-                              newOps[idx].executionType = e.target.value as any;
+                              newOps[idx].executionType = newType;
                               setViewingJob({ ...viewingJob, operations: newOps });
+                              setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
                             }}
                             className="p-1.5 border border-gray-200 rounded-lg text-xs bg-white font-medium"
                           >
@@ -2348,11 +2362,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           <select
                             value={op.supplierId || ''}
                             onChange={e => {
+                              const sid = e.target.value;
+                              const sObj = suppliers.find(s => s.id === sid);
                               const newOps = [...viewingJob.operations];
-                              newOps[idx].supplierId = e.target.value;
+                              newOps[idx].supplierId = sid;
+                              newOps[idx].supplierName = sObj?.name || sObj?.companyName || '';
                               setViewingJob({ ...viewingJob, operations: newOps });
+                              setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
                             }}
-                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[150px] bg-white"
+                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[150px] bg-white font-bold text-gray-800"
                           >
                             <option value="">-- اختر المورد --</option>
                             {suppliers.map(s => (
@@ -2369,10 +2387,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                               placeholder="تقديري ج.م"
                               value={op.cost || ''}
                               onChange={e => {
+                                const newCost = Number(e.target.value) || 0;
                                 const newOps = [...viewingJob.operations];
-                                newOps[idx].cost = Number(e.target.value) || 0;
-                                newOps[idx].estimatedCost = Number(e.target.value) || 0;
+                                newOps[idx].cost = newCost;
+                                newOps[idx].estimatedCost = newCost;
                                 setViewingJob({ ...viewingJob, operations: newOps });
+                                setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
                               }}
                               className="w-24 p-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-xs font-bold text-center"
                               title="التكلفة التقديرية الأولية قبل وصول الفاتورة"
@@ -2446,19 +2466,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (!op.supplierId) {
-                                      showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
-                                      return;
-                                    }
                                     const est = Number(op.estimatedCost || op.cost) || 0;
+                                    const initialSupId = op.supplierId || (suppliers[0]?.id || '');
+                                    const initialSupName = opSupplier?.name || opSupplier?.companyName || (suppliers.find(s => s.id === initialSupId)?.name || 'مورد تشغيل');
                                     setReconcileSupplierModal({
                                       orderId: viewingJob.id,
                                       opIndex: idx,
                                       orderCode: viewingJob.code,
                                       customerName: viewingJob.customerName,
                                       opName: op.name,
-                                      supplierId: op.supplierId,
-                                      supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                      supplierId: initialSupId,
+                                      supplierName: initialSupName,
                                       unit: op.unit || 'طن',
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       estimatedRate: op.estimatedRate || 0,
@@ -2510,19 +2528,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                if (!op.supplierId) {
-                                  showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
-                                  return;
-                                }
                                 const est = Number(op.estimatedCost || op.cost) || 0;
+                                const initialSupId = op.supplierId || (suppliers[0]?.id || '');
+                                const initialSupName = opSupplier?.name || opSupplier?.companyName || (suppliers.find(s => s.id === initialSupId)?.name || 'مورد تشغيل');
                                 setReconcileSupplierModal({
                                   orderId: viewingJob.id,
                                   opIndex: idx,
                                   orderCode: viewingJob.code,
                                   customerName: viewingJob.customerName,
                                   opName: op.name,
-                                  supplierId: op.supplierId,
-                                  supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                  supplierId: initialSupId,
+                                  supplierName: initialSupName,
                                   unit: op.unit || 'طن',
                                   estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                   estimatedRate: op.estimatedRate || 0,
@@ -3005,8 +3021,26 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   <span className="font-black text-gray-900 text-sm">{reconcileSupplierModal.opName}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 block text-[10px]">المورد:</span>
-                  <span className="font-black text-emerald-800 text-sm">{reconcileSupplierModal.supplierName}</span>
+                  <span className="text-gray-500 block text-[10px] mb-0.5">المورد المسؤول:</span>
+                  <select
+                    value={reconcileSupplierModal.supplierId || ''}
+                    onChange={e => {
+                      const sid = e.target.value;
+                      const sObj = suppliers.find(s => s.id === sid);
+                      const sName = sObj?.name || sObj?.companyName || 'مورد تشغيل';
+                      setReconcileSupplierModal(prev => prev ? ({
+                        ...prev,
+                        supplierId: sid,
+                        supplierName: sName
+                      }) : null);
+                    }}
+                    className="font-bold text-emerald-900 text-xs p-1.5 rounded-lg border border-emerald-300 bg-white shadow-2xs"
+                  >
+                    <option value="">-- اختر المورد --</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.companyName || s.name})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -3228,6 +3262,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   reconcileSupplierModal.orderId,
                   reconcileSupplierModal.opIndex,
                   {
+                    supplierId: reconcileSupplierModal.supplierId,
+                    supplierName: reconcileSupplierModal.supplierName,
                     supplierInvoiceNumber: reconcileSupplierModal.supplierInvoiceNumber,
                     actualQuantity: reconcileSupplierModal.actualQuantity,
                     actualRate: reconcileSupplierModal.actualRate,
