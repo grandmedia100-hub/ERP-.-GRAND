@@ -90,10 +90,16 @@ const ToastContainer: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                                <h4 className="font-bold text-sm tracking-tight truncate">{toast.title}</h4>
-                                <span className="text-[10px] text-gray-400 font-mono shrink-0">الآن</span>
+                                <h4 className="font-bold text-sm tracking-tight truncate text-white">
+                                    {toast.title || (toast.type === 'error' ? 'خطأ' : toast.type === 'warning' ? 'تحذير' : 'تنبيه')}
+                                </h4>
+                                <span className="text-[10px] text-gray-300 font-mono shrink-0">الآن</span>
                             </div>
-                            <p className="text-xs text-gray-200 mt-0.5 leading-relaxed break-words">{toast.message}</p>
+                            {toast.message && (
+                                <p className="text-xs text-white/90 font-medium mt-1 leading-relaxed break-words">
+                                    {toast.message}
+                                </p>
+                            )}
                         </div>
                         <button
                             onClick={() => removeToast(toast.id)}

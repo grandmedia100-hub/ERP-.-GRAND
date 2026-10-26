@@ -519,6 +519,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   }, [jobOrders, kioskStation]);
 
   // ==================== Stage Execution & Accounting ====================
+  // 1. Operational Stage Completion (إتمام تشغيل المرحلة دون ترحيل مالي للمورد)
   const handleExecuteStage = (orderId: string, opIndex: number, updatedFields: Partial<JobOperationItem>) => {
     const order = jobOrders.find(o => o.id === orderId);
     if (!order) return;
@@ -526,98 +527,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const op = order.operations[opIndex];
     if (!op) return;
 
-    const isExternal = (updatedFields.executionType || op.executionType) === 'external';
+    const executionType = updatedFields.executionType || op.executionType || 'internal';
     const cost = Number(updatedFields.cost ?? op.cost) || 0;
     const supplierId = updatedFields.supplierId || op.supplierId;
     const supplier = suppliers.find(s => s.id === supplierId);
 
-    if (isExternal && !supplierId) {
-      showNotification('يرجى اختيار المورد المسؤول عن هذه المرحلة أولاً', 'error');
-      return;
-    }
-
-    let jeId: string | undefined = op.journalEntryId;
-    let pInvId: string | undefined = op.purchaseInvoiceId;
-
-    // 1. Generate real Purchase Invoice for supplier if external and not yet created
-    if (isExternal && cost > 0 && !pInvId) {
-      const pinvCount = (purchaseInvoices?.length || 0) + 1;
-      const todayStr = new Date().toISOString().split('T')[0];
-      const yearStr = todayStr.split('-')[0];
-      pInvId = `PINV-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
-      const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل لدى الغير';
-
-      const newPurchaseInvoice: PurchaseInvoice = {
-        id: pInvId,
-        supplierId: supplierId!,
-        supplierName,
-        companyName: supplier?.companyName,
-        date: todayStr,
-        items: [
-          {
-            productId: `SRV-${op.operationId}`,
-            productName: `${op.name} (أمر شغل ${order.code} - ${order.customerName})`,
-            quantity: 1,
-            price: cost,
-            total: cost,
-            unit: (op.unit as any) || 'عدد',
-            itemType: 'expense',
-            cost: cost
-          }
-        ],
-        subTotal: cost,
-        total: cost,
-        paymentMethod: op.paymentMethod || 'اجل',
-        invoiceType: 'purchase',
-        notes: `مصنعية/توريد ${op.name} عن أمر شغل ${order.code} للعميل ${order.customerName}${op.notes ? ` - ${op.notes}` : ''}`,
-        status: 'active',
-        branchId: currentBranchId
-      };
-
-      if (setPurchaseInvoices) {
-        setPurchaseInvoices(prev => [newPurchaseInvoice, ...prev]);
-      }
-    }
-
-    // 2. Generate Journal Entry if external and not already posted
-    if (isExternal && cost > 0 && !jeId) {
-      const supplierName = supplier?.name || supplier?.companyName || 'مورد تشغيل لدى الغير';
-      const entryDesc = `فاتورة مشتريات ${pInvId || ''} - تكلفة تشغيل لدى الغير (${op.name}) - أمر شغل ${order.code} - مورد: ${supplierName}`;
-
-      jeId = createJournalEntry({
-        description: entryDesc,
-        date: new Date().toISOString().split('T')[0],
-        referenceType: 'PurchaseInvoice',
-        referenceId: pInvId || order.code,
-        branchId: currentBranchId,
-        lines: [
-          {
-            accountId: wipAccountId,
-            accountName: `${wipAccountName} (${order.code})`,
-            debit: cost,
-            credit: 0
-          },
-          {
-            accountId: payablesAccountId,
-            accountName: `الموردين - ${supplierName}`,
-            debit: 0,
-            credit: cost
-          }
-        ]
-      });
-
-      logAction(`ترحيل قيد مرحلة (${op.name}) وفاتورة مشتريات ${pInvId} بأمر شغل ${order.code} لحساب المورد ${supplierName} بقيمة ${cost} ج.م`);
-    }
-
-    // Update operation item
+    // Update operation item operationally
     const newOps = [...order.operations];
     newOps[opIndex] = {
       ...op,
       ...updatedFields,
-      supplierName: supplier?.name || supplier?.companyName || op.supplierName,
+      executionType,
+      supplierId: executionType === 'internal' ? undefined : supplierId,
+      supplierName: executionType === 'internal' ? undefined : (supplier?.name || supplier?.companyName || op.supplierName),
       status: 'completed',
-      journalEntryId: jeId,
-      purchaseInvoiceId: pInvId,
+      cost,
       completedAt: new Date().toISOString()
     };
 
@@ -644,7 +568,52 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
     if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
 
-    showNotification(`تم اعتماد مرحلة (${op.name}) وتسجيل فاتورة المورد في المشتريات والحسابات بنجاح ✅`, 'success');
+    logAction(`إتمام مرحلة (${op.name}) تشغيلياً بأمر شغل ${order.code} (${executionType === 'internal' ? 'داخلياً' : 'لدى الغير'})`);
+    showNotification(
+      executionType === 'internal'
+        ? `تم إتمام مرحلة (${op.name}) داخلياً ونقل الطلبية للخطوة التالية بنجاح ✅`
+        : `تم إتمام تشغيل مرحلة (${op.name}) ونقلها للمرحلة التالية. يمكنك ترحيل فاتورة المورد عند وصولها ⏩`,
+      'success'
+    );
+  };
+
+  // Reopen an unposted stage for operational adjustment (إعادة فتح مرحلة غير مرحلة مالياً)
+  const handleReopenStage = (orderId: string, opIndex: number) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const op = order.operations[opIndex];
+    if (!op || op.status !== 'completed') return;
+
+    if (op.purchaseInvoiceId || op.billingStatus === 'confirmed_posted') {
+      handleUndoStage(orderId, opIndex);
+      return;
+    }
+
+    const newOps = [...order.operations];
+    newOps[opIndex] = {
+      ...op,
+      status: 'pending',
+      completedAt: undefined
+    };
+
+    const totalActualCost = newOps.reduce((sum, o) => sum + (o.status === 'completed' ? (Number(o.cost) || 0) : 0), 0);
+    const grossProfit = order.clientSalePrice - totalActualCost;
+    const profitMarginPercent = order.clientSalePrice > 0 ? (grossProfit / order.clientSalePrice) * 100 : 0;
+
+    const updatedOrder: PrintingJobOrder = {
+      ...order,
+      operations: newOps,
+      currentStageIndex: Math.min(order.currentStageIndex, opIndex),
+      totalActualCost,
+      grossProfit,
+      profitMarginPercent
+    };
+
+    setJobOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+    if (viewingJob?.id === orderId) setViewingJob(updatedOrder);
+
+    logAction(`إعادة فتح مرحلة (${op.name}) بأمر شغل ${order.code} للمتابعة`);
+    showNotification(`تم إعادة فتح مرحلة (${op.name}) بنجاح`, 'info');
   };
 
   // 1. Save Physical Delivery Receipt (تسجيل إذن الاستلام والوزن الفعلي دون ترحيل مالي)
@@ -2358,8 +2327,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
                       {/* Right: Supplier, Cost & Actions */}
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* Toggle Internal / External if not confirmed */}
-                        {!isConfirmedPosted && !isCompleted && (
+                        {/* Toggle Internal / External if not financially confirmed */}
+                        {!isConfirmedPosted && (
                           <select
                             value={op.executionType}
                             onChange={e => {
@@ -2367,7 +2336,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                               newOps[idx].executionType = e.target.value as any;
                               setViewingJob({ ...viewingJob, operations: newOps });
                             }}
-                            className="p-1.5 border border-gray-200 rounded-lg text-xs"
+                            className="p-1.5 border border-gray-200 rounded-lg text-xs bg-white font-medium"
                           >
                             <option value="external">🚚 لدى الغير</option>
                             <option value="internal">🏢 داخلي</option>
@@ -2383,7 +2352,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                               newOps[idx].supplierId = e.target.value;
                               setViewingJob({ ...viewingJob, operations: newOps });
                             }}
-                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[150px]"
+                            className="p-1.5 border border-gray-200 rounded-lg text-xs max-w-[150px] bg-white"
                           >
                             <option value="">-- اختر المورد --</option>
                             {suppliers.map(s => (
@@ -2412,97 +2381,213 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </div>
                         )}
 
-                        {/* ACTION 1: Record Physical Delivery (if external and not posted) */}
-                        {isExternal && !isConfirmedPosted && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!op.supplierId) {
-                                showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
-                                return;
-                              }
-                              setReceiveDeliveryModal({
-                                orderId: viewingJob.id,
-                                opIndex: idx,
-                                orderCode: viewingJob.code,
-                                opName: op.name,
-                                supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
-                                unit: op.unit || 'طن',
-                                estimatedQty: op.estimatedQuantity || op.quantity || 0,
-                                actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
-                                deliveryNoteNumber: op.deliveryNoteNumber || '',
-                                notes: op.notes || ''
-                              });
-                            }}
-                            className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
-                            title="تسجيل وصول الخامات أو المصنعية الفعلية بالمخزن مع رقم الإذن دون ترحيل مالي"
-                          >
-                            <span>📦</span>
-                            <span>{isReceivedPending ? 'تعديل الاستلام' : 'استلام خامات'}</span>
-                          </button>
+                        {/* --- CASE 1: Stage NOT completed operationally yet (!isCompleted) --- */}
+                        {!isCompleted && (
+                          <>
+                            {isExternal ? (
+                              <>
+                                {/* External Operational Completion (Advances stage without financial debt) */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteStage(viewingJob.id, idx, {
+                                    executionType: 'external',
+                                    cost: op.cost
+                                  })}
+                                  className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
+                                  title="إنهاء تشغيل المرحلة واستلامها تشغيلياً ونقل الطلبية للمرحلة التالية في صالة الإنتاج دون ترحيل مالي"
+                                >
+                                  <span>⏩</span>
+                                  <span>إتمام التشغيل والمرحلة</span>
+                                </button>
+
+                                {/* Option to execute internally instead */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteStage(viewingJob.id, idx, {
+                                    executionType: 'internal',
+                                    cost: op.cost
+                                  })}
+                                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold px-2 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
+                                  title="تنفيذ هذه المرحلة داخل الورشة داخلياً بدلاً من إرسالها لمورد خارجي"
+                                >
+                                  <span>🏢</span>
+                                  <span>إتمام داخلياً</span>
+                                </button>
+
+                                {/* Delivery Receipt Modal Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!op.supplierId) {
+                                      showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
+                                      return;
+                                    }
+                                    setReceiveDeliveryModal({
+                                      orderId: viewingJob.id,
+                                      opIndex: idx,
+                                      orderCode: viewingJob.code,
+                                      opName: op.name,
+                                      supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                      unit: op.unit || 'طن',
+                                      estimatedQty: op.estimatedQuantity || op.quantity || 0,
+                                      actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
+                                      deliveryNoteNumber: op.deliveryNoteNumber || '',
+                                      notes: op.notes || ''
+                                    });
+                                  }}
+                                  className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold px-2 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
+                                  title="تسجيل وصول الخامات أو المصنعية الفعلية بالمخزن مع رقم الإذن دون ترحيل مالي"
+                                >
+                                  <span>📦</span>
+                                  <span>{isReceivedPending ? 'تعديل الاستلام' : 'استلام خامات'}</span>
+                                </button>
+
+                                {/* Official Invoice Reconciliation Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!op.supplierId) {
+                                      showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
+                                      return;
+                                    }
+                                    const est = Number(op.estimatedCost || op.cost) || 0;
+                                    setReconcileSupplierModal({
+                                      orderId: viewingJob.id,
+                                      opIndex: idx,
+                                      orderCode: viewingJob.code,
+                                      customerName: viewingJob.customerName,
+                                      opName: op.name,
+                                      supplierId: op.supplierId,
+                                      supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                      unit: op.unit || 'طن',
+                                      estimatedQty: op.estimatedQuantity || op.quantity || 0,
+                                      estimatedRate: op.estimatedRate || 0,
+                                      estimatedCost: est,
+                                      receivedQty: op.actualQuantity || 0,
+                                      deliveryNoteNumber: op.deliveryNoteNumber || '',
+                                      supplierInvoiceNumber: op.supplierInvoiceNumber || '',
+                                      actualQuantity: op.actualQuantity || op.estimatedQuantity || op.quantity || 0,
+                                      actualRate: op.actualRate || op.estimatedRate || 0,
+                                      actualCost: op.actualCost || (op.actualRate && op.actualQuantity ? op.actualRate * op.actualQuantity : (op.cost || est)),
+                                      invoiceDate: new Date().toISOString().split('T')[0],
+                                      paymentMethod: op.paymentMethod || 'اجل',
+                                      notes: ''
+                                    });
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
+                                  title="مطابقة فاتورة أو كشف حساب المورد النهائي وترحيل القيد لحساب المورد رسمياً"
+                                >
+                                  <span>🧾</span>
+                                  <span>مطابقة الفاتورة والترحيل</span>
+                                </button>
+                              </>
+                            ) : (
+                              /* Internal Stage Completion */
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteStage(viewingJob.id, idx, {
+                                  cost: op.cost,
+                                  executionType: 'internal'
+                                })}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
+                              >
+                                <span>إتمام المرحلة داخلياً ✅</span>
+                              </button>
+                            )}
+                          </>
                         )}
 
-                        {/* ACTION 2: Reconcile Official Supplier Invoice (if external and not posted) */}
-                        {isExternal && !isConfirmedPosted && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!op.supplierId) {
-                                showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
-                                return;
-                              }
-                              const est = Number(op.estimatedCost || op.cost) || 0;
-                              setReconcileSupplierModal({
-                                orderId: viewingJob.id,
-                                opIndex: idx,
-                                orderCode: viewingJob.code,
-                                customerName: viewingJob.customerName,
-                                opName: op.name,
-                                supplierId: op.supplierId,
-                                supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
-                                unit: op.unit || 'طن',
-                                estimatedQty: op.estimatedQuantity || op.quantity || 0,
-                                estimatedRate: op.estimatedRate || 0,
-                                estimatedCost: est,
-                                receivedQty: op.actualQuantity || 0,
-                                deliveryNoteNumber: op.deliveryNoteNumber || '',
-                                supplierInvoiceNumber: op.supplierInvoiceNumber || '',
-                                actualQuantity: op.actualQuantity || op.estimatedQuantity || op.quantity || 0,
-                                actualRate: op.actualRate || op.estimatedRate || 0,
-                                actualCost: op.actualCost || est,
-                                invoiceDate: new Date().toISOString().split('T')[0],
-                                paymentMethod: op.paymentMethod || 'اجل',
-                                notes: ''
-                              });
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
-                            title="مطابقة فاتورة أو كشف حساب المورد النهائي وترحيل القيد لحساب المورد رسمياً"
-                          >
-                            <span>🧾</span>
-                            <span>مطابقة الفاتورة والترحيل</span>
-                          </button>
+                        {/* --- CASE 2: External Stage Operationally Completed BUT Waiting for Official Supplier Invoice --- */}
+                        {isCompleted && isExternal && !isConfirmedPosted && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مكتملة تشغيلياً</span>
+                              <span className="text-[10px] text-teal-600 font-normal">(بانتظار الفاتورة)</span>
+                            </span>
+
+                            {/* Reconcile Invoice is accessible anytime */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!op.supplierId) {
+                                  showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
+                                  return;
+                                }
+                                const est = Number(op.estimatedCost || op.cost) || 0;
+                                setReconcileSupplierModal({
+                                  orderId: viewingJob.id,
+                                  opIndex: idx,
+                                  orderCode: viewingJob.code,
+                                  customerName: viewingJob.customerName,
+                                  opName: op.name,
+                                  supplierId: op.supplierId,
+                                  supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
+                                  unit: op.unit || 'طن',
+                                  estimatedQty: op.estimatedQuantity || op.quantity || 0,
+                                  estimatedRate: op.estimatedRate || 0,
+                                  estimatedCost: est,
+                                  receivedQty: op.actualQuantity || 0,
+                                  deliveryNoteNumber: op.deliveryNoteNumber || '',
+                                  supplierInvoiceNumber: op.supplierInvoiceNumber || '',
+                                  actualQuantity: op.actualQuantity || op.estimatedQuantity || op.quantity || 0,
+                                  actualRate: op.actualRate || op.estimatedRate || 0,
+                                  actualCost: op.actualCost || (op.actualRate && op.actualQuantity ? op.actualRate * op.actualQuantity : (op.cost || est)),
+                                  invoiceDate: new Date().toISOString().split('T')[0],
+                                  paymentMethod: op.paymentMethod || 'اجل',
+                                  notes: ''
+                                });
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
+                              title="مطابقة فاتورة أو كشف حساب المورد النهائي وترحيل القيد لحساب المورد رسمياً"
+                            >
+                              <span>🧾</span>
+                              <span>مطابقة الفاتورة والترحيل</span>
+                            </button>
+
+                            {/* Reopen stage */}
+                            {viewingJob.status !== 'delivered' && (
+                              <button
+                                type="button"
+                                onClick={() => handleReopenStage(viewingJob.id, idx)}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-2 py-1.5 rounded-lg transition-all"
+                                title="إعادة فتح المرحلة للمتابعة التشغيلية"
+                              >
+                                <span>↩️ إعادة فتح</span>
+                              </button>
+                            )}
+                          </div>
                         )}
 
-                        {/* ACTION 3: Internal Operation Completion */}
-                        {!isExternal && !isCompleted && (
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteStage(viewingJob.id, idx, {
-                              cost: op.cost,
-                              executionType: 'internal'
-                            })}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all"
-                          >
-                            <span>إتمام المرحلة داخلياً ✅</span>
-                          </button>
-                        )}
-
-                        {/* ACTION 4: Already Posted / Completed - Show status and Undo */}
-                        {(isConfirmedPosted || (!isExternal && isCompleted)) && (
+                        {/* --- CASE 3: Internal Stage Completed --- */}
+                        {isCompleted && !isExternal && (
                           <div className="flex items-center gap-2">
                             <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
                               <span>✓</span>
-                              <span>{isConfirmedPosted ? 'مرحّل بالحسابات' : 'مكتمل داخلياً'}</span>
+                              <span>مكتمل داخلياً</span>
+                              {op.cost > 0 && <span className="font-mono">({op.cost.toLocaleString('en-US')} ج.م)</span>}
+                            </span>
+
+                            {viewingJob.status !== 'delivered' && (
+                              <button
+                                type="button"
+                                onClick={() => handleReopenStage(viewingJob.id, idx)}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all"
+                                title="إعادة فتح المرحلة لتعديلها"
+                              >
+                                <span>↩️ تعديل / إعادة فتح</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* --- CASE 4: Confirmed & Posted to Accounting (External) --- */}
+                        {isConfirmedPosted && (
+                          <div className="flex items-center gap-2">
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مرحّل بالحسابات</span>
+                              {op.supplierInvoiceNumber && <span className="text-[10px] text-emerald-700 font-mono">(فاتورة: {op.supplierInvoiceNumber})</span>}
                               {op.cost > 0 && <span className="font-mono">({op.cost.toLocaleString('en-US')} ج.م)</span>}
                             </span>
 
@@ -3039,10 +3124,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   </div>
 
                   <div>
-                    <label className="block font-bold text-emerald-800 mb-1">إجمالي الفاتورة الفعلي (ج.م) *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-emerald-800 text-xs">إجمالي الفاتورة الفعلي (ج.م) *</label>
+                      <button
+                        type="button"
+                        onClick={() => setReconcileSupplierModal(prev => prev ? ({ ...prev, actualCost: prev.estimatedCost }) : null)}
+                        className="text-[10px] text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-1.5 py-0.5 rounded font-bold"
+                        title="نسخ التكلفة التقديرية المسجلة بأمر الشغل"
+                      >
+                        نسخ التقديري ({reconcileSupplierModal.estimatedCost.toLocaleString('en-US')})
+                      </button>
+                    </div>
                     <input
                       type="number"
                       step="any"
+                      placeholder="أدخل مبلغ الفاتورة المراد ترحيله"
                       value={reconcileSupplierModal.actualCost || ''}
                       onChange={e => setReconcileSupplierModal({
                         ...reconcileSupplierModal,

@@ -45,9 +45,34 @@ export interface ShowNotificationOptions {
 }
 
 /**
- * Trigger a system notification with sound effect and toast display
+ * Trigger a system notification with sound effect and toast display.
+ * Supports both object options `{ title, message, type }` and positional arguments `showNotification('رسالة التنبيه', 'error')`.
  */
-export function showNotification(options: ShowNotificationOptions): AppNotification {
+export function showNotification(
+    optionsOrMessage: ShowNotificationOptions | string,
+    typeOrSound?: NotificationType,
+    customTitle?: string
+): AppNotification {
+    let resolvedOptions: ShowNotificationOptions;
+
+    if (typeof optionsOrMessage === 'string') {
+        const type: NotificationType = typeOrSound || 'info';
+        let defaultTitle = 'تنبيه';
+        if (type === 'error') defaultTitle = 'خطأ';
+        else if (type === 'warning') defaultTitle = 'تحذير';
+        else if (type === 'success') defaultTitle = 'تم بنجاح';
+        else if (type === 'cash') defaultTitle = 'حركة نقدية';
+
+        resolvedOptions = {
+            message: optionsOrMessage,
+            type,
+            title: customTitle || defaultTitle,
+            category: 'system'
+        };
+    } else {
+        resolvedOptions = optionsOrMessage;
+    }
+
     const {
         type = 'info',
         title,
@@ -55,7 +80,7 @@ export function showNotification(options: ShowNotificationOptions): AppNotificat
         sound = type === 'cash' ? 'cash' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'ding',
         category = 'system',
         actionUrl
-    } = options;
+    } = resolvedOptions;
 
     // Play appropriate sound effect
     if (sound !== 'none') {
