@@ -2539,7 +2539,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                               </span>
                             ) : isExternal ? (
                               <span className="text-amber-700 font-medium">
-                                التكلفة التقديرية: {op.cost ? `${op.cost.toLocaleString('en-US')} ج.م` : 'لم تحدد'}
+                                الوزن التقديري: {op.estimatedQuantity ? (
+                                  <strong className="text-amber-900 font-bold">
+                                    {op.estimatedQuantity} {op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')))}
+                                  </strong>
+                                ) : 'لم يحدد'}
+                                {op.cost > 0 ? ` • التكلفة: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
                                 {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
                               </span>
                             ) : (
@@ -2599,25 +2604,36 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </select>
                         )}
 
-                        {/* Estimated Cost Input if External and not confirmed */}
+                        {/* Estimated Weight Input if External and not confirmed */}
                         {isExternal && !isConfirmedPosted && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 bg-amber-50/80 border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
+                            <span className="text-[11px] font-bold text-amber-900 whitespace-nowrap">
+                              الوزن التقديري:
+                            </span>
                             <input
                               type="number"
-                              placeholder="تقديري ج.م"
-                              value={op.cost || ''}
+                              step="any"
+                              placeholder="0.00"
+                              value={op.estimatedQuantity !== undefined ? (op.estimatedQuantity || '') : (op.quantity && op.quantity < 1000 ? op.quantity : '')}
                               onChange={e => {
-                                const newCost = Number(e.target.value) || 0;
+                                const weight = parseFloat(e.target.value) || 0;
                                 const newOps = [...viewingJob.operations];
-                                newOps[idx].cost = newCost;
-                                newOps[idx].estimatedCost = newCost;
+                                newOps[idx].estimatedQuantity = weight;
+                                newOps[idx].quantity = weight;
+                                if (newOps[idx].estimatedRate && newOps[idx].estimatedRate! > 0) {
+                                  const cost = Math.round(weight * newOps[idx].estimatedRate! * 100) / 100;
+                                  newOps[idx].cost = cost;
+                                  newOps[idx].estimatedCost = cost;
+                                }
                                 setViewingJob({ ...viewingJob, operations: newOps });
                                 setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
                               }}
-                              className="w-24 p-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-xs font-bold text-center"
-                              title="التكلفة التقديرية الأولية قبل وصول الفاتورة"
+                              className="w-20 p-1 border border-amber-300 bg-white rounded text-xs font-black text-center text-amber-950 focus:ring-2 focus:ring-amber-500"
+                              title="الوزن التقديري المطلوب للخامات أو التشغيل"
                             />
-                            <span className="text-[11px] text-gray-500">ج.م</span>
+                            <span className="text-[11px] font-bold text-amber-800">
+                              {op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')))}
+                            </span>
                           </div>
                         )}
 
@@ -2662,13 +2678,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
                                       return;
                                     }
+                                    const weightUnit = op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')));
                                     setReceiveDeliveryModal({
                                       orderId: viewingJob.id,
                                       opIndex: idx,
                                       orderCode: viewingJob.code,
                                       opName: op.name,
                                       supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
-                                      unit: op.unit || 'طن',
+                                      unit: weightUnit,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
                                       deliveryNoteNumber: op.deliveryNoteNumber || '',
@@ -2689,6 +2706,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                     const est = Number(op.estimatedCost || op.cost) || 0;
                                     const initialSupId = op.supplierId || (suppliers[0]?.id || '');
                                     const initialSupName = opSupplier?.name || opSupplier?.companyName || (suppliers.find(s => s.id === initialSupId)?.name || 'مورد تشغيل');
+                                    const weightUnit = op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')));
                                     setReconcileSupplierModal({
                                       orderId: viewingJob.id,
                                       opIndex: idx,
@@ -2697,7 +2715,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       opName: op.name,
                                       supplierId: initialSupId,
                                       supplierName: initialSupName,
-                                      unit: op.unit || 'طن',
+                                      unit: weightUnit,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       estimatedRate: op.estimatedRate || 0,
                                       estimatedCost: est,
@@ -2759,7 +2777,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                   opName: op.name,
                                   supplierId: initialSupId,
                                   supplierName: initialSupName,
-                                  unit: op.unit || 'طن',
+                                  unit: op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن'))),
                                   estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                   estimatedRate: op.estimatedRate || 0,
                                   estimatedCost: est,
