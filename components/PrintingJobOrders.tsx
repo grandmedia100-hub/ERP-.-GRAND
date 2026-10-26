@@ -271,6 +271,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     productCategory: string;
     quantity: number;
     unit: string;
+    unitPrice: number;
     clientSalePrice: number;
     deliveryDate: string;
     notes: string;
@@ -281,6 +282,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     productCategory: 'كرتون وتغليف ومطبوعات',
     quantity: 1000,
     unit: 'علبة',
+    unitPrice: 0,
     clientSalePrice: 0,
     deliveryDate: '',
     notes: '',
@@ -290,12 +292,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
     if (orderToEdit) {
       setEditingJob(orderToEdit);
+      const computedUnitPrice = orderToEdit.unitPrice || (orderToEdit.quantity > 0 ? (orderToEdit.clientSalePrice / orderToEdit.quantity) : 0);
       setFormData({
         customerId: orderToEdit.customerId,
         productTitle: orderToEdit.productTitle,
         productCategory: orderToEdit.productCategory || 'كرتون وتغليف ومطبوعات',
         quantity: orderToEdit.quantity,
         unit: orderToEdit.unit,
+        unitPrice: Math.round(computedUnitPrice * 1000) / 1000,
         clientSalePrice: orderToEdit.clientSalePrice,
         deliveryDate: orderToEdit.deliveryDate || '',
         notes: orderToEdit.notes || '',
@@ -309,6 +313,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         productCategory: 'كرتون وتغليف ومطبوعات',
         quantity: 1000,
         unit: 'علبة',
+        unitPrice: 0,
         clientSalePrice: 0,
         deliveryDate: '',
         notes: '',
@@ -475,6 +480,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           productCategory: formData.productCategory,
           quantity: Number(formData.quantity) || 1,
           unit: formData.unit,
+          unitPrice: Number(formData.unitPrice) || (Number(formData.quantity) > 0 ? (Number(formData.clientSalePrice) / Number(formData.quantity)) : 0),
           clientSalePrice: Number(formData.clientSalePrice) || 0,
           deliveryDate: formData.deliveryDate,
           notes: formData.notes,
@@ -519,6 +525,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         productCategory: formData.productCategory,
         quantity: Number(formData.quantity) || 1,
         unit: formData.unit,
+        unitPrice: Number(formData.unitPrice) || (Number(formData.quantity) > 0 ? (Number(formData.clientSalePrice) / Number(formData.quantity)) : 0),
         clientSalePrice: Number(formData.clientSalePrice) || 0,
         operations: ops,
         currentStageIndex: 0,
@@ -1583,7 +1590,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                         </td>
 
                         <td className="p-3.5 font-bold text-gray-800">
-                          {order.clientSalePrice.toLocaleString('en-US')} ج.م
+                          <div>{order.clientSalePrice.toLocaleString('en-US')} ج.م</div>
+                          <div className="text-[11px] text-indigo-700 font-semibold mt-0.5">
+                            سعر الوحدة: {(order.unitPrice || (order.quantity > 0 ? order.clientSalePrice / order.quantity : 0)).toLocaleString('en-US', { maximumFractionDigits: 3 })} ج.م
+                          </div>
                         </td>
 
                         <td className="p-3.5 font-semibold text-amber-700">
@@ -2187,8 +2197,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   <div className="flex gap-2">
                     <input
                       type="number"
+                      min={1}
                       value={formData.quantity}
-                      onChange={e => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) || 1 }))}
+                      onChange={e => {
+                        const q = Number(e.target.value) || 0;
+                        const up = formData.unitPrice || 0;
+                        const total = (q > 0 && up > 0) ? Math.round(q * up * 100) / 100 : formData.clientSalePrice;
+                        setFormData(prev => ({ ...prev, quantity: q, clientSalePrice: total }));
+                      }}
                       className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold"
                     />
                     <select
@@ -2205,16 +2221,51 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
-              {/* Row 3: Sale Price & Delivery Date */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Row 3: Unit Price, Total Sale Price & Delivery Date */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">سعر البيع المتفق عليه للعميل (ج.م) *</label>
+                  <label className="block text-xs font-bold text-indigo-900 mb-1">
+                    سعر بيع الوحدة المتفق عليه (ج.م / {formData.unit}) *
+                  </label>
                   <input
                     type="number"
+                    step="any"
                     placeholder="0.00"
-                    value={formData.clientSalePrice}
-                    onChange={e => setFormData(prev => ({ ...prev, clientSalePrice: Number(e.target.value) || 0 }))}
-                    className="w-full p-2.5 border border-indigo-300 bg-indigo-50/40 rounded-xl text-sm font-black text-indigo-900"
+                    value={formData.unitPrice || ''}
+                    onChange={e => {
+                      const up = parseFloat(e.target.value) || 0;
+                      const q = formData.quantity || 0;
+                      const total = (q > 0 && up > 0) ? Math.round(q * up * 100) / 100 : 0;
+                      setFormData(prev => ({
+                        ...prev,
+                        unitPrice: up,
+                        clientSalePrice: total
+                      }));
+                    }}
+                    className="w-full p-2.5 border-2 border-indigo-400 bg-indigo-50/40 rounded-xl text-sm font-black text-indigo-950 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    إجمالي سعر البيع للطلبية (ج.م)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    value={formData.clientSalePrice || ''}
+                    onChange={e => {
+                      const total = parseFloat(e.target.value) || 0;
+                      const q = formData.quantity || 1;
+                      const up = q > 0 ? Math.round((total / q) * 1000) / 1000 : 0;
+                      setFormData(prev => ({
+                        ...prev,
+                        clientSalePrice: total,
+                        unitPrice: up
+                      }));
+                    }}
+                    className="w-full p-2.5 border border-gray-300 bg-gray-50 rounded-xl text-sm font-bold text-gray-900"
                   />
                 </div>
 
@@ -2355,6 +2406,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
                 <div className="text-sm font-semibold text-gray-200 mt-1">
                   العميل: {viewingJob.customerName} {viewingJob.companyName ? `(${viewingJob.companyName})` : ''} | المطبوع: {viewingJob.productTitle} ({viewingJob.quantity.toLocaleString('en-US')} {viewingJob.unit})
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-indigo-200 mt-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                  <span>سعر بيع الوحدة: <strong className="text-white">{(viewingJob.unitPrice || (viewingJob.quantity > 0 ? viewingJob.clientSalePrice / viewingJob.quantity : 0)).toLocaleString('en-US', { maximumFractionDigits: 3 })} ج.م</strong></span>
+                  <span className="text-white/40">|</span>
+                  <span>إجمالي البيع: <strong className="text-emerald-300">{viewingJob.clientSalePrice.toLocaleString('en-US')} ج.م</strong></span>
+                  <span className="text-white/40">|</span>
+                  <span>إجمالي التكلفة: <strong className="text-amber-300">{viewingJob.totalActualCost.toLocaleString('en-US')} ج.م</strong></span>
+                  <span className="text-white/40">|</span>
+                  <span>الربح المتوقع: <strong className={viewingJob.grossProfit >= 0 ? "text-green-300" : "text-rose-300"}>{viewingJob.grossProfit.toLocaleString('en-US')} ج.م ({viewingJob.profitMarginPercent.toFixed(1)}%)</strong></span>
                 </div>
               </div>
               <button

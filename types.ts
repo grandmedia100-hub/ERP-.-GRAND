@@ -894,7 +894,8 @@ export interface PrintingJobOrder {
   cartonSpecs?: CartonBoxSpecs; // المواصفات الذكية ومقاسات العلبة ومخطط الفرد والقص
   
   // Financials
-  clientSalePrice: number; // سعر البيع المتفق عليه للعميل
+  unitPrice?: number; // سعر بيع الوحدة المتفق عليه
+  clientSalePrice: number; // إجمالي سعر البيع للطلبية (الكمية × سعر الوحدة)
   taxRate?: number;
   taxAmount?: number;
   totalWithTax?: number;
