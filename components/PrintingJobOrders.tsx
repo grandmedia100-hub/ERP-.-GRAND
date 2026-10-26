@@ -2445,6 +2445,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 const isReceivedPending = op.billingStatus === 'received_pending_invoice';
                 const isProvisional = isExternal && !isConfirmedPosted && !isReceivedPending;
                 const opSupplier = suppliers.find(s => s.id === op.supplierId);
+                const isPaperStage = op.operationId === 'paper_supply' ||
+                  op.name.includes('ورق خام') ||
+                  op.name.includes('توريد ورق') ||
+                  op.name.includes('بكر وشيتات') ||
+                  op.name.includes('بكر ورق') ||
+                  (op.unit && (op.unit.trim() === 'طن' || op.unit.trim() === 'كجم'));
 
                 return (
                   <div
@@ -2538,15 +2544,26 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                 {op.cost > 0 ? ` • التقديري: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
                               </span>
                             ) : isExternal ? (
-                              <span className="text-amber-700 font-medium">
-                                الوزن التقديري: {op.estimatedQuantity ? (
-                                  <strong className="text-amber-900 font-bold">
-                                    {op.estimatedQuantity} {op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')))}
-                                  </strong>
-                                ) : 'لم يحدد'}
-                                {op.cost > 0 ? ` • التكلفة: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
-                                {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
-                              </span>
+                              isPaperStage ? (
+                                <span className="text-amber-700 font-medium">
+                                  الوزن التقديري: {op.estimatedQuantity ? (
+                                    <strong className="text-amber-900 font-bold">
+                                      {op.estimatedQuantity} {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
+                                    </strong>
+                                  ) : 'لم يحدد'}
+                                  {op.cost > 0 ? ` • التكلفة: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
+                                  {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
+                                </span>
+                              ) : (
+                                <span className="text-amber-700 font-medium">
+                                  التكلفة التقديرية: {op.cost ? (
+                                    <strong className="text-amber-900 font-bold">
+                                      {op.cost.toLocaleString('en-US')} ج.م
+                                    </strong>
+                                  ) : 'لم تحدد'}
+                                  {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
+                                </span>
+                              )
                             ) : (
                               <span>
                                 {isCompleted ? 'مكتملة داخلياً' : 'في انتظار بدء التشغيل الداخلي'}
@@ -2604,37 +2621,61 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           </select>
                         )}
 
-                        {/* Estimated Weight Input if External and not confirmed */}
+                        {/* Estimated Input if External and not confirmed */}
                         {isExternal && !isConfirmedPosted && (
-                          <div className="flex items-center gap-1 bg-amber-50/80 border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
-                            <span className="text-[11px] font-bold text-amber-900 whitespace-nowrap">
-                              الوزن التقديري:
-                            </span>
-                            <input
-                              type="number"
-                              step="any"
-                              placeholder="0.00"
-                              value={op.estimatedQuantity !== undefined ? (op.estimatedQuantity || '') : (op.quantity && op.quantity < 1000 ? op.quantity : '')}
-                              onChange={e => {
-                                const weight = parseFloat(e.target.value) || 0;
-                                const newOps = [...viewingJob.operations];
-                                newOps[idx].estimatedQuantity = weight;
-                                newOps[idx].quantity = weight;
-                                if (newOps[idx].estimatedRate && newOps[idx].estimatedRate! > 0) {
-                                  const cost = Math.round(weight * newOps[idx].estimatedRate! * 100) / 100;
-                                  newOps[idx].cost = cost;
-                                  newOps[idx].estimatedCost = cost;
-                                }
-                                setViewingJob({ ...viewingJob, operations: newOps });
-                                setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
-                              }}
-                              className="w-20 p-1 border border-amber-300 bg-white rounded text-xs font-black text-center text-amber-950 focus:ring-2 focus:ring-amber-500"
-                              title="الوزن التقديري المطلوب للخامات أو التشغيل"
-                            />
-                            <span className="text-[11px] font-bold text-amber-800">
-                              {op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')))}
-                            </span>
-                          </div>
+                          isPaperStage ? (
+                            /* Paper Supply: Estimated Weight (طن / كجم) */
+                            <div className="flex items-center gap-1 bg-amber-50/80 border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
+                              <span className="text-[11px] font-bold text-amber-900 whitespace-nowrap">
+                                الوزن التقديري:
+                              </span>
+                              <input
+                                type="number"
+                                step="any"
+                                placeholder="0.00"
+                                value={op.estimatedQuantity !== undefined ? (op.estimatedQuantity || '') : ''}
+                                onChange={e => {
+                                  const weight = parseFloat(e.target.value) || 0;
+                                  const newOps = [...viewingJob.operations];
+                                  newOps[idx].estimatedQuantity = weight;
+                                  newOps[idx].quantity = weight;
+                                  if (newOps[idx].estimatedRate && newOps[idx].estimatedRate! > 0) {
+                                    const cost = Math.round(weight * newOps[idx].estimatedRate! * 100) / 100;
+                                    newOps[idx].cost = cost;
+                                    newOps[idx].estimatedCost = cost;
+                                  }
+                                  setViewingJob({ ...viewingJob, operations: newOps });
+                                  setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
+                                }}
+                                className="w-20 p-1 border border-amber-300 bg-white rounded text-xs font-black text-center text-amber-950 focus:ring-2 focus:ring-amber-500"
+                                title="الوزن التقديري المطلوب للورق الخام (بالطن / كجم)"
+                              />
+                              <span className="text-[11px] font-bold text-amber-800">
+                                {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
+                              </span>
+                            </div>
+                          ) : (
+                            /* Other Stages (Printing, Lamination, Die-cutting...): Estimated Cost in EGP */
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="any"
+                                placeholder="تقديري ج.م"
+                                value={op.cost || ''}
+                                onChange={e => {
+                                  const newCost = Number(e.target.value) || 0;
+                                  const newOps = [...viewingJob.operations];
+                                  newOps[idx].cost = newCost;
+                                  newOps[idx].estimatedCost = newCost;
+                                  setViewingJob({ ...viewingJob, operations: newOps });
+                                  setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
+                                }}
+                                className="w-24 p-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-xs font-bold text-center"
+                                title="التكلفة التقديرية الأولية لهذه المرحلة"
+                              />
+                              <span className="text-[11px] text-gray-500 font-bold">ج.م</span>
+                            </div>
+                          )
                         )}
 
                         {/* --- CASE 1: Stage NOT completed operationally yet (!isCompleted) --- */}
@@ -2678,14 +2719,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       showNotification('يرجى اختيار المورد المسؤول أولاً', 'error');
                                       return;
                                     }
-                                    const weightUnit = op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')));
+                                    const stageUnit = isPaperStage ? (op.unit?.includes('كجم') ? 'كجم' : 'طن') : (op.unit || 'فرخ');
                                     setReceiveDeliveryModal({
                                       orderId: viewingJob.id,
                                       opIndex: idx,
                                       orderCode: viewingJob.code,
                                       opName: op.name,
                                       supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
-                                      unit: weightUnit,
+                                      unit: stageUnit,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
                                       deliveryNoteNumber: op.deliveryNoteNumber || '',
@@ -2696,7 +2737,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                   title="تسجيل وصول الخامات أو المصنعية الفعلية بالمخزن مع رقم الإذن دون ترحيل مالي"
                                 >
                                   <span>📦</span>
-                                  <span>{isReceivedPending ? 'تعديل الاستلام' : 'استلام خامات'}</span>
+                                  <span>{isReceivedPending ? 'تعديل الاستلام' : (isPaperStage ? 'استلام خامات' : 'استلام تشغيل')}</span>
                                 </button>
 
                                 {/* Official Invoice Reconciliation Button */}
@@ -2706,7 +2747,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                     const est = Number(op.estimatedCost || op.cost) || 0;
                                     const initialSupId = op.supplierId || (suppliers[0]?.id || '');
                                     const initialSupName = opSupplier?.name || opSupplier?.companyName || (suppliers.find(s => s.id === initialSupId)?.name || 'مورد تشغيل');
-                                    const weightUnit = op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن')));
+                                    const stageUnit = isPaperStage ? (op.unit?.includes('كجم') ? 'كجم' : 'طن') : (op.unit || 'فرخ');
                                     setReconcileSupplierModal({
                                       orderId: viewingJob.id,
                                       opIndex: idx,
@@ -2715,7 +2756,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       opName: op.name,
                                       supplierId: initialSupId,
                                       supplierName: initialSupName,
-                                      unit: weightUnit,
+                                      unit: stageUnit,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       estimatedRate: op.estimatedRate || 0,
                                       estimatedCost: est,
@@ -2777,7 +2818,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                   opName: op.name,
                                   supplierId: initialSupId,
                                   supplierName: initialSupName,
-                                  unit: op.unit?.includes('كجم') ? 'كجم' : (op.unit?.includes('طن') ? 'طن' : (op.operationId === 'paper_supply' || op.name.includes('ورق') ? 'طن' : (op.unit || 'طن'))),
+                                  unit: isPaperStage ? (op.unit?.includes('كجم') ? 'كجم' : 'طن') : (op.unit || 'فرخ'),
                                   estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                   estimatedRate: op.estimatedRate || 0,
                                   estimatedCost: est,
