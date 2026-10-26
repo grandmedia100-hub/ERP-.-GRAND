@@ -2280,29 +2280,28 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-80 overflow-y-auto p-1">
+                <div className="flex flex-wrap gap-1.5 max-h-72 overflow-y-auto p-2 bg-slate-50/60 rounded-xl border border-gray-200">
                   {operationsCatalog.map(op => {
                     const isSelected = formData.selectedOps.includes(op.id);
                     return (
-                      <div
+                      <button
                         key={op.id}
+                        type="button"
                         onClick={() => toggleOperation(op.id)}
-                        className={`py-1.5 px-2.5 rounded-lg border text-xs cursor-pointer select-none flex items-center justify-between transition-all ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all select-none border ${
                           isSelected
                             ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 font-medium'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-100 font-medium'
                         }`}
                       >
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xs shrink-0 opacity-90">{op.icon}</span>
-                          <span className="truncate text-[11.5px]">{op.name}</span>
-                        </span>
-                        <span className={`w-4 h-4 rounded text-[10px] flex items-center justify-center shrink-0 font-mono font-bold mr-1 ${
-                          isSelected ? 'bg-white/20 text-white' : 'text-gray-400'
+                        <span className="text-xs shrink-0">{op.icon}</span>
+                        <span className="text-[11.5px] whitespace-nowrap">{op.name}</span>
+                        <span className={`text-[10px] font-mono font-bold mr-0.5 ${
+                          isSelected ? 'text-white' : 'text-gray-400'
                         }`}>
                           {isSelected ? '✓' : '+'}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
