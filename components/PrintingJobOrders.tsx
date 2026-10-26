@@ -2280,24 +2280,28 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-96 overflow-y-auto p-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-80 overflow-y-auto p-1">
                   {operationsCatalog.map(op => {
                     const isSelected = formData.selectedOps.includes(op.id);
                     return (
                       <div
                         key={op.id}
                         onClick={() => toggleOperation(op.id)}
-                        className={`p-2.5 rounded-xl border text-xs font-bold cursor-pointer select-none flex items-center justify-between transition-all ${
+                        className={`py-1.5 px-2.5 rounded-lg border text-xs cursor-pointer select-none flex items-center justify-between transition-all ${
                           isSelected
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 font-medium'
                         }`}
                       >
                         <span className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-base shrink-0">{op.icon}</span>
-                          <span className="truncate">{op.name}</span>
+                          <span className="text-xs shrink-0 opacity-90">{op.icon}</span>
+                          <span className="truncate text-[11.5px]">{op.name}</span>
                         </span>
-                        <span className="shrink-0 mr-1">{isSelected ? '✓' : '+'}</span>
+                        <span className={`w-4 h-4 rounded text-[10px] flex items-center justify-center shrink-0 font-mono font-bold mr-1 ${
+                          isSelected ? 'bg-white/20 text-white' : 'text-gray-400'
+                        }`}>
+                          {isSelected ? '✓' : '+'}
+                        </span>
                       </div>
                     );
                   })}
@@ -3696,7 +3700,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="text-2xl p-1.5 bg-gray-50 group-hover:bg-indigo-50 rounded-xl shrink-0 transition-colors">
+                                  <span className="text-base p-1.5 bg-gray-50 group-hover:bg-indigo-50 rounded-lg shrink-0 transition-colors">
                                     {op.icon}
                                   </span>
                                   <div className="min-w-0">
