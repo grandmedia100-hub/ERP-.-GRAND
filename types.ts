@@ -785,7 +785,8 @@ export type PrintingOperationId =
   | 'staple_binding'     // 17. دبوس / تدبيس
   | 'spiral_binding'     // 18. سلك لولبي
   | 'packaging'          // 19. تغليف وتحزيم
-  | 'shipping';          // 20. شحن
+  | 'shipping'           // 20. شحن
+  | (string & {});       // دعم أي عملية أو مرحلة إضافية مخصصة
 
 export type OperationBillingStatus = 'provisional' | 'received_pending_invoice' | 'confirmed_posted';
 
@@ -821,9 +822,11 @@ export interface CartonBoxSpecs {
 export interface PrintingOperationDefinition {
   id: PrintingOperationId;
   name: string;
-  category: 'prepress' | 'press' | 'coating' | 'converting' | 'binding' | 'logistics';
+  category: 'prepress' | 'press' | 'coating' | 'converting' | 'binding' | 'logistics' | 'custom' | string;
   icon: string;
   defaultUnit: string;
+  defaultExecutionType?: 'internal' | 'external';
+  isCustom?: boolean;
 }
 
 export interface JobOperationItem {

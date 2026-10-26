@@ -9,28 +9,53 @@ import { showNotification } from '../services/notificationService.ts';
 
 // ==================== 21 Standard Printing & Carton Operations Catalog ====================
 export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
-  { id: 'paper_supply', name: 'توريد ورق خام / بكر وشيتات', category: 'prepress', icon: '📜', defaultUnit: 'طن / رزمة / كجم' },
-  { id: 'paper_cutting', name: 'قص ورق', category: 'prepress', icon: '✂️', defaultUnit: 'رزمة / فرخ' },
-  { id: 'ctp_plates', name: 'ذنكات (CTP)', category: 'prepress', icon: '💿', defaultUnit: 'عدد زنكات' },
-  { id: 'laser_die', name: 'فورمة تكسير', category: 'prepress', icon: '📐', defaultUnit: 'فورمة' },
-  { id: 'printing', name: 'طباعة (سحب)', category: 'press', icon: '🖨️', defaultUnit: 'سحبة / ضربة' },
-  { id: 'lamination', name: 'سلوفان (مط/لامع)', category: 'coating', icon: '✨', defaultUnit: 'فرخ / متر' },
-  { id: 'spot_uv', name: 'سبوت UV', category: 'coating', icon: '💧', defaultUnit: 'فرخ' },
-  { id: 'flood_uv', name: 'UV كامل (ورنيش)', category: 'coating', icon: '☀️', defaultUnit: 'فرخ' },
-  { id: 'pvc_window', name: 'شباك PVC شفاف', category: 'converting', icon: '🪟', defaultUnit: 'علبة' },
-  { id: 'gold_metalized', name: 'متلايز ذهبي', category: 'press', icon: '🌟', defaultUnit: 'فرخ' },
-  { id: 'silver_metalized', name: 'متلايز فضي', category: 'press', icon: '🪙', defaultUnit: 'فرخ' },
-  { id: 'hot_foil', name: 'بصمة (Hot Foil)', category: 'coating', icon: '🏷️', defaultUnit: 'ضربة' },
-  { id: 'embossing', name: 'كوفراج (بارز/غائر)', category: 'coating', icon: '🖼️', defaultUnit: 'ضربة' },
-  { id: 'corrugated_flute', name: 'شيتات كرتون مضلع سينجل فيس', category: 'converting', icon: '📦', defaultUnit: 'لوح / شيت' },
-  { id: 'flute_lamination', name: 'كستوة / لصف / تبطين (Lamination)', category: 'converting', icon: '🥞', defaultUnit: 'فرخ' },
-  { id: 'die_cutting', name: 'تكسير وريجة', category: 'converting', icon: '⚙️', defaultUnit: 'فرخ' },
-  { id: 'gluing', name: 'لزق وتجميع', category: 'converting', icon: '🧴', defaultUnit: 'علبة' },
-  { id: 'staple_binding', name: 'دبوس (تجليد)', category: 'binding', icon: '📎', defaultUnit: 'نسخة' },
-  { id: 'spiral_binding', name: 'سلك لولبي', category: 'binding', icon: '🌀', defaultUnit: 'نسخة' },
-  { id: 'packaging', name: 'تغليف وشرنكة', category: 'logistics', icon: '📦', defaultUnit: 'طرد' },
-  { id: 'shipping', name: 'شحن ونقل', category: 'logistics', icon: '🚚', defaultUnit: 'نقلة' },
+  { id: 'paper_supply', name: 'توريد ورق خام / بكر وشيتات', category: 'prepress', icon: '📜', defaultUnit: 'طن / رزمة / كجم', defaultExecutionType: 'external' },
+  { id: 'paper_cutting', name: 'قص ورق', category: 'prepress', icon: '✂️', defaultUnit: 'رزمة / فرخ', defaultExecutionType: 'internal' },
+  { id: 'ctp_plates', name: 'ذنكات (CTP)', category: 'prepress', icon: '💿', defaultUnit: 'عدد زنكات', defaultExecutionType: 'external' },
+  { id: 'laser_die', name: 'فورمة تكسير', category: 'prepress', icon: '📐', defaultUnit: 'فورمة', defaultExecutionType: 'external' },
+  { id: 'printing', name: 'طباعة (سحب)', category: 'press', icon: '🖨️', defaultUnit: 'سحبة / ضربة', defaultExecutionType: 'internal' },
+  { id: 'lamination', name: 'سلوفان (مط/لامع)', category: 'coating', icon: '✨', defaultUnit: 'فرخ / متر', defaultExecutionType: 'external' },
+  { id: 'spot_uv', name: 'سبوت UV', category: 'coating', icon: '💧', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'flood_uv', name: 'UV كامل (ورنيش)', category: 'coating', icon: '☀️', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'pvc_window', name: 'شباك PVC شفاف', category: 'converting', icon: '🪟', defaultUnit: 'علبة', defaultExecutionType: 'internal' },
+  { id: 'gold_metalized', name: 'متلايز ذهبي', category: 'press', icon: '🌟', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'silver_metalized', name: 'متلايز فضي', category: 'press', icon: '🪙', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'hot_foil', name: 'بصمة (Hot Foil)', category: 'coating', icon: '🏷️', defaultUnit: 'ضربة', defaultExecutionType: 'internal' },
+  { id: 'embossing', name: 'كوفراج (بارز/غائر)', category: 'coating', icon: '🖼️', defaultUnit: 'ضربة', defaultExecutionType: 'internal' },
+  { id: 'corrugated_flute', name: 'شيتات كرتون مضلع سينجل فيس', category: 'converting', icon: '📦', defaultUnit: 'لوح / شيت', defaultExecutionType: 'external' },
+  { id: 'flute_lamination', name: 'كستوة / لصف / تبطين (Lamination)', category: 'converting', icon: '🥞', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'die_cutting', name: 'تكسير وريجة', category: 'converting', icon: '⚙️', defaultUnit: 'فرخ', defaultExecutionType: 'internal' },
+  { id: 'gluing', name: 'لزق وتجميع', category: 'converting', icon: '🧴', defaultUnit: 'علبة', defaultExecutionType: 'internal' },
+  { id: 'staple_binding', name: 'دبوس (تجليد)', category: 'binding', icon: '📎', defaultUnit: 'نسخة', defaultExecutionType: 'internal' },
+  { id: 'spiral_binding', name: 'سلك لولبي', category: 'binding', icon: '🌀', defaultUnit: 'نسخة', defaultExecutionType: 'internal' },
+  { id: 'packaging', name: 'تغليف وشرنكة', category: 'logistics', icon: '📦', defaultUnit: 'طرد', defaultExecutionType: 'internal' },
+  { id: 'shipping', name: 'شحن ونقل', category: 'logistics', icon: '🚚', defaultUnit: 'نقلة', defaultExecutionType: 'internal' },
 ];
+
+export const OPERATIONS_STORAGE_KEY = 'mediahive_printing_operations_v2';
+
+export const getInitialPrintingOperations = (): PrintingOperationDefinition[] => {
+  try {
+    const saved = localStorage.getItem(OPERATIONS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return STANDARD_PRINTING_OPERATIONS;
+};
+
+export const OP_CATEGORIES: { id: string; label: string; badgeColor: string }[] = [
+  { id: 'prepress', label: 'ما قبل الطباعة', badgeColor: 'bg-purple-100 text-purple-800 border-purple-200' },
+  { id: 'press', label: 'طباعة وسحب', badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { id: 'coating', label: 'تشطيب وسلوفان', badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { id: 'converting', label: 'تشكيل وتجميع كرتون', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  { id: 'binding', label: 'تجليد وتثبيت', badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+  { id: 'logistics', label: 'شحن وتغليف', badgeColor: 'bg-slate-100 text-slate-800 border-slate-200' },
+  { id: 'custom', label: 'مراحل مخصصة', badgeColor: 'bg-teal-100 text-teal-800 border-teal-200' }
+];
+
+export const QUICK_EMOJIS = ['📜', '✂️', '💿', '📐', '🖨️', '✨', '💧', '☀️', '🪟', '🌟', '🪙', '🏷️', '🖼️', '📦', '🥞', '⚙️', '🧴', '📎', '🌀', '🚚', '🎨', '🔧', '🖌️', '📏', '📌', '🏷️'];
 
 export const PRINTING_TEMPLATES: { name: string; icon: string; desc: string; operations: PrintingOperationId[] }[] = [
   {
@@ -136,6 +161,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   const [editingJob, setEditingJob] = useState<PrintingJobOrder | null>(null);
   const [viewingJob, setViewingJob] = useState<PrintingJobOrder | null>(null);
   const [isConsolidatedModalOpen, setIsConsolidatedModalOpen] = useState(false);
+
+  // Operations Catalog Customization & Settings State (إدارة وتخصيص مراحل التشغيل)
+  const [operationsCatalog, setOperationsCatalog] = useState<PrintingOperationDefinition[]>(getInitialPrintingOperations);
+  const [isManageOperationsModalOpen, setIsManageOperationsModalOpen] = useState(false);
+  const [opModalMode, setOpModalMode] = useState<'list' | 'add' | 'edit'>('list');
+  const [opSearchQuery, setOpSearchQuery] = useState('');
+  const [opCategoryFilter, setOpCategoryFilter] = useState('all');
+  const [opFormData, setOpFormData] = useState<PrintingOperationDefinition>({
+    id: '',
+    name: '',
+    category: 'converting',
+    icon: '⚙️',
+    defaultUnit: 'عدد',
+    defaultExecutionType: 'internal'
+  });
 
   // Material / Stage Physical Delivery Modal (تسجيل استلام الخامات والوزن الفعلي)
   const [receiveDeliveryModal, setReceiveDeliveryModal] = useState<{
@@ -278,8 +318,101 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     setIsCreateModalOpen(true);
   };
 
-  const handleApplyTemplate = (opIds: PrintingOperationId[]) => {
-    setFormData(prev => ({ ...prev, selectedOps: opIds }));
+  // ==================== Operation Catalog Management Handlers ====================
+  const handleOpenAddOperation = () => {
+    setOpFormData({
+      id: '',
+      name: '',
+      category: 'converting',
+      icon: '⚙️',
+      defaultUnit: 'عدد',
+      defaultExecutionType: 'internal'
+    });
+    setOpModalMode('add');
+  };
+
+  const handleOpenEditOperation = (op: PrintingOperationDefinition) => {
+    setOpFormData({
+      id: op.id,
+      name: op.name,
+      category: op.category || 'custom',
+      icon: op.icon || '⚙️',
+      defaultUnit: op.defaultUnit || 'عدد',
+      defaultExecutionType: op.defaultExecutionType || 'internal',
+      isCustom: op.isCustom
+    });
+    setOpModalMode('edit');
+  };
+
+  const handleSaveOperation = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = opFormData.name.trim();
+    if (!cleanName) {
+      showNotification('يرجى كتابة اسم العملية / المرحلة', 'error');
+      return;
+    }
+
+    if (opModalMode === 'edit' && opFormData.id) {
+      const updated = operationsCatalog.map(op => 
+        op.id === opFormData.id ? { ...op, ...opFormData, name: cleanName } : op
+      );
+      setOperationsCatalog(updated);
+      try {
+        localStorage.setItem(OPERATIONS_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      showNotification(`تم حفظ تعديلات مرحلة (${cleanName}) بنجاح ✅`, 'success');
+      setOpModalMode('list');
+    } else {
+      const newId = `op_custom_${Date.now()}`;
+      const newOp: PrintingOperationDefinition = {
+        ...opFormData,
+        id: newId,
+        name: cleanName,
+        isCustom: true
+      };
+      const updated = [...operationsCatalog, newOp];
+      setOperationsCatalog(updated);
+      try {
+        localStorage.setItem(OPERATIONS_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      // Automatically select the new operation for convenience
+      setFormData(prev => ({
+        ...prev,
+        selectedOps: [...prev.selectedOps, newId]
+      }));
+      showNotification(`تمت إضافة مرحلة (${cleanName}) إلى العمليات بنجاح 🚀`, 'success');
+      setOpModalMode('list');
+    }
+  };
+
+  const handleDeleteOperation = (opId: string) => {
+    const target = operationsCatalog.find(o => o.id === opId);
+    if (!target) return;
+    if (!window.confirm(`هل أنت متأكد من حذف مرحلة (${target.name})؟ سيتم إزالتها من قائمة الاختيار.`)) {
+      return;
+    }
+    const updated = operationsCatalog.filter(o => o.id !== opId);
+    setOperationsCatalog(updated);
+    try {
+      localStorage.setItem(OPERATIONS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+    setFormData(prev => ({
+      ...prev,
+      selectedOps: prev.selectedOps.filter(id => id !== opId)
+    }));
+    showNotification(`تم حذف مرحلة (${target.name}) بنجاح 🗑️`, 'info');
+  };
+
+  const handleResetOperations = () => {
+    if (!window.confirm('هل تريد استعادة قائمة العمليات القياسية الافتراضية؟ سيتم إرجاع كافة المراحل الأصلية.')) {
+      return;
+    }
+    setOperationsCatalog(STANDARD_PRINTING_OPERATIONS);
+    try {
+      localStorage.setItem(OPERATIONS_STORAGE_KEY, JSON.stringify(STANDARD_PRINTING_OPERATIONS));
+    } catch {}
+    showNotification('تمت استعادة العمليات القياسية بنجاح 🔄', 'success');
+    setOpModalMode('list');
   };
 
   const toggleOperation = (opId: PrintingOperationId) => {
@@ -316,12 +449,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         const ops: JobOperationItem[] = formData.selectedOps.map(opId => {
           const existingOp = ord.operations.find(o => o.operationId === opId);
           if (existingOp) return existingOp;
-          const def = STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
+          const def = operationsCatalog.find(d => d.id === opId) || STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
           return {
             id: `OP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             operationId: opId,
             name: def?.name || opId,
-            executionType: (opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal',
+            executionType: def?.defaultExecutionType || ((opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal'),
             status: 'pending',
             billingStatus: 'provisional',
             cost: 0,
@@ -361,12 +494,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       const newId = `JOB_${Date.now()}`;
 
       const ops: JobOperationItem[] = formData.selectedOps.map(opId => {
-        const def = STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
+        const def = operationsCatalog.find(d => d.id === opId) || STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
         return {
           id: `OP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
           operationId: opId,
           name: def?.name || opId,
-          executionType: (opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal',
+          executionType: def?.defaultExecutionType || ((opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal'),
           status: 'pending',
           billingStatus: 'provisional',
           cost: 0,
@@ -1072,7 +1205,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
     const formattedLines: ConsolidatedVendorInvoiceLine[] = consForm.lines.map(line => {
       const order = jobOrders.find(o => o.id === line.jobOrderId);
-      const opDef = STANDARD_PRINTING_OPERATIONS.find(d => d.id === line.operationId);
+      const opDef = operationsCatalog.find(d => d.id === line.operationId) || STANDARD_PRINTING_OPERATIONS.find(d => d.id === line.operationId);
       return {
         id: `CL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         jobOrderId: line.jobOrderId,
@@ -1266,6 +1399,20 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           >
             <span>🧾</span>
             <span>فاتورة مورد مجمعة</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsManageOperationsModalOpen(true);
+              setOpModalMode('list');
+              setOpSearchQuery('');
+            }}
+            className="bg-white hover:bg-slate-50 text-gray-700 border border-gray-300 font-bold py-2.5 px-3.5 rounded-xl flex items-center gap-2 shadow-2xs text-sm transition-all"
+            title="إعدادات وتخصيص مراحل وعمليات الطباعة والكرتون (إضافة، تعديل، حذف)"
+          >
+            <span>⚙️</span>
+            <span>إدارة وتخصيص العمليات ({operationsCatalog.length})</span>
           </button>
         </div>
       </div>
@@ -1657,19 +1804,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
             {/* Station Quick Pills */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-              {[
-                { id: 'paper_cutting', name: 'قص الورق', icon: '✂️' },
-                { id: 'ctp_plates', name: 'الزنكات CTP', icon: '💿' },
-                { id: 'printing', name: 'طباعة أوفست', icon: '🖨️' },
-                { id: 'lamination', name: 'سلوفان وورنيش', icon: '✨' },
-                { id: 'corrugated_flute', name: 'شيتات سينجل فيس', icon: '📦' },
-                { id: 'flute_lamination', name: 'كستوة وتبطين', icon: '🥞' },
-                { id: 'laser_die', name: 'فورمة التكسير', icon: '📐' },
-                { id: 'die_cutting', name: 'ماكينة التكسير', icon: '⚙️' },
-                { id: 'gluing', name: 'لزق وتقفيل', icon: '🧴' },
-                { id: 'packaging', name: 'تحزيم وتغليف', icon: '📦' },
-                { id: 'shipping', name: 'شحن وتسليم', icon: '🚚' },
-              ].map(st => {
+              {operationsCatalog.map(st => {
                 const count = jobOrders.filter(o => 
                   o.status !== 'delivered' && 
                   o.status !== 'cancelled' && 
@@ -1862,7 +1997,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 <span className="text-5xl block">🎉</span>
                 <h3 className="text-lg font-black text-gray-800">لا توجد طلبيات قيد الانتظار في هذه المحطة حالياً</h3>
                 <p className="text-xs text-gray-500 max-w-md mx-auto">
-                  جميع أوامر الشغل الخاصة بمحطة ({STANDARD_PRINTING_OPERATIONS.find(o => o.id === kioskStation)?.name}) إما تم إنجازها أو لم تصل بعد من المراحل السابقة.
+                  جميع أوامر الشغل الخاصة بمحطة ({operationsCatalog.find(o => o.id === kioskStation)?.name || STANDARD_PRINTING_OPERATIONS.find(o => o.id === kioskStation)?.name || kioskStation}) إما تم إنجازها أو لم تصل بعد من المراحل السابقة.
                 </p>
               </div>
             )}
@@ -2096,19 +2231,57 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
 
 
-              {/* Operations Checklist (18 Operations) */}
+              {/* Operations Checklist */}
               <div className="border-t border-gray-100 pt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-bold text-gray-700">
-                    حدد العمليات المطلوبة لهذه الطلبية ({formData.selectedOps.length} محددة):
-                  </span>
-                  <div className="text-[11px] text-indigo-600 font-bold">
-                    اضغط لتفعيل أو إلغاء أي مرحلة
+                <div className="flex justify-between items-center mb-2.5 flex-wrap gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-gray-800">
+                      حدد العمليات المطلوبة لهذه الطلبية ({formData.selectedOps.length} محددة من إجمالي {operationsCatalog.length}):
+                    </span>
+                    <span className="text-[11px] text-gray-500 block">
+                      انقر لتفعيل أو إلغاء أي مرحلة
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        selectedOps: operationsCatalog.map(o => o.id)
+                      }))}
+                      className="text-[11px] text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg font-bold transition-all"
+                    >
+                      تحديد الكل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        selectedOps: []
+                      }))}
+                      className="text-[11px] text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg font-bold transition-all"
+                    >
+                      إلغاء التحديد
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsManageOperationsModalOpen(true);
+                        setOpModalMode('list');
+                        setOpSearchQuery('');
+                      }}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
+                      title="إضافة عمليات جديدة أو تعديل العمليات الحالية أو حذفها"
+                    >
+                      <span>⚙️</span>
+                      <span>تخصيص وإدارة العمليات</span>
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {STANDARD_PRINTING_OPERATIONS.map(op => {
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-96 overflow-y-auto p-1">
+                  {operationsCatalog.map(op => {
                     const isSelected = formData.selectedOps.includes(op.id);
                     return (
                       <div
@@ -2120,11 +2293,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                         }`}
                       >
-                        <span className="flex items-center gap-1.5">
-                          <span>{op.icon}</span>
-                          <span>{op.name}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-base shrink-0">{op.icon}</span>
+                          <span className="truncate">{op.name}</span>
                         </span>
-                        <span>{isSelected ? '✓' : '+'}</span>
+                        <span className="shrink-0 mr-1">{isSelected ? '✓' : '+'}</span>
                       </div>
                     );
                   })}
@@ -2788,8 +2961,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                         }}
                         className="p-1.5 border border-gray-300 rounded-lg text-xs min-w-[120px]"
                       >
-                        {STANDARD_PRINTING_OPERATIONS.map(op => (
-                          <option key={op.id} value={op.id}>{op.name}</option>
+                        {operationsCatalog.map(op => (
+                          <option key={op.id} value={op.id}>{op.icon} {op.name}</option>
                         ))}
                       </select>
 
@@ -3261,6 +3434,334 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               >
                 <span>✅</span>
                 <span>اعتماد وترحيل الفاتورة رسمياً لحساب المورد</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== Modal: Manage & Customize Operations Catalog (إدارة وتخصيص مراحل التشغيل) ==================== */}
+      {isManageOperationsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-gray-100 my-6 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-indigo-700 to-slate-900 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl p-2 bg-white/10 rounded-xl">⚙️</span>
+                <div>
+                  <h3 className="font-black text-base flex items-center gap-2">
+                    <span>إعدادات وتخصيص مراحل وعمليات التشغيل</span>
+                    <span className="bg-indigo-500/40 text-indigo-100 text-xs px-2 py-0.5 rounded-full font-bold">
+                      {operationsCatalog.length} عملية
+                    </span>
+                  </h3>
+                  <p className="text-xs text-indigo-200 mt-0.5">
+                    إضافة مراحل جديدة للمطبعة، تعديل المسميات والوحدات، أو حذف العمليات غير المستخدمة
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageOperationsModalOpen(false)}
+                className="text-white/80 hover:text-white text-xl font-bold p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+              {/* If in Add/Edit mode: show the form */}
+              {opModalMode === 'add' || opModalMode === 'edit' ? (
+                <div className="bg-slate-50 border-2 border-indigo-200 p-5 rounded-2xl space-y-4 animate-fadeIn">
+                  <div className="flex justify-between items-center border-b border-indigo-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{opModalMode === 'add' ? '➕' : '✏️'}</span>
+                      <h4 className="font-black text-gray-900 text-sm">
+                        {opModalMode === 'add' ? 'إضافة مرحلة / عملية تشغيل جديدة' : `تعديل بيانات مرحلة: ${opFormData.name}`}
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOpModalMode('list')}
+                      className="text-gray-500 hover:text-gray-800 font-bold text-xs"
+                    >
+                      ← العودة للقائمة
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveOperation} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Name */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">اسم المرحلة / العملية *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="مثال: ورنيش مائي، لصق دبل فيس، بصمة ذهبي خاص..."
+                          value={opFormData.name}
+                          onChange={e => setOpFormData({ ...opFormData, name: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-xl font-bold text-gray-900 text-xs focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* Category */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">الفئة والتصنيف *</label>
+                        <select
+                          value={opFormData.category}
+                          onChange={e => setOpFormData({ ...opFormData, category: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold"
+                        >
+                          {OP_CATEGORIES.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Default Unit */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">الوحدة الافتراضية</label>
+                        <input
+                          type="text"
+                          placeholder="مثال: فرخ، سحبة، ضربة، علبة، طن..."
+                          value={opFormData.defaultUnit}
+                          onChange={e => setOpFormData({ ...opFormData, defaultUnit: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold"
+                        />
+                      </div>
+
+                      {/* Default Execution Type */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">نوع التشغيل الافتراضي</label>
+                        <select
+                          value={opFormData.defaultExecutionType || 'internal'}
+                          onChange={e => setOpFormData({ ...opFormData, defaultExecutionType: e.target.value as any })}
+                          className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold"
+                        >
+                          <option value="internal">🏢 داخلي (داخل المطبعة)</option>
+                          <option value="external">🚚 لدى الغير (مورد أو ورشة خارجية)</option>
+                        </select>
+                      </div>
+
+                      {/* Icon */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">الأيقونة / الرمز</label>
+                        <input
+                          type="text"
+                          value={opFormData.icon}
+                          onChange={e => setOpFormData({ ...opFormData, icon: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-xl text-center text-sm font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Emojis Picker */}
+                    <div>
+                      <span className="block text-[11px] font-bold text-gray-500 mb-1.5">اختر أيقونة سريعة:</span>
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-xl border border-gray-200">
+                        {QUICK_EMOJIS.map((emoji, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setOpFormData({ ...opFormData, icon: emoji })}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-base hover:bg-indigo-50 border transition-all ${
+                              opFormData.icon === emoji ? 'border-indigo-600 bg-indigo-50 scale-110 shadow-xs' : 'border-transparent'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Form Actions */}
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpModalMode('list')}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300 transition-colors"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-1.5"
+                      >
+                        <span>💾</span>
+                        <span>{opModalMode === 'add' ? 'إضافة العملية وحفظها' : 'حفظ التعديلات'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                /* List View */
+                <>
+                  {/* Action Bar & Filters */}
+                  <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <div className="flex items-center gap-2 flex-1 max-w-sm">
+                      <span className="text-gray-400">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="بحث في أسماء العمليات أو الفئات..."
+                        value={opSearchQuery}
+                        onChange={e => setOpSearchQuery(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleOpenAddOperation}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <span>➕</span>
+                        <span>إضافة عملية جديدة</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleResetOperations}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 border border-gray-300 transition-all"
+                        title="استعادة العمليات القياسية الافتراضية"
+                      >
+                        <span>🔄</span>
+                        <span>استعادة الافتراضي</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setOpCategoryFilter('all')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                        opCategoryFilter === 'all'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      الكل ({operationsCatalog.length})
+                    </button>
+                    {OP_CATEGORIES.map(cat => {
+                      const count = operationsCatalog.filter(o => o.category === cat.id).length;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setOpCategoryFilter(cat.id)}
+                          className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                            opCategoryFilter === cat.id
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span>{cat.label}</span>
+                          <span className="text-[10px] opacity-80 font-mono">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Operations Grid */}
+                  {(() => {
+                    const filtered = operationsCatalog.filter(op => {
+                      if (opCategoryFilter !== 'all' && op.category !== opCategoryFilter) return false;
+                      if (!opSearchQuery.trim()) return true;
+                      const q = opSearchQuery.toLowerCase();
+                      return op.name.toLowerCase().includes(q) || op.id.toLowerCase().includes(q);
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
+                          <span className="text-3xl block mb-2">🔍</span>
+                          <p className="font-bold">لا توجد عمليات تطابق البحث</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {filtered.map(op => {
+                          const catInfo = OP_CATEGORIES.find(c => c.id === op.category);
+                          return (
+                            <div
+                              key={op.id}
+                              className="p-3.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between gap-3 group"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="text-2xl p-1.5 bg-gray-50 group-hover:bg-indigo-50 rounded-xl shrink-0 transition-colors">
+                                    {op.icon}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-gray-900 text-xs truncate" title={op.name}>
+                                      {op.name}
+                                    </h4>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${catInfo?.badgeColor || 'bg-gray-100 text-gray-700'}`}>
+                                        {catInfo?.label || 'أخرى'}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500 font-medium">
+                                        الوحدة: {op.defaultUnit || 'عدد'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-[11px]">
+                                <span className="font-bold text-gray-500">
+                                  {op.defaultExecutionType === 'external' ? '🚚 لدى الغير' : '🏢 داخلي'}
+                                </span>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditOperation(op)}
+                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                                    title="تعديل بيانات هذه العملية"
+                                  >
+                                    <span>✏️</span>
+                                    <span>تعديل</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOperation(op.id)}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                                    title="حذف هذه العملية"
+                                  >
+                                    <span>🗑️</span>
+                                    <span>حذف</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center shrink-0">
+              <span className="text-gray-500 text-xs">
+                💡 كافة التعديلات والإضافات تُحفظ تلقائياً في المتصفح وتظهر في قائمة الاختيار وفلاتر صالة الإنتاج فوراً.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsManageOperationsModalOpen(false)}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+              >
+                إغلاق
               </button>
             </div>
           </div>
