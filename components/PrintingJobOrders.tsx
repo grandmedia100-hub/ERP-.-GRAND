@@ -177,7 +177,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     defaultExecutionType: 'internal'
   });
 
-  // Material / Stage Physical Delivery Modal (تسجيل استلام الخامات والوزن الفعلي)
+  // Material / Stage Physical Delivery Modal (تسجيل استلام الخامات أو المصنعيات المنفذة)
   const [receiveDeliveryModal, setReceiveDeliveryModal] = useState<{
     orderId: string;
     opIndex: number;
@@ -185,6 +185,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     opName: string;
     supplierName: string;
     unit: string;
+    isPaper: boolean;
     estimatedQty: number;
     actualQuantity: number;
     deliveryNoteNumber: string;
@@ -201,6 +202,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     supplierId: string;
     supplierName: string;
     unit: string;
+    isPaper: boolean;
     // Estimated
     estimatedQty: number;
     estimatedRate: number;
@@ -218,7 +220,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     notes: string;
   } | null>(null);
 
-  // Smart Paper Weight Calculator Modal (الحساب التلقائي الذكي لوزن الورق)
+  // Smart Paper Weight & Cost Calculator Modal (الحساب التلقائي الذكي لوزن وتكلفة الورق)
   const [paperCalcModal, setPaperCalcModal] = useState<{
     orderId?: string;
     opIndex?: number;
@@ -226,7 +228,19 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     sheetWidth: number;  // سم
     grammage: number;    // جم/م2
     sheetsCount: number; // عدد الأفرخ
+    pricePerTon?: number; // سعر الطن التقديري ج.م
   } | null>(null);
+
+  // Final Delivery & Sales Invoice Confirmation Modal (تسجيل الكمية النهائية المسلمة وإصدار الفاتورة)
+  const [deliverModal, setDeliverModal] = useState<{
+    order: PrintingJobOrder;
+    deliveredQuantity: number;
+    deliveryNoteNumber: string;
+    notes: string;
+  } | null>(null);
+
+  // Job Order Stage Cost Breakdown & 1-Page A4 Printable Audit Sheet (كشف تحليل وتفصيل تكلفة مراحل أمر الشغل)
+  const [costBreakdownOrder, setCostBreakdownOrder] = useState<PrintingJobOrder | null>(null);
 
   
 
@@ -290,6 +304,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     paperSheetWidth?: number;
     paperGrammage?: number;
     paperSheetsCount?: number;
+    paperPricePerTon?: number;
   }>({
     customerId: '',
     productTitle: '',
@@ -304,7 +319,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     paperSheetLength: 100,
     paperSheetWidth: 70,
     paperGrammage: 300,
-    paperSheetsCount: 1000
+    paperSheetsCount: 1000,
+    paperPricePerTon: 45000
   });
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
@@ -326,7 +342,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         paperSheetLength: paperOp?.paperSheetLength || orderToEdit.paperSpecs?.sheetLength || 100,
         paperSheetWidth: paperOp?.paperSheetWidth || orderToEdit.paperSpecs?.sheetWidth || 70,
         paperGrammage: paperOp?.paperGrammage || orderToEdit.paperSpecs?.grammage || 300,
-        paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || Math.ceil(orderToEdit.quantity / 2) || 1000
+        paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || Math.ceil(orderToEdit.quantity / 2) || 1000,
+        paperPricePerTon: paperOp?.estimatedRate || orderToEdit.paperSpecs?.pricePerTon || 45000
       });
     } else {
       setEditingJob(null);
@@ -344,7 +361,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         paperSheetLength: 100,
         paperSheetWidth: 70,
         paperGrammage: 300,
-        paperSheetsCount: 1000
+        paperSheetsCount: 1000,
+        paperPricePerTon: 45000
       });
     }
     setIsCreateModalOpen(true);
@@ -474,13 +492,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
     const customer = customers.find(c => c.id === formData.customerId);
 
-    // Smart Paper Weight Calculation
+    // Smart Paper Weight & Cost Calculation
     const paperL = Number(formData.paperSheetLength) || 0;
     const paperW = Number(formData.paperSheetWidth) || 0;
     const paperG = Number(formData.paperGrammage) || 0;
     const paperS = Number(formData.paperSheetsCount) || 0;
+    const paperRate = Number(formData.paperPricePerTon) || 0;
     const calcWeightTon = (paperL > 0 && paperW > 0 && paperG > 0 && paperS > 0)
       ? Math.round(((paperL * paperW * paperG * paperS) / 10000000000) * 1000) / 1000
+      : 0;
+    const calcPaperCost = (calcWeightTon > 0 && paperRate > 0)
+      ? Math.round(calcWeightTon * paperRate * 100) / 100
       : 0;
 
     if (editingJob) {
@@ -499,7 +521,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 paperSheetLength: paperL,
                 paperSheetWidth: paperW,
                 paperGrammage: paperG,
-                paperSheetsCount: paperS
+                paperSheetsCount: paperS,
+                estimatedRate: paperRate > 0 ? paperRate : existingOp.estimatedRate,
+                cost: calcPaperCost > 0 ? calcPaperCost : existingOp.cost,
+                estimatedCost: calcPaperCost > 0 ? calcPaperCost : existingOp.estimatedCost
               };
             }
             return existingOp;
@@ -513,7 +538,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             executionType: def?.defaultExecutionType || ((opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal'),
             status: 'pending',
             billingStatus: 'provisional',
-            cost: 0,
+            cost: isPaper && calcPaperCost > 0 ? calcPaperCost : 0,
+            estimatedCost: isPaper && calcPaperCost > 0 ? calcPaperCost : 0,
+            estimatedRate: isPaper && paperRate > 0 ? paperRate : undefined,
             unit: isPaper ? 'طن' : (def?.defaultUnit || 'عدد'),
             estimatedQuantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
             quantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
@@ -550,7 +577,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             sheetWidth: paperW,
             grammage: paperG,
             sheetsCount: paperS,
-            calculatedWeightTon: calcWeightTon
+            pricePerTon: paperRate,
+            calculatedWeightTon: calcWeightTon,
+            estimatedCost: calcPaperCost
           } : ord.paperSpecs
         };
       });
@@ -573,7 +602,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           executionType: def?.defaultExecutionType || ((opId === 'paper_supply' || opId === 'corrugated_flute' || opId === 'ctp_plates' || opId === 'laser_die' || opId === 'lamination') ? 'external' : 'internal'),
           status: 'pending',
           billingStatus: 'provisional',
-          cost: 0,
+          cost: isPaper && calcPaperCost > 0 ? calcPaperCost : 0,
+          estimatedCost: isPaper && calcPaperCost > 0 ? calcPaperCost : 0,
+          estimatedRate: isPaper && paperRate > 0 ? paperRate : undefined,
           unit: isPaper ? 'طن' : (def?.defaultUnit || 'عدد'),
           estimatedQuantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
           quantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
@@ -583,6 +614,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           paperSheetsCount: isPaper && paperS > 0 ? paperS : undefined
         };
       });
+
+      const totalCost = ops.reduce((sum, o) => sum + (Number(o.cost) || 0), 0);
+      const grossProfit = Number(formData.clientSalePrice) - totalCost;
+      const margin = formData.clientSalePrice > 0 ? (grossProfit / formData.clientSalePrice) * 100 : 0;
 
       const newOrder: PrintingJobOrder = {
         id: newId,
@@ -602,8 +637,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         currentStageIndex: 0,
         status: 'in_progress',
         totalActualCost: 0,
-        grossProfit: Number(formData.clientSalePrice) || 0,
-        profitMarginPercent: 100,
+        grossProfit: grossProfit,
+        profitMarginPercent: margin,
         notes: formData.notes,
         createdAt: new Date().toISOString(),
         branchId: currentBranchId,
@@ -612,7 +647,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           sheetWidth: paperW,
           grammage: paperG,
           sheetsCount: paperS,
-          calculatedWeightTon: calcWeightTon
+          pricePerTon: paperRate,
+          calculatedWeightTon: calcWeightTon,
+          estimatedCost: calcPaperCost
         } : undefined
       };
 
@@ -1127,23 +1164,86 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     showNotification(`تم حذف أمر الشغل (${order.code}) وتنظيف كافة الحركات المرتبطة به بنجاح 🗑️`, 'success');
   };
 
-  // Final Delivery & Revenue Recognition (Creates real Sales Invoice in Sales Module)
+  // Check if all manufacturing/production stages are completed prior to customer delivery
+  const getJobDeliveryStatus = (order: PrintingJobOrder) => {
+    const pendingStages = order.operations.filter(op => {
+      const isShippingStage = op.operationId === 'shipping' ||
+        op.name.includes('شحن') ||
+        op.name.includes('تسليم للعميل') ||
+        op.name.includes('تسليم وشحن');
+      if (isShippingStage) return false;
+      return op.status !== 'completed';
+    });
+    return {
+      isDelivered: order.status === 'delivered',
+      canDeliver: pendingStages.length === 0,
+      pendingStages
+    };
+  };
+
+  // Open Final Delivery Modal with Pre-checks
   const handleDeliverJobOrder = (order: PrintingJobOrder) => {
     if (order.status === 'delivered') return;
+
+    // Strict validation: ALL previous production stages MUST be completed
+    const deliveryStatus = getJobDeliveryStatus(order);
+    if (!deliveryStatus.canDeliver) {
+      const pendingNames = deliveryStatus.pendingStages.map(s => s.name).join('، ');
+      showNotification(`لا يمكن تسليم الطلبية للعميل أو إصدار الفاتورة! توجد مراحل تشغيل لم تكتمل بعد (${pendingNames}) ⚠️`, 'error');
+      return;
+    }
+
+    // Open delivery confirmation modal where final quantity is mandatory
+    setDeliverModal({
+      order,
+      deliveredQuantity: order.deliveredQuantity || order.quantity || 0,
+      deliveryNoteNumber: order.deliveryNoteNumber || '',
+      notes: ''
+    });
+  };
+
+  // Final Delivery & Revenue Recognition (Creates real Sales Invoice in Sales Module based on Delivered Quantity)
+  const handleConfirmDeliverJobOrder = (
+    orderId: string,
+    deliveredQuantity: number,
+    deliveryNoteNumber: string,
+    deliveryNotes: string
+  ) => {
+    const order = jobOrders.find(o => o.id === orderId);
+    if (!order) return;
+    if (order.status === 'delivered') return;
+
+    // 1. Strict validation: check all prior production stages
+    const deliveryStatus = getJobDeliveryStatus(order);
+    if (!deliveryStatus.canDeliver) {
+      const pendingNames = deliveryStatus.pendingStages.map(s => s.name).join('، ');
+      showNotification(`لا يمكن تسليم الطلبية! يرجى إتمام كافة مراحل الإنتاج السابقة أولاً: ${pendingNames}`, 'error');
+      return;
+    }
+
+    // 2. Mandatory final delivered quantity check
+    const delQty = Number(deliveredQuantity);
+    if (!delQty || delQty <= 0) {
+      showNotification('الكمية النهائية المسلمة إلزامية ويجب أن تكون أكبر من صفر لإصدار الفاتورة', 'error');
+      return;
+    }
 
     const customer = customers.find(c => c.id === order.customerId);
     const customerName = customer?.name || order.customerName;
     const todayStr = new Date().toISOString().split('T')[0];
     const yearStr = todayStr.split('-')[0];
 
+    // 3. Unit Price & Final Invoice Amount based on delivered quantity
+    const unitPrice = order.unitPrice && order.unitPrice > 0
+      ? order.unitPrice
+      : (order.quantity > 0 ? (order.clientSalePrice / order.quantity) : order.clientSalePrice);
+    const finalSalePrice = Math.round(delQty * unitPrice * 100) / 100;
+
     // Generate Sales Invoice ID
     const invCount = (salesInvoices?.length || 0) + 1;
     const invId = `INV-${yearStr}-${String(invCount).padStart(4, '0')}`;
 
-    // 1. Calculate Unit Price
-    const unitPrice = order.quantity > 0 ? (order.clientSalePrice / order.quantity) : order.clientSalePrice;
-
-    // 2. Create the real Sales Invoice object
+    // 4. Create the real Sales Invoice object
     const newInvoice: SalesInvoice = {
       id: invId,
       customerId: order.customerId,
@@ -1153,20 +1253,20 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       items: [
         {
           productId: `PRNT-${order.code}`,
-          productName: order.productTitle,
-          quantity: order.quantity,
+          productName: `${order.productTitle} (أمر شغل ${order.code})`,
+          quantity: delQty,
           price: unitPrice,
-          total: order.clientSalePrice,
+          total: finalSalePrice,
           unit: (order.unit as any) || 'عدد',
-          itemType: 'expense', // Marked as custom service/expense item so it does not fail physical raw stock lookup
+          itemType: 'expense',
           cost: order.totalActualCost
         }
       ],
-      subTotal: order.clientSalePrice,
-      total: order.clientSalePrice,
+      subTotal: finalSalePrice,
+      total: finalSalePrice,
       paymentMethod: 'اجل',
       invoiceType: 'sale',
-      notes: `فاتورة مبيعات مسندة عن أمر تشغيل مطبوعات رقم ${order.code}${order.notes ? ` - ${order.notes}` : ''}`,
+      notes: `فاتورة مبيعات عن أمر تشغيل ${order.code} - كمية مسلمة: ${delQty} ${order.unit || ''} (تعاقد: ${order.quantity})${deliveryNoteNumber ? ` - إذن شحن: ${deliveryNoteNumber}` : ''}${deliveryNotes ? ` - ${deliveryNotes}` : ''}`,
       status: 'active',
       branchId: currentBranchId
     };
@@ -1175,9 +1275,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       setSalesInvoices(prev => [newInvoice, ...prev]);
     }
 
-    // 3. Revenue Entry: Debit Customer, Credit Printing Revenue
+    // 5. Revenue Entry: Debit Customer, Credit Printing Revenue
     const revenueEntryId = createJournalEntry({
-      description: `فاتورة مبيعات ${invId} - تسليم أمر شغل مطبوعات ${order.code} - العميل: ${customerName}`,
+      description: `فاتورة مبيعات ${invId} - تسليم أمر شغل ${order.code} (كمية مسلمة: ${delQty} ${order.unit || ''}) - العميل: ${customerName}`,
       date: todayStr,
       referenceType: 'SalesInvoice',
       referenceId: invId,
@@ -1186,19 +1286,19 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         {
           accountId: receivablesAccountId,
           accountName: `العملاء - ${customerName}`,
-          debit: order.clientSalePrice,
+          debit: finalSalePrice,
           credit: 0
         },
         {
           accountId: revenueAccountId,
           accountName: revenueAccountName,
           debit: 0,
-          credit: order.clientSalePrice
+          credit: finalSalePrice
         }
       ]
     });
 
-    // 4. COGS Entry: Debit COGS (Printing), Credit WIP (Printing Job)
+    // 6. COGS Entry: Debit COGS (Printing), Credit WIP (Printing Job)
     let cogsEntryId: string | undefined = undefined;
     if (order.totalActualCost > 0) {
       cogsEntryId = createJournalEntry({
@@ -1224,9 +1324,37 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       });
     }
 
+    // 7. Mark shipping operation as completed if present
+    const newOps = order.operations.map(op => {
+      const isShippingStage = op.operationId === 'shipping' ||
+        op.name.includes('شحن') ||
+        op.name.includes('تسليم للعميل') ||
+        op.name.includes('تسليم وشحن');
+      if (isShippingStage && op.status !== 'completed') {
+        return {
+          ...op,
+          status: 'completed' as const,
+          completedAt: new Date().toISOString(),
+          deliveryNoteNumber: deliveryNoteNumber || op.deliveryNoteNumber,
+          actualQuantity: delQty
+        };
+      }
+      return op;
+    });
+
+    const grossProfit = finalSalePrice - order.totalActualCost;
+    const profitMarginPercent = finalSalePrice > 0 ? (grossProfit / finalSalePrice) * 100 : 0;
+
     const updatedOrder: PrintingJobOrder = {
       ...order,
+      operations: newOps,
       status: 'delivered',
+      unitPrice,
+      deliveredQuantity: delQty,
+      deliveryNoteNumber: deliveryNoteNumber || undefined,
+      clientSalePrice: finalSalePrice,
+      grossProfit,
+      profitMarginPercent,
       salesInvoiceId: invId,
       cogsJournalEntryId: cogsEntryId
     };
@@ -1234,8 +1362,315 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     setJobOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
     if (viewingJob?.id === order.id) setViewingJob(updatedOrder);
 
-    logAction(`تسليم أمر شغل المطبوعات ${order.code} وإصدار فاتورة بيع ${invId} للعميل ${customerName}`);
-    showNotification(`تم إنشاء فاتورة المبيعات (${invId}) في قسم المبيعات وتسليم الطلبية بنجاح 📦`, 'success');
+    logAction(`تسليم أمر شغل المطبوعات ${order.code} بالكمية المسلمة ${delQty} ${order.unit || ''} وإصدار فاتورة بيع ${invId} بقيمة ${finalSalePrice} ج.م`);
+    showNotification(`تم تسليم الطلبية بنجاح بالكمية المسلمة (${delQty}) وإصدار فاتورة المبيعات (${invId}) بقيمة ${finalSalePrice.toLocaleString()} ج.م 📦`, 'success');
+    setDeliverModal(null);
+  };
+
+  // 1-Page A4 Printable Cost Breakdown Audit Sheet
+  const handlePrintCostBreakdown = (order: PrintingJobOrder) => {
+    const printWindow = window.open('', '_blank', 'width=950,height=1000');
+    if (!printWindow) {
+      showNotification('يرجى السماح بالنوافذ المنبثقة للطباعة', 'error');
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const orderQty = order.deliveredQuantity && order.deliveredQuantity > 0 ? order.deliveredQuantity : order.quantity;
+    const unitPrice = order.unitPrice && order.unitPrice > 0 ? order.unitPrice : (order.quantity > 0 ? order.clientSalePrice / order.quantity : 0);
+    const unitCost = orderQty > 0 ? (order.totalActualCost / orderQty) : 0;
+    const totalCost = Number(order.totalActualCost) || 0;
+
+    const rowsHtml = order.operations.map((op, idx) => {
+      const isPaper = op.operationId === 'paper_supply' ||
+        op.name.includes('ورق خام') ||
+        op.name.includes('توريد ورق') ||
+        op.name.includes('بكر وشيتات') ||
+        (op.unit && (op.unit.trim() === 'طن' || op.unit.trim() === 'كجم'));
+      const opCost = Number(op.cost || op.actualCost || op.estimatedCost) || 0;
+      const pct = totalCost > 0 ? ((opCost / totalCost) * 100).toFixed(1) : '0.0';
+      const opSupplier = suppliers.find(s => s.id === op.supplierId);
+      const supplierName = op.executionType === 'internal' ? 'تشغيل داخلي (الورشة)' : (opSupplier?.name || op.supplierName || 'مورد تشغيل');
+
+      let specDetail = '';
+      let qtyStr = '';
+      let rateStr = '';
+
+      if (isPaper) {
+        const l = op.paperSheetLength || order.paperSpecs?.sheetLength || 100;
+        const w = op.paperSheetWidth || order.paperSpecs?.sheetWidth || 70;
+        const g = op.paperGrammage || order.paperSpecs?.grammage || 300;
+        const s = op.paperSheetsCount || order.paperSpecs?.sheetsCount || Math.ceil(order.quantity / 2);
+        const weightTon = op.estimatedQuantity || op.actualQuantity || order.paperSpecs?.calculatedWeightTon || 0;
+        const rateTon = op.actualRate || op.estimatedRate || order.paperSpecs?.pricePerTon || 0;
+        specDetail = `فرخ ${w}×${l} سم • جراماج ${g} جم/م² • كمية الأفرخ: ${Number(s).toLocaleString()} فرخ`;
+        qtyStr = `${Number(weightTon).toFixed(3)} طن`;
+        rateStr = rateTon > 0 ? `${Number(rateTon).toLocaleString()} ج.م / طن` : '-';
+      } else {
+        const q = op.actualQuantity || op.estimatedQuantity || op.quantity || 0;
+        const r = op.actualRate || op.estimatedRate || 0;
+        specDetail = op.notes || (op.executionType === 'internal' ? 'مصنعية داخلية' : 'تشغيل لدى الغير');
+        qtyStr = `${Number(q).toLocaleString()} ${op.unit || 'وحدة'}`;
+        rateStr = r > 0 ? `${Number(r).toLocaleString()} ج.م` : '-';
+      }
+
+      const statusBadge = op.billingStatus === 'confirmed_posted'
+        ? `فاتورة: ${op.supplierInvoiceNumber || 'مرحلة'}`
+        : op.status === 'completed'
+        ? 'مكتمل تشغيلياً'
+        : 'تقديري أولي';
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+          <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #4b5563;">${idx + 1}</td>
+          <td style="padding: 6px 8px; font-weight: bold; color: #111827;">${op.name}</td>
+          <td style="padding: 6px 8px; color: #374151;">${supplierName}</td>
+          <td style="padding: 6px 8px; color: #4b5563; font-size: 10px;">${specDetail}</td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: bold; font-family: monospace;">${qtyStr}</td>
+          <td style="padding: 6px 8px; text-align: center; font-family: monospace;">${rateStr}</td>
+          <td style="padding: 6px 8px; text-align: left; font-weight: bold; font-family: monospace; color: #047857; font-size: 12px;">${opCost.toLocaleString('en-US')} ج.م</td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #6b7280;">${pct}%</td>
+          <td style="padding: 6px 8px; text-align: center; font-size: 10px; color: #4b5563;">${statusBadge}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="utf-8" />
+        <title>كشف تحليل تكاليف أمر شغل ${order.code}</title>
+        <style>
+          @page { size: A4 portrait; margin: 8mm 10mm; }
+          * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: #fff;
+            color: #111827;
+            margin: 0;
+            padding: 0;
+            font-size: 11px;
+            line-height: 1.4;
+          }
+          .header {
+            border-bottom: 2px solid #047857;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .header-title h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 900;
+            color: #064e3b;
+          }
+          .header-title p {
+            margin: 2px 0 0;
+            font-size: 10.5px;
+            color: #4b5563;
+          }
+          .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+          }
+          .meta-item {
+            font-size: 10.5px;
+          }
+          .meta-item span.label {
+            color: #6b7280;
+            display: block;
+            font-size: 9.5px;
+            font-weight: 600;
+          }
+          .meta-item span.val {
+            color: #111827;
+            font-weight: bold;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+          }
+          th {
+            background-color: #065f46;
+            color: #ffffff;
+            font-weight: bold;
+            padding: 6px 8px;
+            font-size: 10.5px;
+            border: 1px solid #065f46;
+          }
+          .summary-card {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: #ecfdf5;
+            border: 1.5px solid #10b981;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 14px;
+          }
+          .summary-box {
+            text-align: center;
+          }
+          .summary-box .title {
+            font-size: 10px;
+            color: #065f46;
+            font-weight: bold;
+            display: block;
+          }
+          .summary-box .amount {
+            font-size: 14px;
+            font-weight: 900;
+            font-family: monospace;
+            color: #064e3b;
+          }
+          .signatures {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 18px;
+            padding-top: 10px;
+            border-top: 1px dashed #d1d5db;
+            text-align: center;
+          }
+          .sig-box {
+            font-size: 10.5px;
+            color: #374151;
+          }
+          .sig-line {
+            height: 35px;
+            border-bottom: 1px solid #9ca3af;
+            margin-bottom: 4px;
+          }
+          @media print {
+            body { -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="background: #047857; color: white; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-radius: 6px;">
+          <span style="font-weight: bold; font-size: 13px;">كشف تحليل تكلفة أمر الشغل (جاهز للطباعة على ورقة واحدة A4)</span>
+          <button onclick="window.print()" style="background: #ffffff; color: #064e3b; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">🖨️ طباعة الآن (Print)</button>
+        </div>
+
+        <div class="header">
+          <div class="header-title">
+            <h1>كشف تحليل وتفصيل تكلفة مراحل أمر الشغل</h1>
+            <p>أمر تشغيل مطبوعات: <strong>${order.code}</strong> • تاريخ الاستخراج: ${todayStr}</p>
+          </div>
+          <div style="text-align: left;">
+            <div style="font-size: 14px; font-weight: 900; color: #047857;">MediaHive ERP</div>
+            <div style="font-size: 10px; color: #6b7280;">قسم تشغيل وإدارة المطبوعات والتكاليف</div>
+          </div>
+        </div>
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="label">العميل:</span>
+            <span class="val">${order.customerName}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">اسم المطبوعة / المنتج:</span>
+            <span class="val">${order.productTitle}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">الكمية المسلمة / المطلوبة:</span>
+            <span class="val">${orderQty.toLocaleString()} ${order.unit || 'علبة'}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">حالة الطلبية:</span>
+            <span class="val">${order.status === 'delivered' ? 'مكتملة ومسلمة للعميل' : 'قيد التشغيل والإنتاج'}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">سعر بيع الوحدة:</span>
+            <span class="val font-mono">${unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ج.م</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">تكلفة الوحدة الواحدة:</span>
+            <span class="val font-mono" style="color: #047857;">${unitCost.toFixed(3)} ج.م</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">إجمالي سعر البيع (الإيراد):</span>
+            <span class="val font-mono" style="color: #047857;">${order.clientSalePrice.toLocaleString('en-US')} ج.م</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">رقم فاتورة المبيعات:</span>
+            <span class="val font-mono">${order.salesInvoiceId || 'لم تصدر بعد'}</span>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px;">#</th>
+              <th>المرحلة التشغيلية</th>
+              <th>الجهة المنفذة</th>
+              <th>المواصفات والبيان</th>
+              <th style="width: 75px;">الكمية/الوزن</th>
+              <th style="width: 85px;">فئة السعر</th>
+              <th style="width: 95px; text-align: left;">التكلفة (ج.م)</th>
+              <th style="width: 45px;">النسبة</th>
+              <th style="width: 95px;">الحالة المادية</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="summary-card">
+          <div class="summary-box">
+            <span class="title">إجمالي تكاليف الإنتاج (WIP / COGS):</span>
+            <span class="amount" style="color: #b45309;">${totalCost.toLocaleString('en-US')} ج.م</span>
+          </div>
+          <div class="summary-box">
+            <span class="title">إجمالي سعر البيع المفوتر للعميل:</span>
+            <span class="amount" style="color: #047857;">${order.clientSalePrice.toLocaleString('en-US')} ج.م</span>
+          </div>
+          <div class="summary-box">
+            <span class="title">صافي مجمل الربح (هامش الربح %):</span>
+            <span class="amount" style="color: ${order.grossProfit >= 0 ? '#047857' : '#b91c1c'};">
+              ${order.grossProfit.toLocaleString('en-US')} ج.م (${order.profitMarginPercent.toFixed(1)}%)
+            </span>
+          </div>
+        </div>
+
+        <div class="signatures">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <strong>إعداد مسؤول التكاليف والتشغيل</strong>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <strong>مراجعة وتدقيق الحسابات العامة</strong>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <strong>اعتماد الإدارة العامة</strong>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 350);
+    };
   };
 
   // ==================== Feature 5: Consolidated Vendor Invoices ====================
@@ -1675,7 +2110,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                         </td>
 
                         <td className="p-3.5 font-semibold text-amber-700">
-                          {order.totalActualCost.toLocaleString('en-US')} ج.م
+                          <button
+                            type="button"
+                            onClick={() => setCostBreakdownOrder(order)}
+                            className="hover:underline flex items-center gap-1 font-mono font-bold text-amber-800 hover:text-amber-950 cursor-pointer"
+                            title="اضغط لعرض تفصيل تكلفة كل مرحلة وطباعتها في صفحة واحدة A4"
+                          >
+                            <span>{order.totalActualCost.toLocaleString('en-US')} ج.م</span>
+                            <span className="text-[10px] bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-black">📊</span>
+                          </button>
                         </td>
 
                         <td className="p-3.5">
@@ -1739,6 +2182,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             title="فتح ملف أمر الشغل والتشغيل"
                           >
                             👁️ ملف الشغل
+                          </button>
+
+                          <button
+                            onClick={() => setCostBreakdownOrder(order)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            title="عرض تفصيل تكلفة كل مرحلة وطباعة كشف التكاليف A4"
+                          >
+                            📊 كشف التكلفة
                           </button>
 
                           {hasPerm('duplicate_printing_job') && (
@@ -2358,38 +2809,41 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
-              {/* Smart Paper Weight Calculator Section */}
+              {/* Smart Paper Weight & Cost Calculator Section */}
               <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
                 <div className="flex justify-between items-center flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🧮</span>
                     <span className="text-xs font-black text-amber-950">
-                      الحساب التلقائي الذكي لـ (الوزن التقديري للورق):
+                      الحساب التلقائي الذكي لـ (الوزن والتكلفة التقديرية للورق):
                     </span>
                   </div>
-                  {/* Live calculated weight badge */}
+                  {/* Live calculated weight and cost badge */}
                   {(() => {
                     const l = Number(formData.paperSheetLength) || 0;
                     const w = Number(formData.paperSheetWidth) || 0;
                     const g = Number(formData.paperGrammage) || 0;
                     const s = Number(formData.paperSheetsCount) || 0;
+                    const rate = Number(formData.paperPricePerTon) || 0;
                     const ton = (l > 0 && w > 0 && g > 0 && s > 0)
                       ? Math.round(((l * w * g * s) / 10000000000) * 1000) / 1000
                       : 0;
                     const kg = Math.round(ton * 1000);
+                    const cost = (ton > 0 && rate > 0) ? Math.round(ton * rate * 100) / 100 : 0;
                     return ton > 0 ? (
-                      <span className="bg-amber-500 text-white font-black text-xs px-3 py-1 rounded-xl shadow-xs">
-                        الوزن المحسوب: {ton.toLocaleString('en-US', { maximumFractionDigits: 3 })} طن ({kg.toLocaleString('en-US')} كجم)
+                      <span className="bg-amber-600 text-white font-black text-xs px-3 py-1 rounded-xl shadow-xs flex items-center gap-2">
+                        <span>الوزن: {ton.toLocaleString('en-US', { maximumFractionDigits: 3 })} طن ({kg.toLocaleString('en-US')} كجم)</span>
+                        {cost > 0 && <span>| التكلفة التقديرية: {cost.toLocaleString('en-US')} ج.م</span>}
                       </span>
                     ) : (
                       <span className="text-[11px] text-amber-800 font-semibold">
-                        أدخل المقاس والجرام وكمية الأفرخ لاحتساب الوزن بالطن
+                        أدخل المقاس والجرام وكمية الأفرخ وسعر الطن لاحتساب التكلفة آلياً
                       </span>
                     );
                   })()}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 pt-1">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1">
                       طول الفرخ (سم)
@@ -2445,6 +2899,20 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                       className="w-full p-2 border border-amber-300 bg-white rounded-xl text-xs font-bold text-center"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-indigo-950 mb-1">
+                      سعر الطن التقديري (ج.م)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 45000"
+                      value={formData.paperPricePerTon || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, paperPricePerTon: parseFloat(e.target.value) || 0 }))}
+                      className="w-full p-2 border-2 border-indigo-300 bg-white rounded-xl text-xs font-black text-center text-indigo-900"
+                    />
+                  </div>
                 </div>
 
                 {/* Quick Presets for Sheet Sizes */}
@@ -2477,6 +2945,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                       className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10.5px] font-bold transition-all"
                     >
                       {g} جم
+                    </button>
+                  ))}
+                  <span className="text-gray-400 mr-1">|</span>
+                  <span className="text-gray-500 font-semibold">سعر الطن:</span>
+                  {[40000, 45000, 50000, 55000].map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paperPricePerTon: r }))}
+                      className="px-2 py-0.5 bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-lg text-[10.5px] font-bold transition-all"
+                    >
+                      {(r / 1000)}k
                     </button>
                   ))}
                 </div>
@@ -2614,7 +3094,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   <span className="text-white/40">|</span>
                   <span>إجمالي البيع: <strong className="text-emerald-300">{viewingJob.clientSalePrice.toLocaleString('en-US')} ج.م</strong></span>
                   <span className="text-white/40">|</span>
-                  <span>إجمالي التكلفة: <strong className="text-amber-300">{viewingJob.totalActualCost.toLocaleString('en-US')} ج.م</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => setCostBreakdownOrder(viewingJob)}
+                    className="flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white px-2.5 py-0.5 rounded-lg border border-amber-400/30 transition-all font-bold cursor-pointer shadow-2xs"
+                    title="اضغط هنا لعرض تفصيل كل مرحلة كلفت كام لوحدها وطباعة كشف التكاليف في صفحة واحدة A4"
+                  >
+                    <span>إجمالي التكلفة:</span>
+                    <strong className="text-amber-300 font-mono text-sm">{viewingJob.totalActualCost.toLocaleString('en-US')} ج.م</strong>
+                    <span className="text-[10px] bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded font-black">📊 تفصيل وطباعة</span>
+                  </button>
                   <span className="text-white/40">|</span>
                   <span>الربح المتوقع: <strong className={viewingJob.grossProfit >= 0 ? "text-green-300" : "text-rose-300"}>{viewingJob.grossProfit.toLocaleString('en-US')} ج.م ({viewingJob.profitMarginPercent.toFixed(1)}%)</strong></span>
                 </div>
@@ -2653,6 +3142,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   op.name.includes('بكر وشيتات') ||
                   op.name.includes('بكر ورق') ||
                   (op.unit && (op.unit.trim() === 'طن' || op.unit.trim() === 'كجم'));
+                const isShippingStage = op.operationId === 'shipping' ||
+                  op.name.includes('شحن') ||
+                  op.name.includes('تسليم للعميل') ||
+                  op.name.includes('تسليم وشحن');
 
                 return (
                   <div
@@ -2750,15 +3243,20 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                 <span className="text-amber-700 font-medium">
                                   الوزن التقديري: {op.estimatedQuantity ? (
                                     <strong className="text-amber-900 font-bold">
-                                      {op.estimatedQuantity} {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
+                                      {op.estimatedQuantity} طن
                                     </strong>
                                   ) : 'لم يحدد'}
+                                  {op.estimatedRate ? ` • سعر الطن: ${op.estimatedRate.toLocaleString('en-US')} ج.م` : ''}
+                                  {op.cost > 0 ? (
+                                    <span className="text-emerald-800 font-bold mr-1">
+                                      • التكلفة التقديرية: {op.cost.toLocaleString('en-US')} ج.م
+                                    </span>
+                                  ) : ''}
                                   {op.paperSheetLength && op.paperSheetWidth && op.paperGrammage && op.paperSheetsCount && (
-                                    <span className="text-[11px] text-amber-800 font-normal mr-1">
+                                    <span className="text-[11px] text-gray-500 font-normal mr-1 block sm:inline">
                                       ({op.paperSheetWidth}×{op.paperSheetLength} سم • {op.paperGrammage} جم • {op.paperSheetsCount.toLocaleString('en-US')} فرخ)
                                     </span>
                                   )}
-                                  {op.cost > 0 ? ` • التكلفة: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
                                   {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
                                 </span>
                               ) : (
@@ -2788,7 +3286,67 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
                       {/* Right: Supplier, Cost & Actions */}
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* Toggle Internal / External if not financially confirmed */}
+                        {isShippingStage ? (
+                          /* Specialized Shipping Stage Actions for Client Delivery */
+                          <>
+                            {viewingJob.status === 'delivered' ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                                  <span>✅</span>
+                                  <span>تم التسليم للعميل (الكمية المسلمة: {viewingJob.deliveredQuantity || viewingJob.quantity} {viewingJob.unit || ''})</span>
+                                  <span className="text-[10px] text-emerald-700">| فاتورة: {viewingJob.salesInvoiceId}</span>
+                                </span>
+                                {onNavigate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onNavigate('sales')}
+                                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
+                                  >
+                                    <span>🧾</span>
+                                    <span>عرض الفاتورة</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (() => {
+                              const deliveryStatus = getJobDeliveryStatus(viewingJob);
+                              if (!deliveryStatus.canDeliver) {
+                                return (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                                      <span>⏳</span>
+                                      <span>بانتظار إتمام {deliveryStatus.pendingStages.length} مراحل سابقة</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const pendingNames = deliveryStatus.pendingStages.map(s => s.name).join('، ');
+                                        showNotification(`لا يمكن تسليم الطلبية للعميل أو إصدار الفاتورة! توجد مراحل تشغيل لم تكتمل بعد (${pendingNames}) ⚠️`, 'warning');
+                                      }}
+                                      className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all"
+                                      title={`المراحل المتبقية: ${deliveryStatus.pendingStages.map(s => s.name).join('، ')}`}
+                                    >
+                                      <span>📦</span>
+                                      <span>تسليم وشحن (مراحل سابقة معلقة)</span>
+                                    </button>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeliverJobOrder(viewingJob)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                                  title="تسليم الطلبية للعميل وتحديد الكمية المسلمة النهائية وإصدار الفاتورة الرسمية"
+                                >
+                                  <span>📦</span>
+                                  <span>تسليم الطلبية للعميل وإصدار الفاتورة</span>
+                                </button>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <>
+                            {/* Toggle Internal / External if not financially confirmed */}
                         {!isConfirmedPosted && (
                           <select
                             value={op.executionType}
@@ -2831,35 +3389,84 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                         {/* Estimated Input if External and not confirmed */}
                         {isExternal && !isConfirmedPosted && (
                           isPaperStage ? (
-                            /* Paper Supply: Estimated Weight (طن / كجم) */
-                            <div className="flex items-center gap-1 bg-amber-50/80 border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
-                              <span className="text-[11px] font-bold text-amber-900 whitespace-nowrap">
-                                الوزن التقديري:
-                              </span>
-                              <input
-                                type="number"
-                                step="any"
-                                placeholder="0.00"
-                                value={op.estimatedQuantity !== undefined ? (op.estimatedQuantity || '') : ''}
-                                onChange={e => {
-                                  const weight = parseFloat(e.target.value) || 0;
-                                  const newOps = [...viewingJob.operations];
-                                  newOps[idx].estimatedQuantity = weight;
-                                  newOps[idx].quantity = weight;
-                                  if (newOps[idx].estimatedRate && newOps[idx].estimatedRate! > 0) {
-                                    const cost = Math.round(weight * newOps[idx].estimatedRate! * 100) / 100;
+                            /* Paper Supply: Weight + Price Per Ton + Estimated Cost Auto Calculation */
+                            <div className="flex flex-wrap items-center gap-1.5 bg-amber-50/90 border border-amber-300 rounded-xl p-1.5 shadow-2xs">
+                              {/* Weight Input */}
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10.5px] font-bold text-amber-900 whitespace-nowrap">الوزن:</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  placeholder="0.00"
+                                  value={op.estimatedQuantity !== undefined ? (op.estimatedQuantity || '') : ''}
+                                  onChange={e => {
+                                    const weight = parseFloat(e.target.value) || 0;
+                                    const rate = op.estimatedRate || 0;
+                                    const cost = (weight > 0 && rate > 0) ? Math.round(weight * rate * 100) / 100 : op.cost;
+                                    const newOps = [...viewingJob.operations];
+                                    newOps[idx].estimatedQuantity = weight;
+                                    newOps[idx].quantity = weight;
                                     newOps[idx].cost = cost;
                                     newOps[idx].estimatedCost = cost;
-                                  }
-                                  setViewingJob({ ...viewingJob, operations: newOps });
-                                  setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
-                                }}
-                                className="w-20 p-1 border border-amber-300 bg-white rounded text-xs font-black text-center text-amber-950 focus:ring-2 focus:ring-amber-500"
-                                title="الوزن التقديري المطلوب للورق الخام (بالطن / كجم)"
-                              />
-                              <span className="text-[11px] font-bold text-amber-800">
-                                {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
-                              </span>
+                                    setViewingJob({ ...viewingJob, operations: newOps });
+                                    setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
+                                  }}
+                                  className="w-16 p-1 border border-amber-300 bg-white rounded text-xs font-black text-center text-amber-950 focus:ring-2 focus:ring-amber-500"
+                                  title="الوزن التقديري المطلوب للورق (بالطن)"
+                                />
+                                <span className="text-[10.5px] font-bold text-amber-800">طن</span>
+                              </div>
+
+                              {/* Price per Ton Input */}
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10.5px] font-bold text-gray-700 whitespace-nowrap">سعر الطن:</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  placeholder="ج.م/طن"
+                                  value={op.estimatedRate || ''}
+                                  onChange={e => {
+                                    const rate = parseFloat(e.target.value) || 0;
+                                    const weight = op.estimatedQuantity || 0;
+                                    const cost = (weight > 0 && rate > 0) ? Math.round(weight * rate * 100) / 100 : 0;
+                                    const newOps = [...viewingJob.operations];
+                                    newOps[idx].estimatedRate = rate;
+                                    newOps[idx].cost = cost;
+                                    newOps[idx].estimatedCost = cost;
+                                    setViewingJob({ ...viewingJob, operations: newOps });
+                                    setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
+                                  }}
+                                  className="w-20 p-1 border border-gray-300 bg-white rounded text-xs font-bold text-center text-gray-900 focus:ring-2 focus:ring-amber-500"
+                                  title="سعر الطن التقديري للورق (ج.م / طن)"
+                                />
+                              </div>
+
+                              {/* Auto Calculated Cost Input */}
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10.5px] font-bold text-emerald-900 whitespace-nowrap">التكلفة:</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  placeholder="0.00"
+                                  value={op.cost || ''}
+                                  onChange={e => {
+                                    const cost = parseFloat(e.target.value) || 0;
+                                    const weight = op.estimatedQuantity || 0;
+                                    const rate = (cost > 0 && weight > 0) ? Math.round((cost / weight) * 100) / 100 : (op.estimatedRate || 0);
+                                    const newOps = [...viewingJob.operations];
+                                    newOps[idx].cost = cost;
+                                    newOps[idx].estimatedCost = cost;
+                                    newOps[idx].estimatedRate = rate;
+                                    setViewingJob({ ...viewingJob, operations: newOps });
+                                    setJobOrders(prev => prev.map(o => o.id === viewingJob.id ? { ...o, operations: newOps } : o));
+                                  }}
+                                  className="w-20 p-1 border border-emerald-300 bg-emerald-50 rounded text-xs font-black text-center text-emerald-950 focus:ring-2 focus:ring-emerald-500"
+                                  title="إجمالي التكلفة التقديرية للورق = الوزن × سعر الطن"
+                                />
+                                <span className="text-[10px] text-emerald-800 font-bold">ج.م</span>
+                              </div>
+
+                              {/* Calculator Button */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2869,11 +3476,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                     sheetLength: op.paperSheetLength || viewingJob.paperSpecs?.sheetLength || 100,
                                     sheetWidth: op.paperSheetWidth || viewingJob.paperSpecs?.sheetWidth || 70,
                                     grammage: op.paperGrammage || viewingJob.paperSpecs?.grammage || 300,
-                                    sheetsCount: op.paperSheetsCount || viewingJob.paperSpecs?.sheetsCount || Math.ceil(viewingJob.quantity / 2) || 1000
+                                    sheetsCount: op.paperSheetsCount || viewingJob.paperSpecs?.sheetsCount || Math.ceil(viewingJob.quantity / 2) || 1000,
+                                    pricePerTon: op.estimatedRate || viewingJob.paperSpecs?.pricePerTon || 45000
                                   });
                                 }}
-                                className="mr-1 px-1.5 py-0.5 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-black flex items-center gap-1 transition-all shadow-2xs"
-                                title="الحساب التلقائي الذكي لوزن الورق بالطن (مقاس الفرخ - جرام الورق - كمية الأفرخ)"
+                                className="px-2 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg text-xs font-black flex items-center gap-1 transition-all shadow-2xs"
+                                title="الحساب التلقائي الذكي لوزن الورق وتكلفته بالطن (مقاس الفرخ - جرام الورق - كمية الأفرخ - سعر الطن)"
                               >
                                 <span>🧮</span>
                                 <span className="text-[10px]">حاسبة</span>
@@ -2952,6 +3560,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       opName: op.name,
                                       supplierName: opSupplier?.name || opSupplier?.companyName || 'مورد تشغيل',
                                       unit: stageUnit,
+                                      isPaper: isPaperStage,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       actualQuantity: op.actualQuantity || op.estimatedQuantity || 0,
                                       deliveryNoteNumber: op.deliveryNoteNumber || '',
@@ -2982,6 +3591,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       supplierId: initialSupId,
                                       supplierName: initialSupName,
                                       unit: stageUnit,
+                                      isPaper: isPaperStage,
                                       estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                       estimatedRate: op.estimatedRate || 0,
                                       estimatedCost: est,
@@ -3044,6 +3654,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                   supplierId: initialSupId,
                                   supplierName: initialSupName,
                                   unit: isPaperStage ? (op.unit?.includes('كجم') ? 'كجم' : 'طن') : (op.unit || 'فرخ'),
+                                  isPaper: isPaperStage,
                                   estimatedQty: op.estimatedQuantity || op.quantity || 0,
                                   estimatedRate: op.estimatedRate || 0,
                                   estimatedCost: est,
@@ -3124,6 +3735,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                             )}
                           </div>
                         )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3146,6 +3759,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     <span>تكرار هذا الشغل</span>
                   </button>
                 )}
+
+                {/* Printable Cost Breakdown Button */}
+                <button
+                  type="button"
+                  onClick={() => setCostBreakdownOrder(viewingJob)}
+                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-2xs"
+                  title="عرض كشف تحليلي لتكلفة كل مرحلة على حدة وطباعته في صفحة واحدة A4"
+                >
+                  <span>🖨️</span>
+                  <span>كشف التكاليف التفصيلي</span>
+                </button>
 
                 {viewingJob.status !== 'delivered' && (
                   <button
@@ -3190,15 +3814,36 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     <span>🧾</span>
                     <span>عرض فاتورة البيع في المبيعات ({viewingJob.salesInvoiceId || 'فاتورة المبيعات'})</span>
                   </button>
-                ) : (
-                  <button
-                    onClick={() => handleDeliverJobOrder(viewingJob)}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all"
-                  >
-                    <span>📦</span>
-                    <span>تسليم الطلبية للعميل وإصدار الفاتورة الرسمية</span>
-                  </button>
-                )}
+                ) : (() => {
+                  const deliveryStatus = getJobDeliveryStatus(viewingJob);
+                  if (!deliveryStatus.canDeliver) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pendingNames = deliveryStatus.pendingStages.map(s => s.name).join('، ');
+                          showNotification(`لا يمكن تسليم الطلبية للعميل أو إصدار الفاتورة! توجد مراحل تشغيل لم تكتمل بعد (${pendingNames}) ⚠️`, 'warning');
+                        }}
+                        className="px-5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        title={`المراحل المتبقية: ${deliveryStatus.pendingStages.map(s => s.name).join('، ')}`}
+                      >
+                        <span>⏳</span>
+                        <span>تسليم الطلبية (بانتظار إتمام {deliveryStatus.pendingStages.length} مراحل تشغيل)</span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleDeliverJobOrder(viewingJob)}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all"
+                      title="تسليم الطلبية للعميل وتحديد الكمية المسلمة وإصدار الفاتورة الرسمية"
+                    >
+                      <span>📦</span>
+                      <span>تسليم الطلبية للعميل وتحديد الكمية المسلمة وإصدار الفاتورة</span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -3442,7 +4087,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               </div>
 
               {/* Input Fields */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
                     طول الفرخ (سم) *
@@ -3510,6 +4155,37 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-black text-indigo-950 text-xs">
+                      سعر الطن التقديري (ج.م / طن) *
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {[40000, 45000, 50000, 55000].map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPaperCalcModal(prev => prev ? ({ ...prev, pricePerTon: p }) : null)}
+                          className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded text-[10px] font-bold border border-indigo-200"
+                        >
+                          {(p / 1000)}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="مثال: 45000"
+                    value={paperCalcModal.pricePerTon || ''}
+                    onChange={e => setPaperCalcModal({
+                      ...paperCalcModal,
+                      pricePerTon: parseFloat(e.target.value) || 0
+                    })}
+                    className="w-full p-2.5 border-2 border-indigo-300 bg-white rounded-xl text-sm font-black text-center text-indigo-900 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
               </div>
 
               {/* Calculated Results Box */}
@@ -3518,27 +4194,33 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 const w = Number(paperCalcModal.sheetWidth) || 0;
                 const g = Number(paperCalcModal.grammage) || 0;
                 const s = Number(paperCalcModal.sheetsCount) || 0;
+                const rate = Number(paperCalcModal.pricePerTon) || 0;
 
                 const sheetAreaM2 = (l * w) / 10000;
                 const singleSheetWeightGrams = sheetAreaM2 * g;
                 const totalWeightKg = (singleSheetWeightGrams * s) / 1000;
                 const totalWeightTon = Math.round((totalWeightKg / 1000) * 1000) / 1000;
+                const totalCost = (totalWeightTon > 0 && rate > 0) ? Math.round(totalWeightTon * rate * 100) / 100 : 0;
 
                 return (
-                  <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 rounded-2xl shadow-sm space-y-2">
-                    <div className="flex justify-between items-center text-xs font-semibold text-amber-100">
+                  <div className="bg-gradient-to-br from-amber-600 via-amber-700 to-indigo-900 text-white p-4 rounded-2xl shadow-sm space-y-3">
+                    <div className="flex justify-between items-center text-xs font-semibold text-amber-100 border-b border-white/15 pb-2">
                       <span>مساحة الفرخ: {sheetAreaM2.toFixed(3)} م²</span>
                       <span>وزن الفرخ الواحد: {singleSheetWeightGrams.toFixed(1)} جم</span>
                     </div>
 
-                    <div className="border-t border-white/20 pt-2 flex justify-between items-center">
+                    <div className="grid grid-cols-2 gap-3 items-center">
                       <div>
-                        <span className="text-[11px] text-amber-100 block">إجمالي وزن الورق التقديري:</span>
+                        <span className="text-[11px] text-amber-100 block">إجمالي وزن الورق:</span>
                         <span className="text-2xl font-black">{totalWeightTon.toLocaleString('en-US', { maximumFractionDigits: 3 })} طن</span>
+                        <span className="text-[10px] text-amber-200 block mt-0.5">({Math.round(totalWeightKg).toLocaleString('en-US')} كجم)</span>
                       </div>
-                      <div className="text-left bg-black/10 px-3 py-1.5 rounded-xl border border-white/10">
-                        <span className="text-[10px] text-amber-100 block">بالكيلوجرام:</span>
-                        <span className="font-mono font-bold text-base">{Math.round(totalWeightKg).toLocaleString('en-US')} كجم</span>
+                      <div className="text-left bg-black/20 p-2.5 rounded-xl border border-white/10">
+                        <span className="text-[10px] text-amber-100 block">التكلفة التقديرية للورق:</span>
+                        <span className="font-mono font-black text-xl text-emerald-300">{totalCost.toLocaleString('en-US')} ج.م</span>
+                        {rate > 0 && totalWeightTon > 0 && (
+                          <span className="text-[10px] text-gray-300 block font-mono mt-0.5">({totalWeightTon} طن × {rate.toLocaleString()} ج.م)</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3561,6 +4243,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   const w = Number(paperCalcModal.sheetWidth) || 0;
                   const g = Number(paperCalcModal.grammage) || 0;
                   const s = Number(paperCalcModal.sheetsCount) || 0;
+                  const rate = Number(paperCalcModal.pricePerTon) || 0;
 
                   if (l <= 0 || w <= 0 || g <= 0 || s <= 0) {
                     showNotification('يرجى إدخال المقاس والجرام وكمية الأفرخ', 'warning');
@@ -3568,6 +4251,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   }
 
                   const weightTon = Math.round(((l * w * g * s) / 10000000000) * 1000) / 1000;
+                  const paperCost = (weightTon > 0 && rate > 0) ? Math.round(weightTon * rate * 100) / 100 : 0;
 
                   if (paperCalcModal.orderId && paperCalcModal.opIndex !== undefined) {
                     const order = jobOrders.find(o => o.id === paperCalcModal.orderId);
@@ -3580,18 +4264,43 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           estimatedQuantity: weightTon,
                           quantity: weightTon,
                           unit: 'طن',
+                          estimatedRate: rate > 0 ? rate : targetOp.estimatedRate,
+                          cost: paperCost > 0 ? paperCost : targetOp.cost,
+                          estimatedCost: paperCost > 0 ? paperCost : targetOp.estimatedCost,
                           paperSheetLength: l,
                           paperSheetWidth: w,
                           paperGrammage: g,
-                          paperSheetsCount: s,
-                          cost: targetOp.estimatedRate ? Math.round(weightTon * targetOp.estimatedRate * 100) / 100 : targetOp.cost,
-                          estimatedCost: targetOp.estimatedRate ? Math.round(weightTon * targetOp.estimatedRate * 100) / 100 : targetOp.estimatedCost
+                          paperSheetsCount: s
                         };
-                        const updatedOrder = { ...order, operations: newOps };
+
+                        const updatedPaperSpecs = {
+                          ...(order.paperSpecs || {}),
+                          sheetLength: l,
+                          sheetWidth: w,
+                          grammage: g,
+                          sheetsCount: s,
+                          pricePerTon: rate,
+                          calculatedWeightTon: weightTon,
+                          estimatedCost: paperCost
+                        };
+
+                        const totalActualCost = newOps.reduce((sum, o) => sum + (o.status === 'completed' ? (Number(o.cost) || 0) : 0), 0);
+                        const grossProfit = order.clientSalePrice - totalActualCost;
+                        const profitMarginPercent = order.clientSalePrice > 0 ? (grossProfit / order.clientSalePrice) * 100 : 0;
+
+                        const updatedOrder: PrintingJobOrder = {
+                          ...order,
+                          operations: newOps,
+                          paperSpecs: updatedPaperSpecs,
+                          totalActualCost,
+                          grossProfit,
+                          profitMarginPercent
+                        };
+
                         setJobOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
                         if (viewingJob?.id === order.id) setViewingJob(updatedOrder);
-                        showNotification(`تم تطبيق الوزن التقديري للورق بنجاح (${weightTon} طن)`, 'success');
-                        logAction(`حساب وزن الورق تلقائياً لأمر ${order.code}: ${w}×${l} سم، ${g} جم، ${s} فرخ = ${weightTon} طن`);
+                        showNotification(`تم تطبيق وزن وتكلفة الورق بنجاح (${weightTon} طن = ${paperCost.toLocaleString()} ج.م)`, 'success');
+                        logAction(`حساب وزن وتكلفة الورق لأمر ${order.code}: ${weightTon} طن بسعر ${rate} ج.م = ${paperCost} ج.م`);
                       }
                     }
                   }
@@ -3600,7 +4309,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
               >
                 <span>✅</span>
-                <span>تطبيق واعتماد الوزن التقديري للمرحلة</span>
+                <span>تطبيق واعتماد الوزن والتكلفة التقديرية</span>
               </button>
             </div>
           </div>
@@ -3611,13 +4320,21 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       {receiveDeliveryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100">
-            <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex justify-between items-center">
+            <div className={`p-4 text-white flex justify-between items-center ${
+              receiveDeliveryModal.isPaper
+                ? 'bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900'
+                : 'bg-gradient-to-r from-blue-700 to-indigo-800'
+            }`}>
               <div>
                 <h3 className="font-black text-sm flex items-center gap-2">
-                  <span>📦</span>
-                  <span>تسجيل الاستلام الفعلي للخامات / المصنعية</span>
+                  <span>{receiveDeliveryModal.isPaper ? '📜' : '📦'}</span>
+                  <span>
+                    {receiveDeliveryModal.isPaper
+                      ? 'تسجيل استلام خامات الورق (الوزن الفعلي)'
+                      : 'تسجيل استلام إنتاج / مصنعية المرحلة (بالكمية)'}
+                  </span>
                 </h3>
-                <p className="text-[11px] text-blue-100 mt-0.5">
+                <p className="text-[11px] text-white/80 mt-0.5">
                   أمر شغل: {receiveDeliveryModal.orderCode} • {receiveDeliveryModal.opName}
                 </p>
               </div>
@@ -3630,15 +4347,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             </div>
 
             <div className="p-5 space-y-4 text-xs">
-              <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200">
+              <div className={`${receiveDeliveryModal.isPaper ? 'bg-amber-50/70 border-amber-200' : 'bg-blue-50/70 border-blue-200'} p-3 rounded-xl border`}>
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-bold text-gray-700">المورد:</span>
-                  <span className="font-black text-blue-900">{receiveDeliveryModal.supplierName}</span>
+                  <span className={`font-black ${receiveDeliveryModal.isPaper ? 'text-amber-950' : 'text-blue-900'}`}>{receiveDeliveryModal.supplierName}</span>
                 </div>
                 {receiveDeliveryModal.estimatedQty > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">الكمية/الوزن المطلوب تقديرياً:</span>
-                    <span className="font-mono font-bold text-indigo-700">
+                    <span className="text-gray-500">
+                      {receiveDeliveryModal.isPaper ? 'الوزن التقديري المطلوب:' : 'الكمية التقديرية المطلوبة:'}
+                    </span>
+                    <span className={`font-mono font-bold ${receiveDeliveryModal.isPaper ? 'text-amber-800' : 'text-indigo-700'}`}>
                       {receiveDeliveryModal.estimatedQty} {receiveDeliveryModal.unit}
                     </span>
                   </div>
@@ -3647,21 +4366,29 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
               <div>
                 <label className="block font-bold text-gray-700 mb-1">
-                  الكمية / الوزن الفعلي المستلم * ({receiveDeliveryModal.unit || 'طن / فرخ / كجم'})
+                  {receiveDeliveryModal.isPaper
+                    ? 'الوزن الفعلي المستلم من المورد (بالطن) *'
+                    : `الكمية الفعلية المنفذة / المستلمة (${receiveDeliveryModal.unit}) *`}
                 </label>
                 <input
                   type="number"
                   step="any"
-                  placeholder="مثال: 2.540 أو 5100"
+                  placeholder={receiveDeliveryModal.isPaper ? 'مثال: 1.050 طن' : `مثال: 5000 ${receiveDeliveryModal.unit}`}
                   value={receiveDeliveryModal.actualQuantity || ''}
                   onChange={e => setReceiveDeliveryModal({
                     ...receiveDeliveryModal,
                     actualQuantity: parseFloat(e.target.value) || 0
                   })}
-                  className="w-full p-2.5 border border-blue-300 rounded-xl font-black text-blue-900 text-sm focus:ring-2 focus:ring-blue-500"
+                  className={`w-full p-2.5 border rounded-xl font-black text-sm focus:ring-2 ${
+                    receiveDeliveryModal.isPaper
+                      ? 'border-amber-400 text-amber-950 focus:ring-amber-500'
+                      : 'border-blue-300 text-blue-900 focus:ring-blue-500'
+                  }`}
                 />
                 <span className="text-[10px] text-gray-500 mt-1 block">
-                  سجل الوزن الفعلي على البسكول أو عدد الطرود/الأفرخ المستلمة فعلياً
+                  {receiveDeliveryModal.isPaper
+                    ? 'سجل الوزن الفعلي على البسكول بالطن للورق الخام المستلم بالمخزن'
+                    : `سجل عدد ${receiveDeliveryModal.unit} المستلمة والمنفذة فعلياً من هذه المرحلة`}
                 </span>
               </div>
 
@@ -3785,13 +4512,25 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               {/* Comparison: Estimated vs Received */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
-                  <span className="font-bold text-amber-900 block mb-1">⏳ المسجل مبدئياً بأمر الشغل:</span>
+                  <span className="font-bold text-amber-900 block mb-1">
+                    {reconcileSupplierModal.isPaper ? '⏳ وزن وتكلفة الورق المسجل مبدئياً:' : '⏳ المسجل مبدئياً بأمر الشغل:'}
+                  </span>
                   <div className="space-y-1 text-gray-700">
                     <div className="flex justify-between">
-                      <span>الكمية/الوزن:</span>
-                      <span className="font-mono font-bold">{reconcileSupplierModal.estimatedQty || '-'} {reconcileSupplierModal.unit}</span>
+                      <span>{reconcileSupplierModal.isPaper ? 'الوزن التقديري:' : 'الكمية التقديرية:'}</span>
+                      <span className="font-mono font-bold text-amber-950">
+                        {reconcileSupplierModal.estimatedQty || '-'} {reconcileSupplierModal.unit}
+                      </span>
                     </div>
-                    <div className="flex justify-between">
+                    {reconcileSupplierModal.estimatedRate > 0 && (
+                      <div className="flex justify-between text-[11px] text-gray-500">
+                        <span>{reconcileSupplierModal.isPaper ? 'سعر الطن التقديري:' : 'سعر الوحدة التقديري:'}</span>
+                        <span className="font-mono font-semibold">
+                          {reconcileSupplierModal.estimatedRate.toLocaleString()} ج.م
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-0.5 border-t border-amber-200/60">
                       <span>التكلفة التقديرية:</span>
                       <span className="font-mono font-bold text-amber-800">
                         {reconcileSupplierModal.estimatedCost.toLocaleString('en-US')} ج.م
@@ -3801,16 +4540,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
 
                 <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-200">
-                  <span className="font-bold text-blue-900 block mb-1">📦 إذن الاستلام الفعلي بالمخزن:</span>
+                  <span className="font-bold text-blue-900 block mb-1">
+                    {reconcileSupplierModal.isPaper ? '📦 استلام الورق الفعلي (البسكول):' : '📦 استلام الإنتاج الفعلي بالمخزن:'}
+                  </span>
                   <div className="space-y-1 text-gray-700">
                     <div className="flex justify-between">
-                      <span>الكمية/الوزن المستلم:</span>
+                      <span>{reconcileSupplierModal.isPaper ? 'الوزن المستلم الفعلي:' : 'الكمية المستلمة الفعلية:'}</span>
                       <span className="font-mono font-bold text-blue-800">
                         {reconcileSupplierModal.receivedQty || '-'} {reconcileSupplierModal.unit}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>رقم إذن الاستلام:</span>
+                      <span>رقم إذن الاستلام / البوليصة:</span>
                       <span className="font-mono">{reconcileSupplierModal.deliveryNoteNumber || 'لا يوجد'}</span>
                     </div>
                   </div>
@@ -3856,10 +4597,13 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">الكمية/الوزن المفوتر</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      {reconcileSupplierModal.isPaper ? 'الوزن الفعلي المفوتر (بالطن) *' : `الكمية الفعلية المنفذة (${reconcileSupplierModal.unit}) *`}
+                    </label>
                     <input
                       type="number"
                       step="any"
+                      placeholder={reconcileSupplierModal.isPaper ? 'مثال: 1.050' : 'مثال: 5000'}
                       value={reconcileSupplierModal.actualQuantity || ''}
                       onChange={e => {
                         const q = parseFloat(e.target.value) || 0;
@@ -3871,15 +4615,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           actualCost: newCost
                         });
                       }}
-                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs"
+                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs font-bold"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">سعر الوحدة/الطن ج.م</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      {reconcileSupplierModal.isPaper ? 'سعر الطن الفعلي (ج.م/طن)' : `سعر الوحدة (${reconcileSupplierModal.unit}) ج.م`}
+                    </label>
                     <input
                       type="number"
                       step="any"
+                      placeholder={reconcileSupplierModal.isPaper ? 'مثال: 45000' : 'مثال: 0.25'}
                       value={reconcileSupplierModal.actualRate || ''}
                       onChange={e => {
                         const rate = parseFloat(e.target.value) || 0;
@@ -3891,13 +4638,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                           actualCost: newCost
                         });
                       }}
-                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs"
+                      className="w-full p-2 border border-gray-300 rounded-xl font-mono text-center text-xs font-bold"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-emerald-800 text-xs">إجمالي الفاتورة الفعلي (ج.م) *</label>
+                      <label className="font-bold text-emerald-800 text-xs">
+                        {reconcileSupplierModal.isPaper ? 'إجمالي فاتورة الورق الرسمية (ج.م) *' : 'إجمالي فاتورة التشغيل الفعلية (ج.م) *'}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setReconcileSupplierModal(prev => prev ? ({ ...prev, actualCost: prev.estimatedCost }) : null)}
@@ -4021,7 +4770,429 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         </div>
       )}
 
-      {/* ==================== Modal: Manage & Customize Operations Catalog (إدارة وتخصيص مراحل التشغيل) ==================== */}
+      {/* ==================== MODAL: FINAL DELIVERY & SALES INVOICE (الكمية النهائية المسلمة) ==================== */}
+      {deliverModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 my-6 animate-in fade-in">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-sm flex items-center gap-2">
+                  <span>📦</span>
+                  <span>تسليم الطلبية للعميل وإصدار فاتورة المبيعات الرسمية</span>
+                </h3>
+                <p className="text-[11px] text-emerald-100 mt-0.5">
+                  أمر شغل: {deliverModal.order.code} • العميل: {deliverModal.order.customerName}
+                </p>
+              </div>
+              <button
+                onClick={() => setDeliverModal(null)}
+                className="text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Job Info Banner */}
+              <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-700">اسم المنتج / المطبوعة:</span>
+                  <span className="font-black text-emerald-950">{deliverModal.order.productTitle}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">الكمية المتعاقد عليها بأمر الشغل:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    {deliverModal.order.quantity.toLocaleString('en-US')} {deliverModal.order.unit || 'علبة'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">سعر الوحدة المتفق عليه:</span>
+                  <span className="font-mono font-bold text-emerald-800">
+                    {((deliverModal.order.unitPrice && deliverModal.order.unitPrice > 0)
+                      ? deliverModal.order.unitPrice
+                      : (deliverModal.order.quantity > 0 ? deliverModal.order.clientSalePrice / deliverModal.order.quantity : deliverModal.order.clientSalePrice)
+                    ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ج.م
+                  </span>
+                </div>
+              </div>
+
+              {/* Mandatory Delivered Quantity Field */}
+              <div className="bg-amber-50/70 p-3.5 rounded-xl border-2 border-amber-300">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-black text-amber-950 text-xs flex items-center gap-1.5">
+                    <span>الكمية النهائية المسلمة للعميل (إلزامية) *</span>
+                    <span className="text-rose-600 font-bold text-[10px]">مطلوب لإصدار الفاتورة</span>
+                  </label>
+                  <span className="text-[11px] font-bold text-amber-800 font-mono">
+                    {deliverModal.order.unit || 'علبة'}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  step="any"
+                  placeholder="أدخل عدد الوحدات المسلمة فعلياً (مثال: 5000 أو 4850)"
+                  value={deliverModal.deliveredQuantity || ''}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setDeliverModal({
+                      ...deliverModal,
+                      deliveredQuantity: val
+                    });
+                  }}
+                  className="w-full p-2.5 border-2 border-amber-400 bg-white rounded-xl font-black text-center text-base text-gray-900 focus:ring-2 focus:ring-amber-500 shadow-inner"
+                  autoFocus
+                />
+                {(!deliverModal.deliveredQuantity || deliverModal.deliveredQuantity <= 0) && (
+                  <p className="text-rose-600 text-[11px] font-bold mt-1.5 flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>لا يمكن تفعيل أو إصدار الفاتورة دون كتابة الكمية النهائية المسلمة أكبر من صفر.</span>
+                  </p>
+                )}
+                <p className="text-[10px] text-gray-600 mt-1">
+                  💡 سيتم حساب إجمالي فاتورة المبيعات الرسمية بناءً على هذه الكمية المسلمة × سعر الوحدة المتفق عليه.
+                </p>
+              </div>
+
+              {/* Delivery Note & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    رقم إذن التسليم / بوليصة الشحن (اختياري)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: إذن تسليم 501 / بوليصة 94"
+                    value={deliverModal.deliveryNoteNumber}
+                    onChange={e => setDeliverModal({
+                      ...deliverModal,
+                      deliveryNoteNumber: e.target.value
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    ملاحظات التسليم
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ملاحظات العميل، السائق، التسليم..."
+                    value={deliverModal.notes}
+                    onChange={e => setDeliverModal({
+                      ...deliverModal,
+                      notes: e.target.value
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Live Invoice Preview Calculation */}
+              {(() => {
+                const uPrice = (deliverModal.order.unitPrice && deliverModal.order.unitPrice > 0)
+                  ? deliverModal.order.unitPrice
+                  : (deliverModal.order.quantity > 0 ? deliverModal.order.clientSalePrice / deliverModal.order.quantity : deliverModal.order.clientSalePrice);
+                const delQty = Number(deliverModal.deliveredQuantity) || 0;
+                const finalTotal = Math.round(delQty * uPrice * 100) / 100;
+                const qtyDiff = delQty - deliverModal.order.quantity;
+
+                return (
+                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-4 rounded-2xl shadow-sm space-y-2">
+                    <div className="flex justify-between items-center text-xs font-semibold text-emerald-100">
+                      <span>الكمية المسلمة: {delQty.toLocaleString('en-US')} {deliverModal.order.unit || ''}</span>
+                      {qtyDiff !== 0 && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          qtyDiff > 0 ? 'bg-amber-400 text-amber-950' : 'bg-rose-400 text-rose-950'
+                        }`}>
+                          {qtyDiff > 0 ? `زيادة إنتاج: +${qtyDiff}` : `عجز / هالك: ${qtyDiff}`}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="border-t border-white/20 pt-2 flex justify-between items-center">
+                      <div>
+                        <span className="text-[11px] text-emerald-100 block">إجمالي فاتورة المبيعات الرسمية:</span>
+                        <span className="text-2xl font-black">{finalTotal.toLocaleString('en-US')} ج.م</span>
+                      </div>
+                      <div className="text-left bg-black/15 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span className="text-[10px] text-emerald-200 block">المعادلة:</span>
+                        <span className="font-mono text-xs">{delQty} × {uPrice.toFixed(2)} ج.م</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 leading-relaxed">
+                ⚖️ <strong>الأثر المحاسبي والمالي:</strong> عند تأكيد التسليم، سيتم إصدار فاتورة مبيعات جديدة باسم العميل <strong>{deliverModal.order.customerName}</strong> وترحيل قيد إيرادات المبيعات لحساب العملاء، وإقفال تكلفة الإنتاج (WIP) إلى تكلفة البضاعة المباعة (COGS).
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliverModal(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={!deliverModal.deliveredQuantity || deliverModal.deliveredQuantity <= 0}
+                onClick={() => handleConfirmDeliverJobOrder(
+                  deliverModal.order.id,
+                  deliverModal.deliveredQuantity,
+                  deliverModal.deliveryNoteNumber,
+                  deliverModal.notes
+                )}
+                className={`px-6 py-2.5 font-bold rounded-xl text-xs shadow-md flex items-center gap-2 transition-all ${
+                  (!deliverModal.deliveredQuantity || deliverModal.deliveredQuantity <= 0)
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                }`}
+              >
+                <span>📦</span>
+                <span>تأكيد التسليم بالكمية المسلمة وإصدار الفاتورة الرسمية</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: JOB ORDER COST BREAKDOWN & 1-PAGE A4 PRINT (كشف تفصيل التكاليف) ==================== */}
+      {costBreakdownOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-gray-100 my-6 flex flex-col max-h-[90vh] animate-in fade-in">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-gray-900 via-indigo-950 to-blue-950 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl p-2 bg-white/10 rounded-xl">📊</span>
+                <div>
+                  <h3 className="font-black text-sm flex items-center gap-2">
+                    <span>كشف تحليل وتفصيل تكلفة مراحل أمر الشغل</span>
+                    <span className="font-mono text-amber-300">({costBreakdownOrder.code})</span>
+                  </h3>
+                  <p className="text-[11px] text-indigo-200 mt-0.5">
+                    العميل: {costBreakdownOrder.customerName} • المطبوع: {costBreakdownOrder.productTitle} • جاهز للطباعة على ورقة واحدة A4
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintCostBreakdown(costBreakdownOrder)}
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-gray-900 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  title="طباعة كشف التكاليف المفصل على صفحة واحدة A4"
+                >
+                  <span>🖨️</span>
+                  <span>طباعة الكشف A4</span>
+                </button>
+                <button
+                  onClick={() => setCostBreakdownOrder(null)}
+                  className="text-white/80 hover:text-white text-xl font-bold p-1 leading-none"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Order KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <span className="text-gray-500 text-[10.5px] block font-bold">الكمية المسلمة / المتعاقد عليها:</span>
+                  <span className="font-mono font-black text-gray-900 text-sm">
+                    {(costBreakdownOrder.deliveredQuantity || costBreakdownOrder.quantity).toLocaleString()} {costBreakdownOrder.unit || 'علبة'}
+                  </span>
+                  {costBreakdownOrder.deliveredQuantity && costBreakdownOrder.deliveredQuantity !== costBreakdownOrder.quantity && (
+                    <span className="text-[10px] text-gray-400 block font-normal">(تعاقد: {costBreakdownOrder.quantity})</span>
+                  )}
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <span className="text-amber-800 text-[10.5px] block font-bold">إجمالي التكلفة الفعلية:</span>
+                  <span className="font-mono font-black text-amber-950 text-sm">
+                    {costBreakdownOrder.totalActualCost.toLocaleString('en-US')} ج.م
+                  </span>
+                  <span className="text-[10px] text-amber-700 block font-semibold">
+                    (تكلفة الوحدة: {((costBreakdownOrder.totalActualCost / (costBreakdownOrder.deliveredQuantity || costBreakdownOrder.quantity || 1))).toFixed(2)} ج.م)
+                  </span>
+                </div>
+
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <span className="text-emerald-800 text-[10.5px] block font-bold">إجمالي سعر البيع (الإيراد):</span>
+                  <span className="font-mono font-black text-emerald-950 text-sm">
+                    {costBreakdownOrder.clientSalePrice.toLocaleString('en-US')} ج.م
+                  </span>
+                  <span className="text-[10px] text-emerald-700 block font-semibold">
+                    (سعر الوحدة: {((costBreakdownOrder.unitPrice || (costBreakdownOrder.quantity > 0 ? costBreakdownOrder.clientSalePrice / costBreakdownOrder.quantity : 0))).toFixed(2)} ج.م)
+                  </span>
+                </div>
+
+                <div className={`p-3 border rounded-xl ${costBreakdownOrder.grossProfit >= 0 ? 'bg-teal-50 border-teal-200' : 'bg-rose-50 border-rose-200'}`}>
+                  <span className={`text-[10.5px] block font-bold ${costBreakdownOrder.grossProfit >= 0 ? 'text-teal-800' : 'text-rose-800'}`}>
+                    صافي مجمل الربح:
+                  </span>
+                  <span className={`font-mono font-black text-sm ${costBreakdownOrder.grossProfit >= 0 ? 'text-teal-950' : 'text-rose-950'}`}>
+                    {costBreakdownOrder.grossProfit.toLocaleString('en-US')} ج.م
+                  </span>
+                  <span className={`text-[10px] block font-bold ${costBreakdownOrder.grossProfit >= 0 ? 'text-teal-700' : 'text-rose-700'}`}>
+                    هامش الربح: {costBreakdownOrder.profitMarginPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Stages Detailed Cost Table */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700 text-[11px] font-bold border-b border-gray-200">
+                      <th className="p-2.5 text-center w-8">#</th>
+                      <th className="p-2.5">المرحلة التشغيلية</th>
+                      <th className="p-2.5">طريقة التنفيذ / المورد</th>
+                      <th className="p-2.5">البيان والمواصفات الفنية</th>
+                      <th className="p-2.5 text-center">الكمية / الوزن</th>
+                      <th className="p-2.5 text-center">فئة السعر</th>
+                      <th className="p-2.5 text-left">التكلفة (ج.م)</th>
+                      <th className="p-2.5 text-center">النسبة</th>
+                      <th className="p-2.5 text-center">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {costBreakdownOrder.operations.map((op, idx) => {
+                      const isPaper = op.operationId === 'paper_supply' ||
+                        op.name.includes('ورق خام') ||
+                        op.name.includes('توريد ورق') ||
+                        op.name.includes('بكر وشيتات') ||
+                        (op.unit && (op.unit.trim() === 'طن' || op.unit.trim() === 'كجم'));
+                      const opCost = Number(op.cost || op.actualCost || op.estimatedCost) || 0;
+                      const totalCost = Number(costBreakdownOrder.totalActualCost) || 0;
+                      const pct = totalCost > 0 ? ((opCost / totalCost) * 100).toFixed(1) : '0.0';
+                      const opSupplier = suppliers.find(s => s.id === op.supplierId);
+                      const supplierName = op.executionType === 'internal'
+                        ? 'تشغيل داخلي (الورشة)'
+                        : (opSupplier?.name || op.supplierName || 'مورد تشغيل');
+
+                      let specDetail = '';
+                      let qtyStr = '';
+                      let rateStr = '';
+
+                      if (isPaper) {
+                        const l = op.paperSheetLength || costBreakdownOrder.paperSpecs?.sheetLength || 100;
+                        const w = op.paperSheetWidth || costBreakdownOrder.paperSpecs?.sheetWidth || 70;
+                        const g = op.paperGrammage || costBreakdownOrder.paperSpecs?.grammage || 300;
+                        const s = op.paperSheetsCount || costBreakdownOrder.paperSpecs?.sheetsCount || Math.ceil(costBreakdownOrder.quantity / 2);
+                        const weightTon = op.estimatedQuantity || op.actualQuantity || costBreakdownOrder.paperSpecs?.calculatedWeightTon || 0;
+                        const rateTon = op.actualRate || op.estimatedRate || costBreakdownOrder.paperSpecs?.pricePerTon || 0;
+                        specDetail = `فرخ ${w}×${l} سم • ${g} جم/م² • ${Number(s).toLocaleString()} فرخ`;
+                        qtyStr = `${Number(weightTon).toFixed(3)} طن`;
+                        rateStr = rateTon > 0 ? `${Number(rateTon).toLocaleString()} ج.م / طن` : '-';
+                      } else {
+                        const q = op.actualQuantity || op.estimatedQuantity || op.quantity || 0;
+                        const r = op.actualRate || op.estimatedRate || 0;
+                        specDetail = op.notes || (op.executionType === 'internal' ? 'مصنعية داخلية' : 'تشغيل لدى الغير');
+                        qtyStr = `${Number(q).toLocaleString()} ${op.unit || 'وحدة'}`;
+                        rateStr = r > 0 ? `${Number(r).toLocaleString()} ج.م` : '-';
+                      }
+
+                      return (
+                        <tr key={op.id || idx} className="hover:bg-gray-50/80 transition-colors">
+                          <td className="p-2.5 text-center font-bold text-gray-500">{idx + 1}</td>
+                          <td className="p-2.5 font-bold text-gray-900">{op.name}</td>
+                          <td className="p-2.5 text-gray-700">
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              op.executionType === 'internal' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {supplierName}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-gray-600 text-[11px]">{specDetail}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-gray-800">{qtyStr}</td>
+                          <td className="p-2.5 text-center font-mono text-gray-600">{rateStr}</td>
+                          <td className="p-2.5 text-left font-mono font-black text-emerald-800 text-xs">
+                            {opCost.toLocaleString('en-US')} ج.م
+                          </td>
+                          <td className="p-2.5 text-center font-bold text-gray-500">{pct}%</td>
+                          <td className="p-2.5 text-center">
+                            {op.billingStatus === 'confirmed_posted' ? (
+                              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                معتمد ({op.supplierInvoiceNumber || 'فاتورة'})
+                              </span>
+                            ) : op.status === 'completed' ? (
+                              <span className="bg-teal-100 text-teal-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                مكتمل
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                تقديري
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t-2 border-gray-300 font-bold text-gray-900">
+                      <td colSpan={6} className="p-3 text-left">إجمالي تكاليف خط سير التشغيل والمصنعيات:</td>
+                      <td className="p-3 text-left font-mono font-black text-emerald-800 text-sm">
+                        {costBreakdownOrder.totalActualCost.toLocaleString('en-US')} ج.م
+                      </td>
+                      <td className="p-3 text-center text-gray-500">100%</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Printing Helper Note */}
+              <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center text-xs">
+                <span className="text-blue-900 font-semibold">
+                  📄 تقرير التكاليف أعلاه مهيأ ومصمم بالكامل لطباعته في <strong>ورقة واحدة A4</strong> تشمل كافة بيانات الموردين والمواصفات والتوقيعات الرسمية.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handlePrintCostBreakdown(costBreakdownOrder)}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-xs transition-all shrink-0 cursor-pointer"
+                >
+                  <span>🖨️</span>
+                  <span>طباعة فورية</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center shrink-0">
+              <span className="text-[11px] text-gray-500 font-medium">
+                تم استخراج البيانات آلياً من سجل أوامر تشغيل MediaHive
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCostBreakdownOrder(null)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300 transition-all"
+                >
+                  إغلاق
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintCostBreakdown(costBreakdownOrder)}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>🖨️</span>
+                  <span>طباعة كشف التكاليف (A4)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {isManageOperationsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-gray-100 my-6 flex flex-col max-h-[90vh]">

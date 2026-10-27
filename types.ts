@@ -903,11 +903,15 @@ export interface PrintingJobOrder {
     sheetWidth?: number;  // عرض الفرخ بالسم (مثال: 70)
     grammage?: number;    // جرام الورق جم/م2 (مثال: 300)
     sheetsCount?: number; // كمية الأفرخ (مثال: 5000)
+    pricePerTon?: number; // سعر الطن التقديري ج.م
     calculatedWeightTon?: number; // الوزن المحسوب بالطن (مثال: 1.05)
+    estimatedCost?: number; // التكلفة التقديرية للورق بالجنيه
   };
   
   // Financials
   unitPrice?: number; // سعر بيع الوحدة المتفق عليه
+  deliveredQuantity?: number; // الكمية الفعلية النهائية المسلمة للعميل (تعتمد عليها الفاتورة)
+  deliveryNoteNumber?: string; // رقم إذن التسليم / بوليصة الشحن للعميل
   clientSalePrice: number; // إجمالي سعر البيع للطلبية (الكمية × سعر الوحدة)
   taxRate?: number;
   taxAmount?: number;
