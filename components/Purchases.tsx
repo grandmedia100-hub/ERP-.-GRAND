@@ -673,32 +673,44 @@ const Purchases: React.FC<PurchasesProps> = ({
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">#</th>
-                  <th style="width: 15%; text-align: center;">كود الصنف</th>
-                  <th>الصنف</th>
-                  <th style="width: 10%; text-align: center;">الكمية</th>
-                  <th style="width: 10%; text-align: center;">الوحدة</th>
-                  <th style="width: 15%; text-align: center;">السعر</th>
-                  <th style="width: 18%; text-align: center;">الإجمالي</th>
+                  <th style="width: 12%; text-align: center;">كود الصنف</th>
+                  <th style="width: 13%; text-align: center;">أمر الشغل / التشغيلة</th>
+                  <th>الصنف والبيان وتفاصيل التشغيلة</th>
+                  <th style="width: 9%; text-align: center;">الكمية</th>
+                  <th style="width: 9%; text-align: center;">الوحدة</th>
+                  <th style="width: 13%; text-align: center;">السعر</th>
+                  <th style="width: 15%; text-align: center;">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
                  ${invoice.items.map((item, index) => {
                   const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                  const batchCode = item.batchCode || (item.description && item.description.match(/JOB-\d{4}-\d+/)?.[0]) || (item.productName && item.productName.match(/JOB-\d{4}-\d+/)?.[0]) || '';
                   return `
                   <tr>
                     <td style="text-align: center;">${index + 1}</td>
                     <td style="text-align: center; font-family: monospace; font-size: 12px; color: #374151; font-weight: 600;">${itemCode || '-'}</td>
+                    <td style="text-align: center; font-family: monospace; font-size: 12px; color: #0284c7; font-weight: 700; background: #f0f9ff;">${batchCode || '-'}</td>
                     <td>
                       <div>
                         <strong>${item.productName}</strong>
                         ${item.itemType === 'expense' ? '<span style="color:red; font-size:0.8em"> (مصروف)</span>' : ''}
                       </div>
-                      ${item.description ? `<div style="font-size: 12px; color: #666; margin-top: 2px;">${item.description}</div>` : ''}
+                      ${item.description ? `<div style="font-size: 11px; color: #666; margin-top: 2px;">${item.description}</div>` : ''}
+                      ${(item.batchCode || item.weightTon) ? `
+                        <div style="margin-top: 3px; padding: 2px 6px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; font-size: 10.5px; color: #92400e;">
+                          <strong>بيانات وزن تشغيلة:</strong> 
+                          <span>أمر شغل: <b style="font-family:monospace;">${item.batchCode || '-'}</b></span>
+                          ${item.batchQuantity ? ` | <span>كمية التشغيلة: <b>${item.batchQuantity.toLocaleString()}</b></span>` : ''}
+                          ${item.weightTon ? ` | <span>الوزن المستلم: <b style="color:#b45309;">${item.weightTon} طن</b></span>` : ''}
+                          ${item.totalOrderSalePrice ? ` | <span>سعر بيع التشغيلة: <b>${item.totalOrderSalePrice.toLocaleString()} ج.م</b></span>` : ''}
+                        </div>
+                      ` : ''}
                     </td>
                     <td style="text-align: center;">${item.quantity.toLocaleString('en-US')}</td>
                     <td style="text-align: center;">${item.unit || 'عدد'}</td>
                     <td style="text-align: center;">${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })} ${item.priceType === 'سعر الطن' ? '/ طن' : ''}</td>
-                    <td style="text-align: center;">${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                    <td style="text-align: center; font-weight: bold;">${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                   </tr>
                 `;}).join('')}
               </tbody>

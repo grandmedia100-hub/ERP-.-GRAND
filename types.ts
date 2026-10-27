@@ -270,6 +270,11 @@ export interface InvoiceItem {
   variantName?: string; // New: Distinct name for variation/material
   pricingTiers?: { quantity: number; price: number }[]; // New: Multi-quantity options
   cost?: number; // New: Direct cost for Job Costing
+  specifications?: string; // المواصفات الفنية للصنف (مقاس، جراماج، سلوفان، إلخ)
+  batchCode?: string; // كود التشغيلة أو أمر الشغل
+  batchQuantity?: number; // كمية التشغيلة
+  weightTon?: number; // الوزن المستلم بالطن
+  totalOrderSalePrice?: number; // سعر البيع الإجمالي للتشغيلة
 }
 
 export interface PaymentInstallment {
@@ -884,6 +889,18 @@ export interface JobOperationItem {
   operatorNotes?: string;
 }
 
+// Pre-press & Preparations Billed to Customer (الزنكات والفورمة والتصميم والشحن)
+export interface PrintingJobPrepressDetails {
+  moldType: 'new' | 'existing'; // فورمة جديدة تتحمل على العميل أم فورمة قديمة متوفرة
+  moldPrice?: number; // سعر بيع الفورمة للعميل ج.م
+  platesType: 'new' | 'existing'; // زنكات جديدة تتحمل على العميل أم زنكات قديمة متوفرة
+  platesPrice?: number; // سعر بيع الزنكات للعميل ج.م
+  designFee?: number; // تكلفة التصميم والتجهيز الفني المحملة على العميل ج.م
+  shippingFee?: number; // مصاريف شحن ونقل وتوصيل ج.م
+  otherFees?: number; // مصاريف إضافية أخرى ج.م
+  otherFeesDescription?: string; // بيان المصاريف الإضافية
+}
+
 export interface PrintingJobOrder {
   id: string; // e.g. JOB-2026-0001
   code: string;
@@ -912,7 +929,8 @@ export interface PrintingJobOrder {
   unitPrice?: number; // سعر بيع الوحدة المتفق عليه
   deliveredQuantity?: number; // الكمية الفعلية النهائية المسلمة للعميل (تعتمد عليها الفاتورة)
   deliveryNoteNumber?: string; // رقم إذن التسليم / بوليصة الشحن للعميل
-  clientSalePrice: number; // إجمالي سعر البيع للطلبية (الكمية × سعر الوحدة)
+  clientSalePrice: number; // إجمالي سعر البيع للطلبية (الكمية × سعر الوحدة) + تجهيزات العميل
+  prepressDetails?: PrintingJobPrepressDetails; // تجهيزات الطباعة والفورمة والزنكات والتصميم والشحن المحملة على العميل
   taxRate?: number;
   taxAmount?: number;
   totalWithTax?: number;

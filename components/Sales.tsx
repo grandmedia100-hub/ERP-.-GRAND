@@ -612,27 +612,32 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">#</th>
-                  <th style="width: 15%; text-align: center;">كود الصنف</th>
-                  <th>الصنف</th>
-                  <th style="width: 12%; text-align: center;">الكمية</th>
-                  <th style="width: 15%; text-align: center;">السعر</th>
-                  <th style="width: 18%; text-align: center;">الإجمالي</th>
+                  <th style="width: 13%; text-align: center;">كود الصنف</th>
+                  <th style="width: 14%; text-align: center;">رقم أمر الشغل</th>
+                  <th>الصنف والبيان والمواصفات</th>
+                  <th style="width: 11%; text-align: center;">الكمية</th>
+                  <th style="width: 14%; text-align: center;">السعر</th>
+                  <th style="width: 16%; text-align: center;">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
                  ${invoice.items.map((item, index) => {
                   const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                  const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
+                  const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
                   return `
                   <tr>
                     <td style="text-align: center;">${index + 1}</td>
                     <td style="text-align: center; font-family: monospace; font-size: 12px; color: ${isGrayscale ? '#000' : '#374151'}; font-weight: 600;">${itemCode || '-'}</td>
+                    <td style="text-align: center; font-family: monospace; font-size: 12px; color: #1d4ed8; font-weight: 700; background: #eff6ff40;">${jobOrderCode || '-'}</td>
                     <td>
-                      <strong>${item.productName}</strong>
+                      <strong>${cleanProductName}</strong>
                       ${item.description ? `<div style="font-size: 12px; color: ${isGrayscale ? '#000' : '#666'}; margin-top: 2px;">${item.description}</div>` : ''}
+                      ${item.specifications ? `<div style="font-size: 10.5px; color: #1e40af; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; margin-top: 3px; border-right: 2px solid #16a34a;"><strong>المواصفات:</strong> ${item.specifications}</div>` : ''}
                     </td>
-                    <td style="text-align: center;">${item.quantity.toLocaleString('en-US')}</td>
+                    <td style="text-align: center;">${item.quantity.toLocaleString('en-US')} ${item.unit || ''}</td>
                     <td style="text-align: center;">${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
-                    <td style="text-align: center;">${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
+                    <td style="text-align: center; font-weight: bold;">${item.total.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
                   </tr>
                 `;}).join('')}
               </tbody>

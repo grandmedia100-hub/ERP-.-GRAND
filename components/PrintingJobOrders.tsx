@@ -237,6 +237,13 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     deliveredQuantity: number;
     deliveryNoteNumber: string;
     notes: string;
+    moldType: 'new' | 'existing';
+    moldPrice: number;
+    platesType: 'new' | 'existing';
+    platesPrice: number;
+    designFee: number;
+    shippingFee: number;
+    otherFees: number;
   } | null>(null);
 
   // Job Order Stage Cost Breakdown & 1-Page A4 Printable Audit Sheet (كشف تحليل وتفصيل تكلفة مراحل أمر الشغل)
@@ -305,6 +312,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     paperGrammage?: number;
     paperSheetsCount?: number;
     paperPricePerTon?: number;
+    // Pre-press & Client Preparations
+    moldType: 'new' | 'existing';
+    moldPrice: number;
+    platesType: 'new' | 'existing';
+    platesPrice: number;
+    designFee: number;
+    shippingFee: number;
+    otherFees: number;
+    otherFeesDescription: string;
   }>({
     customerId: '',
     productTitle: '',
@@ -320,7 +336,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     paperSheetWidth: 70,
     paperGrammage: 300,
     paperSheetsCount: 1000,
-    paperPricePerTon: 45000
+    paperPricePerTon: 45000,
+    moldType: 'existing',
+    moldPrice: 0,
+    platesType: 'existing',
+    platesPrice: 0,
+    designFee: 0,
+    shippingFee: 0,
+    otherFees: 0,
+    otherFeesDescription: ''
   });
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
@@ -328,6 +352,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       setEditingJob(orderToEdit);
       const computedUnitPrice = orderToEdit.unitPrice || (orderToEdit.quantity > 0 ? (orderToEdit.clientSalePrice / orderToEdit.quantity) : 0);
       const paperOp = orderToEdit.operations.find(o => o.operationId === 'paper_supply' || o.name.includes('ورق'));
+      const prep = orderToEdit.prepressDetails;
       setFormData({
         customerId: orderToEdit.customerId,
         productTitle: orderToEdit.productTitle,
@@ -343,7 +368,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         paperSheetWidth: paperOp?.paperSheetWidth || orderToEdit.paperSpecs?.sheetWidth || 70,
         paperGrammage: paperOp?.paperGrammage || orderToEdit.paperSpecs?.grammage || 300,
         paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || Math.ceil(orderToEdit.quantity / 2) || 1000,
-        paperPricePerTon: paperOp?.estimatedRate || orderToEdit.paperSpecs?.pricePerTon || 45000
+        paperPricePerTon: paperOp?.estimatedRate || orderToEdit.paperSpecs?.pricePerTon || 45000,
+        moldType: prep?.moldType || 'existing',
+        moldPrice: prep?.moldPrice || 0,
+        platesType: prep?.platesType || 'existing',
+        platesPrice: prep?.platesPrice || 0,
+        designFee: prep?.designFee || 0,
+        shippingFee: prep?.shippingFee || 0,
+        otherFees: prep?.otherFees || 0,
+        otherFeesDescription: prep?.otherFeesDescription || ''
       });
     } else {
       setEditingJob(null);
@@ -362,7 +395,15 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         paperSheetWidth: 70,
         paperGrammage: 300,
         paperSheetsCount: 1000,
-        paperPricePerTon: 45000
+        paperPricePerTon: 45000,
+        moldType: 'existing',
+        moldPrice: 0,
+        platesType: 'existing',
+        platesPrice: 0,
+        designFee: 0,
+        shippingFee: 0,
+        otherFees: 0,
+        otherFeesDescription: ''
       });
     }
     setIsCreateModalOpen(true);
@@ -580,7 +621,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             pricePerTon: paperRate,
             calculatedWeightTon: calcWeightTon,
             estimatedCost: calcPaperCost
-          } : ord.paperSpecs
+          } : ord.paperSpecs,
+          prepressDetails: {
+            moldType: formData.moldType || 'existing',
+            moldPrice: formData.moldType === 'new' ? (Number(formData.moldPrice) || 0) : 0,
+            platesType: formData.platesType || 'existing',
+            platesPrice: formData.platesType === 'new' ? (Number(formData.platesPrice) || 0) : 0,
+            designFee: Number(formData.designFee) || 0,
+            shippingFee: Number(formData.shippingFee) || 0,
+            otherFees: Number(formData.otherFees) || 0,
+            otherFeesDescription: formData.otherFeesDescription || ''
+          }
         };
       });
 
@@ -650,7 +701,17 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           pricePerTon: paperRate,
           calculatedWeightTon: calcWeightTon,
           estimatedCost: calcPaperCost
-        } : undefined
+        } : undefined,
+        prepressDetails: {
+          moldType: formData.moldType || 'existing',
+          moldPrice: formData.moldType === 'new' ? (Number(formData.moldPrice) || 0) : 0,
+          platesType: formData.platesType || 'existing',
+          platesPrice: formData.platesType === 'new' ? (Number(formData.platesPrice) || 0) : 0,
+          designFee: Number(formData.designFee) || 0,
+          shippingFee: Number(formData.shippingFee) || 0,
+          otherFees: Number(formData.otherFees) || 0,
+          otherFeesDescription: formData.otherFeesDescription || ''
+        }
       };
 
       setJobOrders(prev => [newOrder, ...prev]);
@@ -956,6 +1017,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const pInvId = `PINV-${cleanInvNum.replace(/[^a-zA-Z0-9_-]/g, '') || `${yearStr}-${String(pinvCount).padStart(4, '0')}`}`;
 
     // Create Purchase Invoice
+    const isPaperStage = op.operationId === 'paper_supply' || op.name.includes('ورق');
+    const paperWeightTon = isPaperStage ? (Number(data.actualQuantity) || Number(op.actualQuantity) || Number(op.quantity) || 0) : undefined;
+    const paperSpecsText = isPaperStage && order.paperSpecs ? `مقاس ${order.paperSpecs.sheetLength}×${order.paperSpecs.sheetWidth} سم • ${order.paperSpecs.grammage} جم • ${order.paperSpecs.sheetsCount ? order.paperSpecs.sheetsCount.toLocaleString() : '-'} فرخ` : undefined;
+
     const newPurchaseInvoice: PurchaseInvoice = {
       id: pInvId,
       supplierId,
@@ -965,11 +1030,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       items: [
         {
           productId: `SRV-${op.operationId}`,
-          productName: `${op.name} (فاتورة مورد: ${cleanInvNum} - أمر شغل ${order.code} - ${order.customerName})`,
+          productName: `${op.name} (${cleanInvNum})`,
+          batchCode: order.code,
+          batchQuantity: order.quantity,
+          weightTon: paperWeightTon,
+          totalOrderSalePrice: order.clientSalePrice,
+          specifications: paperSpecsText,
           quantity: data.actualQuantity || op.quantity || 1,
           price: data.actualRate || actualCost,
           total: actualCost,
-          unit: (op.unit as any) || 'عدد',
+          unit: (op.unit as any) || (isPaperStage ? 'طن' : 'عدد'),
           itemType: 'expense',
           cost: actualCost
         }
@@ -1194,11 +1264,19 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     }
 
     // Open delivery confirmation modal where final quantity is mandatory
+    const prep = order.prepressDetails;
     setDeliverModal({
       order,
       deliveredQuantity: order.deliveredQuantity || order.quantity || 0,
       deliveryNoteNumber: order.deliveryNoteNumber || '',
-      notes: ''
+      notes: '',
+      moldType: prep?.moldType || 'existing',
+      moldPrice: prep?.moldType === 'new' ? (prep?.moldPrice || 0) : 0,
+      platesType: prep?.platesType || 'existing',
+      platesPrice: prep?.platesType === 'new' ? (prep?.platesPrice || 0) : 0,
+      designFee: prep?.designFee || 0,
+      shippingFee: prep?.shippingFee || 0,
+      otherFees: prep?.otherFees || 0
     });
   };
 
@@ -1207,7 +1285,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     orderId: string,
     deliveredQuantity: number,
     deliveryNoteNumber: string,
-    deliveryNotes: string
+    deliveryNotes: string,
+    prepressConfig?: {
+      moldType: 'new' | 'existing';
+      moldPrice: number;
+      platesType: 'new' | 'existing';
+      platesPrice: number;
+      designFee: number;
+      shippingFee: number;
+      otherFees: number;
+    }
   ) => {
     const order = jobOrders.find(o => o.id === orderId);
     if (!order) return;
@@ -1237,7 +1324,117 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const unitPrice = order.unitPrice && order.unitPrice > 0
       ? order.unitPrice
       : (order.quantity > 0 ? (order.clientSalePrice / order.quantity) : order.clientSalePrice);
-    const finalSalePrice = Math.round(delQty * unitPrice * 100) / 100;
+    const finalProductPrice = Math.round(delQty * unitPrice * 100) / 100;
+
+    // Prepress items calculation
+    const prep = prepressConfig || order.prepressDetails;
+    const moldPrice = (prep?.moldType === 'new') ? (Number(prep.moldPrice) || 0) : 0;
+    const platesPrice = (prep?.platesType === 'new') ? (Number(prep.platesPrice) || 0) : 0;
+    const designFee = Number(prep?.designFee) || 0;
+    const shippingFee = Number(prep?.shippingFee) || 0;
+    const otherFees = Number(prep?.otherFees) || 0;
+    const prepressTotal = moldPrice + platesPrice + designFee + shippingFee + otherFees;
+    const finalGrandTotal = Math.round((finalProductPrice + prepressTotal) * 100) / 100;
+
+    // Technical specifications string formatted cleanly
+    const specsParts = [
+      order.paperSpecs ? `ورق: مقاس ${order.paperSpecs.sheetLength}×${order.paperSpecs.sheetWidth} سم • وزن ${order.paperSpecs.grammage} جم` : '',
+      order.cartonSpecs ? `نوع العلبة: ${order.cartonSpecs.structureName} (${order.cartonSpecs.length || '-'}×${order.cartonSpecs.width || '-'}×${order.cartonSpecs.height || '-'} سم)` : '',
+      deliveryNoteNumber ? `إذن تسليم رقم: ${deliveryNoteNumber}` : '',
+      order.operations ? `مراحل الإنتاج المنفذة: ${order.operations.filter(o => o.status === 'completed').map(o => o.name).join(' + ')}` : ''
+    ].filter(Boolean);
+
+    // Build invoice items
+    const invoiceItems: InvoiceItem[] = [
+      {
+        productId: `PRNT-${order.code}`,
+        productCode: order.code,
+        batchCode: order.code, // رقم أمر الشغل في عمود مخصص
+        productName: order.productTitle, // اسم الصنف نقي بدون دمج رقم أمر الشغل
+        quantity: delQty,
+        price: unitPrice,
+        total: finalProductPrice,
+        unit: (order.unit as any) || 'علبة',
+        itemType: 'product',
+        cost: order.totalActualCost,
+        specifications: specsParts.join(' • ')
+      }
+    ];
+
+    if (moldPrice > 0) {
+      invoiceItems.push({
+        productId: `MOLD-${order.code}`,
+        productCode: `MOLD-${order.code}`,
+        batchCode: order.code,
+        productName: `فورمة تكسير (اسطمبة جديدة)`,
+        description: `فورمة تكسير جديدة تم تصنيعها وتخصيصها لأمر شغل ${order.code} ومحملة على العميل`,
+        quantity: 1,
+        price: moldPrice,
+        total: moldPrice,
+        unit: 'عدد',
+        itemType: 'product'
+      });
+    }
+
+    if (platesPrice > 0) {
+      invoiceItems.push({
+        productId: `CTP-${order.code}`,
+        productCode: `CTP-${order.code}`,
+        batchCode: order.code,
+        productName: `زنكات طباعة أوفست (CTP) جديدة`,
+        description: `طقم زنكات فرز ألوان أوفست جديدة لأمر شغل ${order.code} ومحملة على العميل`,
+        quantity: 1,
+        price: platesPrice,
+        total: platesPrice,
+        unit: 'طقم',
+        itemType: 'product'
+      });
+    }
+
+    if (designFee > 0) {
+      invoiceItems.push({
+        productId: `DSGN-${order.code}`,
+        productCode: `DSGN-${order.code}`,
+        batchCode: order.code,
+        productName: `تكاليف تصميم وتجهيز فني`,
+        description: `تجهيزات وفرز ألوان وتصميم وطباعة تجريبية لأمر شغل ${order.code}`,
+        quantity: 1,
+        price: designFee,
+        total: designFee,
+        unit: 'خدمة',
+        itemType: 'expense'
+      });
+    }
+
+    if (shippingFee > 0) {
+      invoiceItems.push({
+        productId: `SHIP-${order.code}`,
+        productCode: `SHIP-${order.code}`,
+        batchCode: order.code,
+        productName: `مصاريف شحن وتوصيل`,
+        description: `رسوم شحن ونقل الطلبية للعميل${deliveryNoteNumber ? ` (إذن: ${deliveryNoteNumber})` : ''}`,
+        quantity: 1,
+        price: shippingFee,
+        total: shippingFee,
+        unit: 'شحنة',
+        itemType: 'expense'
+      });
+    }
+
+    if (otherFees > 0) {
+      invoiceItems.push({
+        productId: `MISC-${order.code}`,
+        productCode: `MISC-${order.code}`,
+        batchCode: order.code,
+        productName: `مصاريف وتجهيزات إضافية`,
+        description: order.prepressDetails?.otherFeesDescription || `مصاريف إضافية لأمر شغل ${order.code}`,
+        quantity: 1,
+        price: otherFees,
+        total: otherFees,
+        unit: 'خدمة',
+        itemType: 'expense'
+      });
+    }
 
     // Generate Sales Invoice ID
     const invCount = (salesInvoices?.length || 0) + 1;
@@ -1250,23 +1447,12 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       customerName: customerName,
       companyName: customer?.companyName || order.companyName,
       date: todayStr,
-      items: [
-        {
-          productId: `PRNT-${order.code}`,
-          productName: `${order.productTitle} (أمر شغل ${order.code})`,
-          quantity: delQty,
-          price: unitPrice,
-          total: finalSalePrice,
-          unit: (order.unit as any) || 'عدد',
-          itemType: 'expense',
-          cost: order.totalActualCost
-        }
-      ],
-      subTotal: finalSalePrice,
-      total: finalSalePrice,
+      items: invoiceItems,
+      subTotal: finalGrandTotal,
+      total: finalGrandTotal,
       paymentMethod: 'اجل',
       invoiceType: 'sale',
-      notes: `فاتورة مبيعات عن أمر تشغيل ${order.code} - كمية مسلمة: ${delQty} ${order.unit || ''} (تعاقد: ${order.quantity})${deliveryNoteNumber ? ` - إذن شحن: ${deliveryNoteNumber}` : ''}${deliveryNotes ? ` - ${deliveryNotes}` : ''}`,
+      notes: `فاتورة مبيعات عن أمر تشغيل ${order.code} - كمية مسلمة: ${delQty} ${order.unit || ''} (تعاقد: ${order.quantity})${deliveryNoteNumber ? ` - إذن شحن: ${deliveryNoteNumber}` : ''}${deliveryNotes ? ` - ${deliveryNotes}` : ''}${prepressTotal > 0 ? ` [يشمل تجهيزات وشحن: ${prepressTotal.toLocaleString()} ج.م]` : ''}`,
       status: 'active',
       branchId: currentBranchId
     };
@@ -1275,9 +1461,9 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       setSalesInvoices(prev => [newInvoice, ...prev]);
     }
 
-    // 5. Revenue Entry: Debit Customer, Credit Printing Revenue
+    // 5. Revenue Entry: Debit Customer, Credit Printing Revenue with the Full Invoice Total
     const revenueEntryId = createJournalEntry({
-      description: `فاتورة مبيعات ${invId} - تسليم أمر شغل ${order.code} (كمية مسلمة: ${delQty} ${order.unit || ''}) - العميل: ${customerName}`,
+      description: `فاتورة مبيعات ${invId} - تسليم أمر شغل ${order.code} (كمية: ${delQty} ${order.unit || ''}${prepressTotal > 0 ? ` + تجهيزات وشحن: ${prepressTotal} ج.م` : ''}) - العميل: ${customerName}`,
       date: todayStr,
       referenceType: 'SalesInvoice',
       referenceId: invId,
@@ -1286,14 +1472,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         {
           accountId: receivablesAccountId,
           accountName: `العملاء - ${customerName}`,
-          debit: finalSalePrice,
+          debit: finalGrandTotal,
           credit: 0
         },
         {
           accountId: revenueAccountId,
           accountName: revenueAccountName,
           debit: 0,
-          credit: finalSalePrice
+          credit: finalGrandTotal
         }
       ]
     });
@@ -1342,8 +1528,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       return op;
     });
 
-    const grossProfit = finalSalePrice - order.totalActualCost;
-    const profitMarginPercent = finalSalePrice > 0 ? (grossProfit / finalSalePrice) * 100 : 0;
+    const grossProfit = finalGrandTotal - order.totalActualCost;
+    const profitMarginPercent = finalGrandTotal > 0 ? (grossProfit / finalGrandTotal) * 100 : 0;
 
     const updatedOrder: PrintingJobOrder = {
       ...order,
@@ -1352,7 +1538,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       unitPrice,
       deliveredQuantity: delQty,
       deliveryNoteNumber: deliveryNoteNumber || undefined,
-      clientSalePrice: finalSalePrice,
+      clientSalePrice: finalGrandTotal,
       grossProfit,
       profitMarginPercent,
       salesInvoiceId: invId,
@@ -2962,7 +3148,213 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
+              {/* Pre-press & Client Preparations (الفورمة والزنكات والتصميم والشحن) */}
+              <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 space-y-3">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎨</span>
+                    <div>
+                      <span className="text-xs font-black text-indigo-950">
+                        تجهيزات الطباعة والبنود الإضافية المحملة على العميل:
+                      </span>
+                      <span className="text-[11px] text-indigo-700 block">
+                        حدد ما إذا كانت الفورمة أو الزنكات جديدة تُباع للعميل أم قديمة متوفرة، وتكاليف التصميم والشحن.
+                      </span>
+                    </div>
+                  </div>
+                  {/* Prepress total badge */}
+                  {(() => {
+                    const mPrice = formData.moldType === 'new' ? (Number(formData.moldPrice) || 0) : 0;
+                    const pPrice = formData.platesType === 'new' ? (Number(formData.platesPrice) || 0) : 0;
+                    const dFee = Number(formData.designFee) || 0;
+                    const sFee = Number(formData.shippingFee) || 0;
+                    const oFee = Number(formData.otherFees) || 0;
+                    const prepTotal = mPrice + pPrice + dFee + sFee + oFee;
+                    return (
+                      <div className="flex items-center gap-2 bg-indigo-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold">
+                        <span>إجمالي التجهيزات والشحن:</span>
+                        <span className="text-amber-300 font-mono font-black">{prepTotal.toLocaleString('en-US')} ج.م</span>
+                      </div>
+                    );
+                  })()}
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                  {/* 1. Mold (الفورمة / اسطمبة التكسير) */}
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] font-black text-gray-800 flex items-center gap-1">
+                        <span>📐</span>
+                        <span>فورمة التكسير (الاسطمبة):</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-lg text-[10.5px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, moldType: 'new' }))}
+                        className={`py-1 rounded text-center transition-all ${
+                          formData.moldType === 'new' ? 'bg-indigo-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        جديدة (على العميل)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, moldType: 'existing', moldPrice: 0 }))}
+                        className={`py-1 rounded text-center transition-all ${
+                          formData.moldType === 'existing' ? 'bg-gray-700 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        قديمة / متوفرة
+                      </button>
+                    </div>
+                    {formData.moldType === 'new' ? (
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-900 mb-1">
+                          سعر بيع الفورمة للعميل (ج.م) *
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="مثال: 1200"
+                          value={formData.moldPrice || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, moldPrice: parseFloat(e.target.value) || 0 }))}
+                          className="w-full p-2 border-2 border-indigo-300 rounded-lg text-xs font-black text-center text-indigo-950 bg-indigo-50/50"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-500 py-1 text-center bg-gray-50 rounded border border-dashed border-gray-200">
+                        فورمة سابقة لن تُحمّل على العميل (0 ج.م)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Plates (الزنكات CTP) */}
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] font-black text-gray-800 flex items-center gap-1">
+                        <span>💿</span>
+                        <span>زنكات الطباعة (CTP):</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-lg text-[10.5px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, platesType: 'new' }))}
+                        className={`py-1 rounded text-center transition-all ${
+                          formData.platesType === 'new' ? 'bg-indigo-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        جديدة (على العميل)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, platesType: 'existing', platesPrice: 0 }))}
+                        className={`py-1 rounded text-center transition-all ${
+                          formData.platesType === 'existing' ? 'bg-gray-700 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        قديمة / مشمولة
+                      </button>
+                    </div>
+                    {formData.platesType === 'new' ? (
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-900 mb-1">
+                          سعر زنكات الطباعة للعميل (ج.م) *
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="مثال: 1000"
+                          value={formData.platesPrice || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, platesPrice: parseFloat(e.target.value) || 0 }))}
+                          className="w-full p-2 border-2 border-indigo-300 rounded-lg text-xs font-black text-center text-indigo-950 bg-indigo-50/50"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-500 py-1 text-center bg-gray-50 rounded border border-dashed border-gray-200">
+                        زنكات سابقة أو بدون تحميل إضافي (0 ج.م)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Design Fee (تكلفة التصميم والتجهيز الفني) */}
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs space-y-2">
+                    <label className="text-[11px] font-black text-gray-800 flex items-center gap-1">
+                      <span>🎨</span>
+                      <span>تكلفة التصميم والتجهيز الفني:</span>
+                    </label>
+                    <div>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.00 ج.م"
+                        value={formData.designFee || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, designFee: parseFloat(e.target.value) || 0 }))}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold text-center text-gray-900"
+                      />
+                      <span className="block text-[10px] text-gray-500 mt-1">
+                        أدخل 0 إذا كان التصميم جاهزاً من العميل مجاناً
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4. Shipping / Delivery (الشحن والتوصيل) */}
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs space-y-2">
+                    <label className="text-[11px] font-black text-gray-800 flex items-center gap-1">
+                      <span>🚚</span>
+                      <span>مصاريف الشحن والتوصيل:</span>
+                    </label>
+                    <div>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.00 ج.م"
+                        value={formData.shippingFee || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, shippingFee: parseFloat(e.target.value) || 0 }))}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold text-center text-gray-900"
+                      />
+                      <span className="block text-[10px] text-gray-500 mt-1">
+                        رسوم النولون ونقل الطلبية المحملة على العميل
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Auto Update Order Total with Prepress */}
+                {(() => {
+                  const mPrice = formData.moldType === 'new' ? (Number(formData.moldPrice) || 0) : 0;
+                  const pPrice = formData.platesType === 'new' ? (Number(formData.platesPrice) || 0) : 0;
+                  const dFee = Number(formData.designFee) || 0;
+                  const sFee = Number(formData.shippingFee) || 0;
+                  const oFee = Number(formData.otherFees) || 0;
+                  const prepTotal = mPrice + pPrice + dFee + sFee + oFee;
+                  const prodTotal = Math.round((formData.quantity || 0) * (formData.unitPrice || 0) * 100) / 100;
+                  const fullTotal = prodTotal + prepTotal;
+
+                  if (prepTotal > 0) {
+                    return (
+                      <div className="flex justify-between items-center flex-wrap gap-2 pt-2 border-t border-indigo-200/60 text-xs">
+                        <div className="text-indigo-900">
+                          <span>قيمة المنتجات: <strong>{prodTotal.toLocaleString('en-US')} ج.م</strong></span>
+                          <span className="mx-2">+</span>
+                          <span>التجهيزات والشحن: <strong>{prepTotal.toLocaleString('en-US')} ج.م</strong></span>
+                          <span className="mx-2">=</span>
+                          <span className="font-black text-indigo-950">الإجمالي الشامل: {fullTotal.toLocaleString('en-US')} ج.م</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, clientSalePrice: fullTotal }))}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shadow-xs flex items-center gap-1 transition-all"
+                        >
+                          <span>🔄 تطبيق على إجمالي سعر الطلبية ({fullTotal.toLocaleString('en-US')} ج.م)</span>
+                        </button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
 
               {/* Operations Checklist */}
               <div className="border-t border-gray-100 pt-4">
@@ -3128,6 +3520,38 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Pre-press & Client Preparations Card in Dossier */}
+              {viewingJob.prepressDetails && (
+                <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-200 text-xs flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎨</span>
+                    <span className="font-bold text-indigo-950">تجهيزات الطلبية والتحميلات:</span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 font-medium">
+                      الفورمة: <strong className={viewingJob.prepressDetails.moldType === 'new' ? 'text-indigo-700' : 'text-gray-600'}>
+                        {viewingJob.prepressDetails.moldType === 'new' ? `جديدة (${(viewingJob.prepressDetails.moldPrice || 0).toLocaleString()} ج.م)` : 'قديمة / متوفرة'}
+                      </strong>
+                    </span>
+                    <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 font-medium">
+                      الزنكات: <strong className={viewingJob.prepressDetails.platesType === 'new' ? 'text-indigo-700' : 'text-gray-600'}>
+                        {viewingJob.prepressDetails.platesType === 'new' ? `جديدة (${(viewingJob.prepressDetails.platesPrice || 0).toLocaleString()} ج.م)` : 'قديمة / مشمولة'}
+                      </strong>
+                    </span>
+                    {(viewingJob.prepressDetails.designFee || 0) > 0 && (
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 font-medium">
+                        التصميم: <strong className="text-indigo-700">{viewingJob.prepressDetails.designFee?.toLocaleString()} ج.م</strong>
+                      </span>
+                    )}
+                    {(viewingJob.prepressDetails.shippingFee || 0) > 0 && (
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 font-medium">
+                        الشحن: <strong className="text-cyan-700">{viewingJob.prepressDetails.shippingFee?.toLocaleString()} ج.م</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {viewingJob.operations.map((op, idx) => {
                 const isCompleted = op.status === 'completed';
@@ -4856,6 +5280,105 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </p>
               </div>
 
+              {/* Pre-press & Extra Charges for Delivery */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <span className="font-bold text-gray-800 text-[11px] block">
+                  🎨 التجهيزات والمصاريف الإضافية الصادرة بالفاتورة (تحميل على العميل):
+                </span>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* Mold */}
+                  <div className="p-2 bg-white rounded-lg border border-gray-200 space-y-1">
+                    <div className="flex justify-between items-center text-[10.5px]">
+                      <span className="font-bold text-gray-700">فورمة التكسير:</span>
+                      <span className={`px-1.5 py-0.2 rounded font-bold text-[9.5px] ${
+                        deliverModal.moldType === 'new' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {deliverModal.moldType === 'new' ? 'جديدة' : 'قديمة'}
+                      </span>
+                    </div>
+                    {deliverModal.moldType === 'new' ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-500">السعر:</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={deliverModal.moldPrice || ''}
+                          onChange={e => setDeliverModal({ ...deliverModal, moldPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full p-1 border border-indigo-300 rounded text-center text-xs font-bold text-indigo-950"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeliverModal({ ...deliverModal, moldType: 'new', moldPrice: 1000 })}
+                        className="w-full py-0.5 text-[10px] text-indigo-600 hover:underline"
+                      >
+                        + تحويل إلى فورمة جديدة
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Plates */}
+                  <div className="p-2 bg-white rounded-lg border border-gray-200 space-y-1">
+                    <div className="flex justify-between items-center text-[10.5px]">
+                      <span className="font-bold text-gray-700">زنكات الطباعة:</span>
+                      <span className={`px-1.5 py-0.2 rounded font-bold text-[9.5px] ${
+                        deliverModal.platesType === 'new' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {deliverModal.platesType === 'new' ? 'جديدة' : 'قديمة'}
+                      </span>
+                    </div>
+                    {deliverModal.platesType === 'new' ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-500">السعر:</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={deliverModal.platesPrice || ''}
+                          onChange={e => setDeliverModal({ ...deliverModal, platesPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full p-1 border border-indigo-300 rounded text-center text-xs font-bold text-indigo-950"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeliverModal({ ...deliverModal, platesType: 'new', platesPrice: 800 })}
+                        className="w-full py-0.5 text-[10px] text-indigo-600 hover:underline"
+                      >
+                        + تحويل إلى زنكات جديدة
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Design Fee */}
+                  <div className="p-2 bg-white rounded-lg border border-gray-200 space-y-1">
+                    <span className="font-bold text-gray-700 text-[10.5px] block">تكلفة التصميم والتجهيز:</span>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00 ج.م"
+                      value={deliverModal.designFee || ''}
+                      onChange={e => setDeliverModal({ ...deliverModal, designFee: parseFloat(e.target.value) || 0 })}
+                      className="w-full p-1 border border-gray-300 rounded text-center text-xs font-bold"
+                    />
+                  </div>
+
+                  {/* Shipping Fee */}
+                  <div className="p-2 bg-white rounded-lg border border-gray-200 space-y-1">
+                    <span className="font-bold text-gray-700 text-[10.5px] block">مصاريف الشحن والتوصيل:</span>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00 ج.م"
+                      value={deliverModal.shippingFee || ''}
+                      onChange={e => setDeliverModal({ ...deliverModal, shippingFee: parseFloat(e.target.value) || 0 })}
+                      className="w-full p-1 border border-gray-300 rounded text-center text-xs font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Delivery Note & Notes */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -4897,11 +5420,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   ? deliverModal.order.unitPrice
                   : (deliverModal.order.quantity > 0 ? deliverModal.order.clientSalePrice / deliverModal.order.quantity : deliverModal.order.clientSalePrice);
                 const delQty = Number(deliverModal.deliveredQuantity) || 0;
-                const finalTotal = Math.round(delQty * uPrice * 100) / 100;
+                const prodTotal = Math.round(delQty * uPrice * 100) / 100;
+                const moldP = deliverModal.moldType === 'new' ? (Number(deliverModal.moldPrice) || 0) : 0;
+                const platP = deliverModal.platesType === 'new' ? (Number(deliverModal.platesPrice) || 0) : 0;
+                const desF = Number(deliverModal.designFee) || 0;
+                const shipF = Number(deliverModal.shippingFee) || 0;
+                const otherF = Number(deliverModal.otherFees) || 0;
+                const prepTotal = moldP + platP + desF + shipF + otherF;
+                const grandTotal = prodTotal + prepTotal;
                 const qtyDiff = delQty - deliverModal.order.quantity;
 
                 return (
-                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-4 rounded-2xl shadow-sm space-y-2">
+                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-4 rounded-2xl shadow-sm space-y-2.5">
                     <div className="flex justify-between items-center text-xs font-semibold text-emerald-100">
                       <span>الكمية المسلمة: {delQty.toLocaleString('en-US')} {deliverModal.order.unit || ''}</span>
                       {qtyDiff !== 0 && (
@@ -4913,14 +5443,46 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                       )}
                     </div>
 
+                    {/* Breakdown of items */}
+                    <div className="bg-black/15 p-2 rounded-xl text-[11px] space-y-1 border border-white/10 font-mono">
+                      <div className="flex justify-between text-emerald-100">
+                        <span>1. {deliverModal.order.productTitle} ({delQty} × {uPrice.toFixed(2)}):</span>
+                        <span className="font-bold text-white">{prodTotal.toLocaleString('en-US')} ج.م</span>
+                      </div>
+                      {moldP > 0 && (
+                        <div className="flex justify-between text-amber-200">
+                          <span>2. فورمة تكسير جديدة:</span>
+                          <span className="font-bold">+{moldP.toLocaleString('en-US')} ج.م</span>
+                        </div>
+                      )}
+                      {platP > 0 && (
+                        <div className="flex justify-between text-amber-200">
+                          <span>3. زنكات طباعة CTP جديدة:</span>
+                          <span className="font-bold">+{platP.toLocaleString('en-US')} ج.م</span>
+                        </div>
+                      )}
+                      {desF > 0 && (
+                        <div className="flex justify-between text-indigo-200">
+                          <span>4. خدمات تصميم وتجهيز:</span>
+                          <span className="font-bold">+{desF.toLocaleString('en-US')} ج.م</span>
+                        </div>
+                      )}
+                      {shipF > 0 && (
+                        <div className="flex justify-between text-cyan-200">
+                          <span>5. مصاريف شحن وتوصيل:</span>
+                          <span className="font-bold">+{shipF.toLocaleString('en-US')} ج.م</span>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="border-t border-white/20 pt-2 flex justify-between items-center">
                       <div>
                         <span className="text-[11px] text-emerald-100 block">إجمالي فاتورة المبيعات الرسمية:</span>
-                        <span className="text-2xl font-black">{finalTotal.toLocaleString('en-US')} ج.م</span>
+                        <span className="text-2xl font-black">{grandTotal.toLocaleString('en-US')} ج.م</span>
                       </div>
-                      <div className="text-left bg-black/15 px-3 py-1.5 rounded-xl border border-white/10">
-                        <span className="text-[10px] text-emerald-200 block">المعادلة:</span>
-                        <span className="font-mono text-xs">{delQty} × {uPrice.toFixed(2)} ج.م</span>
+                      <div className="text-left bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 text-right">
+                        <span className="text-[10px] text-emerald-200 block">عمود رقم أمر الشغل:</span>
+                        <span className="font-mono text-xs font-black text-amber-300">{deliverModal.order.code}</span>
                       </div>
                     </div>
                   </div>
@@ -4928,7 +5490,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
               })()}
 
               <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 leading-relaxed">
-                ⚖️ <strong>الأثر المحاسبي والمالي:</strong> عند تأكيد التسليم، سيتم إصدار فاتورة مبيعات جديدة باسم العميل <strong>{deliverModal.order.customerName}</strong> وترحيل قيد إيرادات المبيعات لحساب العملاء، وإقفال تكلفة الإنتاج (WIP) إلى تكلفة البضاعة المباعة (COGS).
+                ⚖️ <strong>الأثر المحاسبي والمالي:</strong> عند تأكيد التسليم، سيتم إصدار فاتورة مبيعات جديدة باسم العميل <strong>{deliverModal.order.customerName}</strong> تحتوي على عمود مخصص لرقم أمر الشغل <strong>({deliverModal.order.code})</strong> وبنود التجهيزات المنفصلة، وترحيل قيد إيرادات المبيعات لحساب العملاء.
               </div>
             </div>
 
@@ -4948,7 +5510,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   deliverModal.order.id,
                   deliverModal.deliveredQuantity,
                   deliverModal.deliveryNoteNumber,
-                  deliverModal.notes
+                  deliverModal.notes,
+                  {
+                    moldType: deliverModal.moldType,
+                    moldPrice: deliverModal.moldPrice,
+                    platesType: deliverModal.platesType,
+                    platesPrice: deliverModal.platesPrice,
+                    designFee: deliverModal.designFee,
+                    shippingFee: deliverModal.shippingFee,
+                    otherFees: deliverModal.otherFees
+                  }
                 )}
                 className={`px-6 py-2.5 font-bold rounded-xl text-xs shadow-md flex items-center gap-2 transition-all ${
                   (!deliverModal.deliveredQuantity || deliverModal.deliveredQuantity <= 0)

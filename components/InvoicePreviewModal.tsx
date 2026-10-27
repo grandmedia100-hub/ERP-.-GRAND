@@ -69,16 +69,43 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                     : (invoice.discountValue || 0).toLocaleString()} ج.م</span>
             </div>` : '';
 
+        const hasJobOrderColumn = isSales || invoice.items.some(it => it.batchCode || (it.productId && (it.productId.startsWith('PRNT-') || it.productId.startsWith('JOB-') || it.productId.startsWith('MOLD-') || it.productId.startsWith('CTP-') || it.productId.startsWith('DSGN-') || it.productId.startsWith('SHIP-'))));
+
         const itemsHtml = invoice.items.map((item, idx) => {
             const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+            const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
+            const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
+
+            // Specifications box (below item in sales invoices or anytime specs are present)
+            const specsHtml = item.specifications ? `
+                <div style="margin-top:4px;padding:3px 8px;background:#f8fafc;border-right:3px solid #2563eb;border-radius:3px;font-size:10px;color:#334155;line-height:1.4;">
+                    <span style="font-weight:700;color:#1e40af;">المواصفات:</span> ${item.specifications}
+                </div>` : '';
+
+            // Batch paper weight box (in purchase invoices)
+            const batchHtml = (!isSales && (item.batchCode || item.weightTon)) ? `
+                <div style="margin-top:4px;padding:3px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:10px;color:#92400e;line-height:1.4;">
+                    <strong>بيانات وزن تشغيلة:</strong> 
+                    <span>أمر شغل: <b style="font-family:monospace;">${item.batchCode || '-'}</b></span>
+                    ${item.batchQuantity ? ` | <span>كمية التشغيلة: <b>${item.batchQuantity.toLocaleString()}</b></span>` : ''}
+                    ${item.weightTon ? ` | <span>الوزن المستلم: <b style="color:#b45309;">${item.weightTon} طن</b></span>` : ''}
+                    ${item.totalOrderSalePrice ? ` | <span>سعر بيع التشغيلة: <b>${item.totalOrderSalePrice.toLocaleString()} ج.م</b></span>` : ''}
+                </div>` : '';
+
             return `
             <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;font-size:11px;color:#374151;font-weight:600;">
                     ${itemCode || (idx + 1)}
                 </td>
+                ${hasJobOrderColumn ? `
+                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;font-size:11.5px;color:#1d4ed8;font-weight:700;background:#eff6ff40;">
+                    ${jobOrderCode || '-'}
+                </td>` : ''}
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                    <div style="font-weight:700;color:#1e293b;">${item.productName}</div>
+                    <div style="font-weight:700;color:#1e293b;">${cleanProductName}</div>
                     ${item.description ? `<div style="font-size:10.5px;color:#64748b;margin-top:2px;">${item.description}</div>` : ''}
+                    ${specsHtml}
+                    ${batchHtml}
                 </td>
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;">${item.quantity} ${item.unit || ''}</td>
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;">${(Number(item.price) || 0).toLocaleString()}</td>
@@ -213,11 +240,12 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
     <table class="print-table">
         <thead>
             <tr>
-                <th style="width:12%;text-align:center;">كود الصنف</th>
-                <th style="text-align:right;">الصنف والبيان</th>
-                <th style="width:12%;text-align:center;">الكمية</th>
-                <th style="width:14%;text-align:center;">السعر</th>
-                <th style="width:16%;text-align:center;">الإجمالي</th>
+                <th style="width:10%;text-align:center;">كود الصنف</th>
+                ${hasJobOrderColumn ? '<th style="width:14%;text-align:center;">رقم أمر الشغل</th>' : ''}
+                <th style="text-align:right;">الصنف والبيان والمواصفات</th>
+                <th style="width:11%;text-align:center;">الكمية</th>
+                <th style="width:13%;text-align:center;">السعر</th>
+                <th style="width:15%;text-align:center;">الإجمالي</th>
             </tr>
         </thead>
         <tbody>
@@ -423,7 +451,8 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                 <thead>
                                     <tr style={{ backgroundColor: primaryHex, color: '#ffffff' }}>
                                         <th className="p-3 text-center w-16">كود الصنف</th>
-                                        <th className="p-3">الصنف / البيان</th>
+                                        {hasJobOrderColumn && <th className="p-3 text-center w-28">رقم أمر الشغل</th>}
+                                        <th className="p-3">الصنف / البيان والمواصفات</th>
                                         <th className="p-3 text-center w-24">الكمية</th>
                                         <th className="p-3 text-center w-28">السعر</th>
                                         <th className="p-3 text-center w-32">الإجمالي</th>
@@ -432,12 +461,35 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                 <tbody className="divide-y divide-gray-100">
                                     {invoice.items.map((item, index) => {
                                         const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
+                                        const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
+                                        const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
+
                                         return (
                                             <tr key={index} className="hover:bg-gray-50/70">
                                                 <td className="p-3 text-center font-mono text-gray-500 font-semibold">{itemCode || (index + 1)}</td>
+                                                {hasJobOrderColumn && (
+                                                    <td className="p-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/30">
+                                                        {jobOrderCode || '-'}
+                                                    </td>
+                                                )}
                                                 <td className="p-3">
-                                                    <div className="font-bold text-gray-800">{item.productName}</div>
+                                                    <div className="font-bold text-gray-800">{cleanProductName}</div>
                                                     {item.description && <div className="text-gray-400 text-[11px] mt-0.5">{item.description}</div>}
+                                                    {item.specifications && (
+                                                        <div className="mt-1.5 p-1.5 bg-blue-50/70 border-r-2 border-blue-600 rounded text-[10.5px] text-blue-900 leading-relaxed">
+                                                            <strong className="text-blue-950">المواصفات: </strong>
+                                                            <span>{item.specifications}</span>
+                                                        </div>
+                                                    )}
+                                                    {(!isSales && (item.batchCode || item.weightTon)) && (
+                                                        <div className="mt-1.5 p-1.5 bg-amber-50/80 border border-amber-200 rounded text-[10.5px] text-amber-950 flex flex-wrap gap-2 items-center">
+                                                            <span className="font-bold text-amber-800">بيانات وزن تشغيلة:</span>
+                                                            <span>أمر شغل: <strong className="font-mono">{item.batchCode || '-'}</strong></span>
+                                                            {item.batchQuantity && <span>| كمية: <strong>{item.batchQuantity.toLocaleString()}</strong></span>}
+                                                            {item.weightTon && <span>| وزن: <strong className="text-amber-700">{item.weightTon} طن</strong></span>}
+                                                            {item.totalOrderSalePrice && <span>| سعر البيع: <strong>{item.totalOrderSalePrice.toLocaleString()} ج.م</strong></span>}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="p-3 text-center font-mono">{item.quantity} {item.unit || ''}</td>
                                                 <td className="p-3 text-center font-mono">{(Number(item.price) || 0).toLocaleString()}</td>
