@@ -218,6 +218,16 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     notes: string;
   } | null>(null);
 
+  // Smart Paper Weight Calculator Modal (الحساب التلقائي الذكي لوزن الورق)
+  const [paperCalcModal, setPaperCalcModal] = useState<{
+    orderId?: string;
+    opIndex?: number;
+    sheetLength: number; // سم
+    sheetWidth: number;  // سم
+    grammage: number;    // جم/م2
+    sheetsCount: number; // عدد الأفرخ
+  } | null>(null);
+
   
 
   // Permission helper
@@ -276,6 +286,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     deliveryDate: string;
     notes: string;
     selectedOps: PrintingOperationId[];
+    paperSheetLength?: number;
+    paperSheetWidth?: number;
+    paperGrammage?: number;
+    paperSheetsCount?: number;
   }>({
     customerId: '',
     productTitle: '',
@@ -286,13 +300,18 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     clientSalePrice: 0,
     deliveryDate: '',
     notes: '',
-    selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
+    selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
+    paperSheetLength: 100,
+    paperSheetWidth: 70,
+    paperGrammage: 300,
+    paperSheetsCount: 1000
   });
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
     if (orderToEdit) {
       setEditingJob(orderToEdit);
       const computedUnitPrice = orderToEdit.unitPrice || (orderToEdit.quantity > 0 ? (orderToEdit.clientSalePrice / orderToEdit.quantity) : 0);
+      const paperOp = orderToEdit.operations.find(o => o.operationId === 'paper_supply' || o.name.includes('ورق'));
       setFormData({
         customerId: orderToEdit.customerId,
         productTitle: orderToEdit.productTitle,
@@ -303,7 +322,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         clientSalePrice: orderToEdit.clientSalePrice,
         deliveryDate: orderToEdit.deliveryDate || '',
         notes: orderToEdit.notes || '',
-        selectedOps: orderToEdit.operations.map(o => o.operationId)
+        selectedOps: orderToEdit.operations.map(o => o.operationId),
+        paperSheetLength: paperOp?.paperSheetLength || orderToEdit.paperSpecs?.sheetLength || 100,
+        paperSheetWidth: paperOp?.paperSheetWidth || orderToEdit.paperSpecs?.sheetWidth || 70,
+        paperGrammage: paperOp?.paperGrammage || orderToEdit.paperSpecs?.grammage || 300,
+        paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || Math.ceil(orderToEdit.quantity / 2) || 1000
       });
     } else {
       setEditingJob(null);
@@ -317,7 +340,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         clientSalePrice: 0,
         deliveryDate: '',
         notes: '',
-        selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping']
+        selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
+        paperSheetLength: 100,
+        paperSheetWidth: 70,
+        paperGrammage: 300,
+        paperSheetsCount: 1000
       });
     }
     setIsCreateModalOpen(true);
@@ -447,14 +474,38 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
     const customer = customers.find(c => c.id === formData.customerId);
 
+    // Smart Paper Weight Calculation
+    const paperL = Number(formData.paperSheetLength) || 0;
+    const paperW = Number(formData.paperSheetWidth) || 0;
+    const paperG = Number(formData.paperGrammage) || 0;
+    const paperS = Number(formData.paperSheetsCount) || 0;
+    const calcWeightTon = (paperL > 0 && paperW > 0 && paperG > 0 && paperS > 0)
+      ? Math.round(((paperL * paperW * paperG * paperS) / 10000000000) * 1000) / 1000
+      : 0;
+
     if (editingJob) {
       const updatedOrders = jobOrders.map(ord => {
         if (ord.id !== editingJob.id) return ord;
 
         const ops: JobOperationItem[] = formData.selectedOps.map(opId => {
           const existingOp = ord.operations.find(o => o.operationId === opId);
-          if (existingOp) return existingOp;
+          if (existingOp) {
+            if ((opId === 'paper_supply' || existingOp.name.includes('ورق')) && calcWeightTon > 0) {
+              return {
+                ...existingOp,
+                estimatedQuantity: calcWeightTon,
+                quantity: calcWeightTon,
+                unit: 'طن',
+                paperSheetLength: paperL,
+                paperSheetWidth: paperW,
+                paperGrammage: paperG,
+                paperSheetsCount: paperS
+              };
+            }
+            return existingOp;
+          }
           const def = operationsCatalog.find(d => d.id === opId) || STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
+          const isPaper = opId === 'paper_supply' || def?.name.includes('ورق');
           return {
             id: `OP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             operationId: opId,
@@ -463,7 +514,13 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
             status: 'pending',
             billingStatus: 'provisional',
             cost: 0,
-            unit: def?.defaultUnit || 'عدد'
+            unit: isPaper ? 'طن' : (def?.defaultUnit || 'عدد'),
+            estimatedQuantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
+            quantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
+            paperSheetLength: isPaper && paperL > 0 ? paperL : undefined,
+            paperSheetWidth: isPaper && paperW > 0 ? paperW : undefined,
+            paperGrammage: isPaper && paperG > 0 ? paperG : undefined,
+            paperSheetsCount: isPaper && paperS > 0 ? paperS : undefined
           };
         });
 
@@ -487,7 +544,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           operations: ops,
           totalActualCost: totalCost,
           grossProfit,
-          profitMarginPercent: margin
+          profitMarginPercent: margin,
+          paperSpecs: calcWeightTon > 0 ? {
+            sheetLength: paperL,
+            sheetWidth: paperW,
+            grammage: paperG,
+            sheetsCount: paperS,
+            calculatedWeightTon: calcWeightTon
+          } : ord.paperSpecs
         };
       });
 
@@ -501,6 +565,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
       const ops: JobOperationItem[] = formData.selectedOps.map(opId => {
         const def = operationsCatalog.find(d => d.id === opId) || STANDARD_PRINTING_OPERATIONS.find(d => d.id === opId);
+        const isPaper = opId === 'paper_supply' || def?.name.includes('ورق');
         return {
           id: `OP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
           operationId: opId,
@@ -509,7 +574,13 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
           status: 'pending',
           billingStatus: 'provisional',
           cost: 0,
-          unit: def?.defaultUnit || 'عدد'
+          unit: isPaper ? 'طن' : (def?.defaultUnit || 'عدد'),
+          estimatedQuantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
+          quantity: isPaper && calcWeightTon > 0 ? calcWeightTon : undefined,
+          paperSheetLength: isPaper && paperL > 0 ? paperL : undefined,
+          paperSheetWidth: isPaper && paperW > 0 ? paperW : undefined,
+          paperGrammage: isPaper && paperG > 0 ? paperG : undefined,
+          paperSheetsCount: isPaper && paperS > 0 ? paperS : undefined
         };
       });
 
@@ -535,7 +606,14 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         profitMarginPercent: 100,
         notes: formData.notes,
         createdAt: new Date().toISOString(),
-        branchId: currentBranchId
+        branchId: currentBranchId,
+        paperSpecs: calcWeightTon > 0 ? {
+          sheetLength: paperL,
+          sheetWidth: paperW,
+          grammage: paperG,
+          sheetsCount: paperS,
+          calculatedWeightTon: calcWeightTon
+        } : undefined
       };
 
       setJobOrders(prev => [newOrder, ...prev]);
@@ -2280,6 +2358,130 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
+              {/* Smart Paper Weight Calculator Section */}
+              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🧮</span>
+                    <span className="text-xs font-black text-amber-950">
+                      الحساب التلقائي الذكي لـ (الوزن التقديري للورق):
+                    </span>
+                  </div>
+                  {/* Live calculated weight badge */}
+                  {(() => {
+                    const l = Number(formData.paperSheetLength) || 0;
+                    const w = Number(formData.paperSheetWidth) || 0;
+                    const g = Number(formData.paperGrammage) || 0;
+                    const s = Number(formData.paperSheetsCount) || 0;
+                    const ton = (l > 0 && w > 0 && g > 0 && s > 0)
+                      ? Math.round(((l * w * g * s) / 10000000000) * 1000) / 1000
+                      : 0;
+                    const kg = Math.round(ton * 1000);
+                    return ton > 0 ? (
+                      <span className="bg-amber-500 text-white font-black text-xs px-3 py-1 rounded-xl shadow-xs">
+                        الوزن المحسوب: {ton.toLocaleString('en-US', { maximumFractionDigits: 3 })} طن ({kg.toLocaleString('en-US')} كجم)
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-amber-800 font-semibold">
+                        أدخل المقاس والجرام وكمية الأفرخ لاحتساب الوزن بالطن
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      طول الفرخ (سم)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 100"
+                      value={formData.paperSheetLength || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, paperSheetLength: parseFloat(e.target.value) || 0 }))}
+                      className="w-full p-2 border border-amber-300 bg-white rounded-xl text-xs font-bold text-center"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      عرض الفرخ (سم)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 70"
+                      value={formData.paperSheetWidth || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, paperSheetWidth: parseFloat(e.target.value) || 0 }))}
+                      className="w-full p-2 border border-amber-300 bg-white rounded-xl text-xs font-bold text-center"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      جرام الورق (جم/م²)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 300"
+                      value={formData.paperGrammage || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, paperGrammage: parseFloat(e.target.value) || 0 }))}
+                      className="w-full p-2 border border-amber-300 bg-white rounded-xl text-xs font-bold text-center"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      كمية الأفرخ (فرخ)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 5000"
+                      value={formData.paperSheetsCount || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, paperSheetsCount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full p-2 border border-amber-300 bg-white rounded-xl text-xs font-bold text-center"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Presets for Sheet Sizes */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+                  <span className="text-gray-500 font-semibold">مقاسات شائعة:</span>
+                  {[
+                    { label: '70×100', l: 100, w: 70 },
+                    { label: '60×85', l: 85, w: 60 },
+                    { label: '66×96', l: 96, w: 66 },
+                    { label: '72×102', l: 102, w: 72 },
+                    { label: '50×70', l: 70, w: 50 },
+                    { label: '57×82', l: 82, w: 57 }
+                  ].map(p => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paperSheetLength: p.l, paperSheetWidth: p.w }))}
+                      className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10.5px] font-bold transition-all"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <span className="text-gray-400 mr-1">|</span>
+                  <span className="text-gray-500 font-semibold">جراماج شائع:</span>
+                  {[230, 250, 300, 350, 400].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paperGrammage: g }))}
+                      className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10.5px] font-bold transition-all"
+                    >
+                      {g} جم
+                    </button>
+                  ))}
+                </div>
+              </div>
+
 
 
               {/* Operations Checklist */}
@@ -2551,6 +2753,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                                       {op.estimatedQuantity} {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
                                     </strong>
                                   ) : 'لم يحدد'}
+                                  {op.paperSheetLength && op.paperSheetWidth && op.paperGrammage && op.paperSheetsCount && (
+                                    <span className="text-[11px] text-amber-800 font-normal mr-1">
+                                      ({op.paperSheetWidth}×{op.paperSheetLength} سم • {op.paperGrammage} جم • {op.paperSheetsCount.toLocaleString('en-US')} فرخ)
+                                    </span>
+                                  )}
                                   {op.cost > 0 ? ` • التكلفة: ${op.cost.toLocaleString('en-US')} ج.م` : ''}
                                   {opSupplier ? ` • مورد: ${opSupplier.name}` : ''}
                                 </span>
@@ -2653,6 +2860,24 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                               <span className="text-[11px] font-bold text-amber-800">
                                 {op.unit?.includes('كجم') ? 'كجم' : 'طن'}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaperCalcModal({
+                                    orderId: viewingJob.id,
+                                    opIndex: idx,
+                                    sheetLength: op.paperSheetLength || viewingJob.paperSpecs?.sheetLength || 100,
+                                    sheetWidth: op.paperSheetWidth || viewingJob.paperSpecs?.sheetWidth || 70,
+                                    grammage: op.paperGrammage || viewingJob.paperSpecs?.grammage || 300,
+                                    sheetsCount: op.paperSheetsCount || viewingJob.paperSpecs?.sheetsCount || Math.ceil(viewingJob.quantity / 2) || 1000
+                                  });
+                                }}
+                                className="mr-1 px-1.5 py-0.5 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-black flex items-center gap-1 transition-all shadow-2xs"
+                                title="الحساب التلقائي الذكي لوزن الورق بالطن (مقاس الفرخ - جرام الورق - كمية الأفرخ)"
+                              >
+                                <span>🧮</span>
+                                <span className="text-[10px]">حاسبة</span>
+                              </button>
                             </div>
                           ) : (
                             /* Other Stages (Printing, Lamination, Die-cutting...): Estimated Cost in EGP */
@@ -3142,6 +3367,240 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm"
               >
                 حفظ وترحيل الفاتورة وتوزيع التكاليف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: SMART PAPER WEIGHT CALCULATOR ==================== */}
+      {paperCalcModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 my-6">
+            <div className="p-4 bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-sm flex items-center gap-2">
+                  <span>🧮</span>
+                  <span>الحساب التلقائي الذكي لـ (الوزن التقديري للورق)</span>
+                </h3>
+                <p className="text-[11px] text-amber-100 mt-0.5">
+                  مقاس الفرخ (سم) × جرام الورق (جم/م²) × كمية الأفرخ ⬅️ إجمالي الوزن بالطن
+                </p>
+              </div>
+              <button
+                onClick={() => setPaperCalcModal(null)}
+                className="text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Presets */}
+              <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200 space-y-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-amber-950">مقاسات فرخ شائعة:</span>
+                  {[
+                    { label: '70×100', l: 100, w: 70 },
+                    { label: '60×85', l: 85, w: 60 },
+                    { label: '66×96', l: 96, w: 66 },
+                    { label: '72×102', l: 102, w: 72 },
+                    { label: '50×70', l: 70, w: 50 },
+                    { label: '57×82', l: 82, w: 57 }
+                  ].map(p => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setPaperCalcModal({
+                        ...paperCalcModal,
+                        sheetLength: p.l,
+                        sheetWidth: p.w
+                      })}
+                      className="px-2 py-1 bg-white hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-amber-950">جراماج شائع:</span>
+                  {[230, 250, 300, 350, 400].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setPaperCalcModal({
+                        ...paperCalcModal,
+                        grammage: g
+                      })}
+                      className="px-2 py-1 bg-white hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                    >
+                      {g} جم
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Input Fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    طول الفرخ (سم) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="100"
+                    value={paperCalcModal.sheetLength || ''}
+                    onChange={e => setPaperCalcModal({
+                      ...paperCalcModal,
+                      sheetLength: parseFloat(e.target.value) || 0
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    عرض الفرخ (سم) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="70"
+                    value={paperCalcModal.sheetWidth || ''}
+                    onChange={e => setPaperCalcModal({
+                      ...paperCalcModal,
+                      sheetWidth: parseFloat(e.target.value) || 0
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    جرام الورق (جم/م²) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="300"
+                    value={paperCalcModal.grammage || ''}
+                    onChange={e => setPaperCalcModal({
+                      ...paperCalcModal,
+                      grammage: parseFloat(e.target.value) || 0
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    كمية الأفرخ (فرخ) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="5000"
+                    value={paperCalcModal.sheetsCount || ''}
+                    onChange={e => setPaperCalcModal({
+                      ...paperCalcModal,
+                      sheetsCount: parseFloat(e.target.value) || 0
+                    })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Calculated Results Box */}
+              {(() => {
+                const l = Number(paperCalcModal.sheetLength) || 0;
+                const w = Number(paperCalcModal.sheetWidth) || 0;
+                const g = Number(paperCalcModal.grammage) || 0;
+                const s = Number(paperCalcModal.sheetsCount) || 0;
+
+                const sheetAreaM2 = (l * w) / 10000;
+                const singleSheetWeightGrams = sheetAreaM2 * g;
+                const totalWeightKg = (singleSheetWeightGrams * s) / 1000;
+                const totalWeightTon = Math.round((totalWeightKg / 1000) * 1000) / 1000;
+
+                return (
+                  <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 rounded-2xl shadow-sm space-y-2">
+                    <div className="flex justify-between items-center text-xs font-semibold text-amber-100">
+                      <span>مساحة الفرخ: {sheetAreaM2.toFixed(3)} م²</span>
+                      <span>وزن الفرخ الواحد: {singleSheetWeightGrams.toFixed(1)} جم</span>
+                    </div>
+
+                    <div className="border-t border-white/20 pt-2 flex justify-between items-center">
+                      <div>
+                        <span className="text-[11px] text-amber-100 block">إجمالي وزن الورق التقديري:</span>
+                        <span className="text-2xl font-black">{totalWeightTon.toLocaleString('en-US', { maximumFractionDigits: 3 })} طن</span>
+                      </div>
+                      <div className="text-left bg-black/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span className="text-[10px] text-amber-100 block">بالكيلوجرام:</span>
+                        <span className="font-mono font-bold text-base">{Math.round(totalWeightKg).toLocaleString('en-US')} كجم</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPaperCalcModal(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const l = Number(paperCalcModal.sheetLength) || 0;
+                  const w = Number(paperCalcModal.sheetWidth) || 0;
+                  const g = Number(paperCalcModal.grammage) || 0;
+                  const s = Number(paperCalcModal.sheetsCount) || 0;
+
+                  if (l <= 0 || w <= 0 || g <= 0 || s <= 0) {
+                    showNotification('يرجى إدخال المقاس والجرام وكمية الأفرخ', 'warning');
+                    return;
+                  }
+
+                  const weightTon = Math.round(((l * w * g * s) / 10000000000) * 1000) / 1000;
+
+                  if (paperCalcModal.orderId && paperCalcModal.opIndex !== undefined) {
+                    const order = jobOrders.find(o => o.id === paperCalcModal.orderId);
+                    if (order) {
+                      const newOps = [...order.operations];
+                      const targetOp = newOps[paperCalcModal.opIndex];
+                      if (targetOp) {
+                        newOps[paperCalcModal.opIndex] = {
+                          ...targetOp,
+                          estimatedQuantity: weightTon,
+                          quantity: weightTon,
+                          unit: 'طن',
+                          paperSheetLength: l,
+                          paperSheetWidth: w,
+                          paperGrammage: g,
+                          paperSheetsCount: s,
+                          cost: targetOp.estimatedRate ? Math.round(weightTon * targetOp.estimatedRate * 100) / 100 : targetOp.cost,
+                          estimatedCost: targetOp.estimatedRate ? Math.round(weightTon * targetOp.estimatedRate * 100) / 100 : targetOp.estimatedCost
+                        };
+                        const updatedOrder = { ...order, operations: newOps };
+                        setJobOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
+                        if (viewingJob?.id === order.id) setViewingJob(updatedOrder);
+                        showNotification(`تم تطبيق الوزن التقديري للورق بنجاح (${weightTon} طن)`, 'success');
+                        logAction(`حساب وزن الورق تلقائياً لأمر ${order.code}: ${w}×${l} سم، ${g} جم، ${s} فرخ = ${weightTon} طن`);
+                      }
+                    }
+                  }
+                  setPaperCalcModal(null);
+                }}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                <span>✅</span>
+                <span>تطبيق واعتماد الوزن التقديري للمرحلة</span>
               </button>
             </div>
           </div>

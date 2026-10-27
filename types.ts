@@ -871,6 +871,12 @@ export interface JobOperationItem {
   notes?: string;
   completedAt?: string;
 
+  // Paper Weight Calculator Specs (حاسبة وزن الورق التلقائية)
+  paperSheetLength?: number; // طول الفرخ بالسم (مثلاً 100)
+  paperSheetWidth?: number;  // عرض الفرخ بالسم (مثلاً 70)
+  paperGrammage?: number;    // جراماج الورق (جم/م2) (مثلاً 300)
+  paperSheetsCount?: number; // كمية الأفرخ (مثلاً 5000)
+
   // Shop Floor / Kiosk Tracking (صالة الإنتاج والماكينات)
   startedAt?: string;
   goodQuantity?: number; // عدد الوحدات السليمة المنتجة
@@ -892,6 +898,13 @@ export interface PrintingJobOrder {
   unit: string; // عدد / علبة / ألف / كرتونة
   jobType?: 'commercial_printing' | 'offset_carton'; // نوع الشغل: مطبوعات ورقية تجارية أو كرتون مضلع مبطن أوفست
   cartonSpecs?: CartonBoxSpecs; // المواصفات الذكية ومقاسات العلبة ومخطط الفرد والقص
+  paperSpecs?: {
+    sheetLength?: number; // طول الفرخ بالسم (مثال: 100)
+    sheetWidth?: number;  // عرض الفرخ بالسم (مثال: 70)
+    grammage?: number;    // جرام الورق جم/م2 (مثال: 300)
+    sheetsCount?: number; // كمية الأفرخ (مثال: 5000)
+    calculatedWeightTon?: number; // الوزن المحسوب بالطن (مثال: 1.05)
+  };
   
   // Financials
   unitPrice?: number; // سعر بيع الوحدة المتفق عليه
