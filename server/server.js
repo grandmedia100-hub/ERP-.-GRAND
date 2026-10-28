@@ -627,27 +627,68 @@ app.post("/api/:table", (req, res) => {
     if (req.query.branch && !data.branchId) {
         data.branchId = req.query.branch;
     }
+
+    // 1. Sanitize Primary Key ID to prevent destructive collisions on '0', 'PINV-0', or empty
+    const rawIdStr = String(data.id || '').trim();
+    if (!rawIdStr || rawIdStr === '0' || rawIdStr === 'PINV-0' || rawIdStr === 'null' || rawIdStr === 'undefined') {
+        const prefix = table.split('_').map(w => w[0].toUpperCase()).join('');
+        data.id = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    }
+
+    // 2. Strict Journal Entry Validation: Debits MUST equal Credits
+    if (table === "journal_entries") {
+        let lines = [];
+        try { lines = typeof data.lines === 'string' ? JSON.parse(data.lines) : (data.lines || []); } catch(e) {}
+        const sumDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+        const sumCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+        if (lines.length > 0 && Math.abs(sumDebit - sumCredit) > 0.05) {
+            console.error(`⛔ خطأ محاسبي حرج: محاولة ترحيل قيد غير متوازن! مدين: ${sumDebit} / دائن: ${sumCredit}`);
+            return res.status(400).json({ 
+                error: `قيد اليومية غير متوازن! إجمالي المدين (${sumDebit.toFixed(2)}) لا يتساوى مع إجمالي الدائن (${sumCredit.toFixed(2)})` 
+            });
+        }
+    }
+
     const cols = getTableColumns(table);
     const placeholders = cols.map(() => "?").join(",");
     const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(",")}) VALUES (${placeholders})`;
 
-    db.run(sql, getRowValues(table, data), function(err) {
-        if (err) {
-            console.error(`Error inserting into ${table}:`, err);
-            return res.status(500).json({ error: err.message });
-        }
-        // Auto-mirror entities
-        if (table === "sales_invoices") {
-            mirrorSalesToPurchase(data, data.branchId || req.query.branch || 'main');
-        } else if (table === "treasury_transfers") {
-            mirrorTreasuryTransfer(data, data.branchId || req.query.branch || 'main');
-        } else if (table === "supplier_payments") {
-            mirrorSupplierPayment(data, data.branchId || req.query.branch || 'main');
-        } else if (table === "customer_payments") {
-            mirrorCustomerPayment(data, data.branchId || req.query.branch || 'main');
-        }
-        res.json({ success: true, id: data.id });
-    });
+    // 3. Collision Protection: Check if this ID already belongs to a DIFFERENT entity
+    const partnerCol = (table.includes('purchase') || table.includes('supplier')) ? 'supplierId' : 'customerId';
+    const isPartnerTable = ['purchase_invoices', 'sales_invoices', 'customer_payments', 'supplier_payments'].includes(table);
+
+    const executeInsert = () => {
+        db.run(sql, getRowValues(table, data), function(err) {
+            if (err) {
+                console.error(`Error inserting into ${table}:`, err);
+                return res.status(500).json({ error: err.message });
+            }
+            // Auto-mirror entities
+            if (table === "sales_invoices") {
+                mirrorSalesToPurchase(data, data.branchId || req.query.branch || 'main');
+            } else if (table === "treasury_transfers") {
+                mirrorTreasuryTransfer(data, data.branchId || req.query.branch || 'main');
+            } else if (table === "supplier_payments") {
+                mirrorSupplierPayment(data, data.branchId || req.query.branch || 'main');
+            } else if (table === "customer_payments") {
+                mirrorCustomerPayment(data, data.branchId || req.query.branch || 'main');
+            }
+            res.json({ success: true, id: data.id });
+        });
+    };
+
+    if (isPartnerTable && data[partnerCol]) {
+        db.get(`SELECT id, ${partnerCol} FROM ${table} WHERE id = ?`, [data.id], (err, existing) => {
+            if (existing && existing[partnerCol] && existing[partnerCol] !== data[partnerCol]) {
+                // ID collision with a DIFFERENT partner! Give it a safe unique suffix to avoid overwriting!
+                console.warn(`⚠️ منع تضارب معرّف: المعرّف ${data.id} كان سيستبدل سجل شريك آخر! تم توليد معرّف فريد.`);
+                data.id = `${data.id}-${Date.now().toString().slice(-4)}`;
+            }
+            executeInsert();
+        });
+    } else {
+        executeInsert();
+    }
 });
 
 app.put("/api/:table/:id", (req, res) => {
@@ -786,7 +827,7 @@ function getRowValues(table, row) {
             row.isIntercompany ? 1 : 0, row.fromBranchId || "", row.fromBranchName || "", row.toBranchId || "", row.toBranchName || "", row.mirrorTransferId || ""
         ];
         case "expenses": return [row.id, row.category, row.description, row.amount, row.date, branch];
-        case "journal_entries": return [row.id, row.date, row.description, row.referenceType, row.referenceId, JSON.stringify(row.lines || []), row.createdAt, branch];
+        case "journal_entries": return [row.id, row.date, row.description, row.referenceType || row.type || "Manual", row.referenceId, JSON.stringify(row.lines || []), row.createdAt, branch];
         case "users": return [row.id, row.username, row.password, row.fullName, row.role, JSON.stringify(row.permissions || [])];
         case "logs": return [row.id, row.userId, row.userName, row.action, row.timestamp];
         case "quotations": return [row.id, row.customerId, row.customerName, row.date, row.validUntil, row.total, row.status, row.notes, JSON.stringify(row.items || []), row.deliveryDuration || "", branch];

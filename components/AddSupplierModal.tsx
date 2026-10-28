@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Supplier } from '../types.ts';
 import AlertModal from './AlertModal.tsx';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface AddSupplierModalProps {
   onClose: () => void;
@@ -33,16 +34,7 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({ onClose, onSave, su
         setAddress(supplierToEdit.address);
         setOpeningBalance(supplierToEdit.openingBalance);
     } else {
-        const prefix = 'S-';
-        const maxNum = existingSuppliers.reduce((max, s) => {
-            if (s.id.startsWith(prefix)) {
-                const num = parseInt(s.id.substring(prefix.length), 10);
-                return isNaN(num) ? max : Math.max(max, num);
-            }
-            const num = parseInt(s.id.replace('S', ''), 10);
-            return isNaN(num) ? max : Math.max(max, num);
-        }, 0);
-        const nextId = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`;
+        const nextId = generateNextSequence('suppliers', existingSuppliers);
         setSupplierCode(nextId);
         setName('');
         setCompanyName('');

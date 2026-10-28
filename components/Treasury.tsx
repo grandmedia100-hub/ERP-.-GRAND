@@ -5,8 +5,10 @@ import AddReceiptModal from './AddReceiptModal.tsx';
 import AddPaymentModal from './AddPaymentModal.tsx';
 import AddTransferModal from './AddTransferModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
+import NumberingSequenceModal from './NumberingSequenceModal.tsx';
 import { exportToExcel } from '../utils/exportToExcel.ts';
 import { showNotification } from '../services/notificationService.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 import type { TreasuryTransfer } from '../types.ts';
 
 interface TreasuryProps {
@@ -55,6 +57,7 @@ const Treasury: React.FC<TreasuryProps> = ({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
 
   // Editing State
   const [editingReceipt, setEditingReceipt] = useState<CustomerPayment | null>(null);
@@ -194,26 +197,22 @@ const Treasury: React.FC<TreasuryProps> = ({
       logAction(`تعديل سند قبض: ${receiptData.id}`);
 
     } else {
-      const maxNum = customerPayments.reduce((max, rec) => {
-        if (rec.id.startsWith('CP')) {
-          const num = parseInt(rec.id.substring(2), 10);
-          return isNaN(num) ? max : Math.max(max, num);
-        }
-        return max;
-      }, 0);
-      const newId = `CP${(maxNum + 1).toString().padStart(3, '0')}`;
+      const newId = generateNextSequence('customerPayments', customerPayments);
       const newReceipt: CustomerPayment = {
         ...receiptData,
         id: newId,
-        status: 'active'
+        status: 'active',
+        branchId: currentBranchId
       } as CustomerPayment;
+      setCustomerPayments(prev => [...prev, newReceipt]);
+
       if (newReceipt.isIntercompany && newReceipt.targetBranchId && newReceipt.targetBranchId !== currentBranchId) {
         const targetName = newReceipt.targetBranchName || 'الكيان الشقيق';
         const customerTitle = newReceipt.targetCustomerName || newReceipt.customerName;
         createJournalEntry({
           date: newReceipt.date,
           description: `تحصيل بيني من عميل (${customerTitle}) لصالح ${targetName}`,
-          referenceType: 'Manual',
+          referenceType: 'Payment',
           referenceId: newReceipt.id,
           lines: [
             { accountId: getAccountId(newReceipt.treasuryAccount || 'الخزينة الرئيسية'), accountName: newReceipt.treasuryAccount || 'الخزينة الرئيسية', debit: newReceipt.amount, credit: 0 },
@@ -227,7 +226,7 @@ const Treasury: React.FC<TreasuryProps> = ({
         createJournalEntry({
           date: newReceipt.date,
           description: `سند قبض من عميل: ${newReceipt.customerName}`,
-          referenceType: 'Manual',
+          referenceType: 'Payment',
           referenceId: newReceipt.id,
           lines: [
             { accountId: getAccountId(newReceipt.treasuryAccount || 'الخزينة الرئيسية'), accountName: newReceipt.treasuryAccount || 'الخزينة الرئيسية', debit: newReceipt.amount, credit: 0 },
@@ -242,7 +241,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           createJournalEntry({
             date: newReceipt.date,
             description: `عمولة معاملة سند قبض رقم: ${newReceipt.id}`,
-            referenceType: 'Manual',
+            referenceType: 'Payment',
             referenceId: `FEE-${newReceipt.id}`,
             lines: [
               { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: newReceipt.fee, credit: 0 },
@@ -362,14 +361,7 @@ const Treasury: React.FC<TreasuryProps> = ({
       logAction(`تعديل سند صرف: ${paymentData.id}`);
 
     } else {
-      const maxNum = supplierPayments.reduce((max, pay) => {
-        if (pay.id.startsWith('SP') && !pay.id.startsWith('SP-IC-')) {
-          const num = parseInt(pay.id.substring(2), 10);
-          return isNaN(num) ? max : Math.max(max, num);
-        }
-        return max;
-      }, 0);
-      const newId = `SP${(maxNum + 1).toString().padStart(3, '0')}`;
+      const newId = generateNextSequence('supplierPayments', supplierPayments);
       const newPayment: SupplierPayment = {
         ...paymentData,
         id: newId,
@@ -384,7 +376,7 @@ const Treasury: React.FC<TreasuryProps> = ({
         createJournalEntry({
           date: newPayment.date,
           description: `سداد بيني لمورد (${supplierTitle}) نيابة عن ${targetName}`,
-          referenceType: 'Manual',
+          referenceType: 'Payment',
           referenceId: newPayment.id,
           lines: [
             { accountId: '2102', accountName: `جاري شركة ${targetName}`, debit: newPayment.amount, credit: 0 },
@@ -401,7 +393,7 @@ const Treasury: React.FC<TreasuryProps> = ({
         createJournalEntry({
           date: newPayment.date,
           description: `${isActuallyExpense ? 'صرف مصروف' : 'سند صرف لمورد'}: ${newPayment.supplierName}`,
-          referenceType: 'Manual',
+          referenceType: 'Payment',
           referenceId: newPayment.id,
           lines: [
             {
@@ -426,7 +418,7 @@ const Treasury: React.FC<TreasuryProps> = ({
           createJournalEntry({
             date: newPayment.date,
             description: `عمولة معاملة سند صرف رقم: ${newPayment.id}`,
-            referenceType: 'Manual',
+            referenceType: 'Payment',
             referenceId: `FEE-${newPayment.id}`,
             lines: [
               { accountId: feeAccountId, accountName: 'مصاريف وعمولات بنكية', debit: newPayment.fee, credit: 0 },
@@ -477,14 +469,7 @@ const Treasury: React.FC<TreasuryProps> = ({
       return;
     }
 
-    const maxNum = treasuryTransfers.reduce((max, tr) => {
-      if (tr.id.startsWith('TR') && !tr.id.startsWith('TR-IC-')) {
-        const num = parseInt(tr.id.substring(2), 10);
-        return isNaN(num) ? max : Math.max(max, num);
-      }
-      return max;
-    }, 0);
-    const newId = `TR${(maxNum + 1).toString().padStart(3, '0')}`;
+    const newId = generateNextSequence('treasuryTransfers', treasuryTransfers);
     const newTransfer: TreasuryTransfer = {
       ...transferData,
       id: newId,
@@ -1632,6 +1617,15 @@ const Treasury: React.FC<TreasuryProps> = ({
           )}
           <button
             type="button"
+            onClick={() => setIsSequenceModalOpen(true)}
+            className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-sm text-sm"
+            title="تخصيص تسلسل وتكويد سندات القبض والصرف والتحويلات"
+          >
+            <span>🔢</span>
+            <span className="hidden sm:inline">إدارة التكويد والتسلسل</span>
+          </button>
+          <button
+            type="button"
             onClick={() => handlePrintStatement()}
             className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 flex items-center space-x-2 space-x-reverse"
           >
@@ -2172,6 +2166,11 @@ const Treasury: React.FC<TreasuryProps> = ({
         onConfirm={confirmAction}
         title="تأكيد الإلغاء"
         message="هل أنت متأكد من رغبتك في إلغاء هذا السند؟ سيتم عكس القيد المحاسبي."
+      />
+
+      <NumberingSequenceModal
+        isOpen={isSequenceModalOpen}
+        onClose={() => setIsSequenceModalOpen(false)}
       />
     </div>
   );

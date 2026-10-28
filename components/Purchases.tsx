@@ -5,6 +5,7 @@ import AddPurchaseInvoiceModal from './AddPurchaseInvoiceModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import SupplierStatementModal from './SupplierStatementModal.tsx';
 import { showNotification } from '../services/notificationService.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface PurchasesProps {
   invoices: PurchaseInvoice[];
@@ -179,19 +180,22 @@ const Purchases: React.FC<PurchasesProps> = ({
     const originalInvoice = isEdit ? invoices.find(i => i.id === newId) : null;
 
     if (!isEdit) {
-      const currentYear = new Date().getFullYear();
-      // Robust ID Generation
-      const prefix = type === 'return' ? 'RET-PUR' : 'PUR';
-      const regex = new RegExp(`${prefix}-${currentYear}-(\\d+)`);
-      const maxId = invoices.reduce((max, inv) => {
-        const match = inv.id.match(regex);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          return num > max ? num : max;
-        }
-        return max;
-      }, 0);
-      newId = `${prefix}-${currentYear}-${(maxId + 1).toString().padStart(3, '0')}`;
+      if (type === 'return') {
+        const currentYear = new Date().getFullYear();
+        const prefix = 'RET-PUR';
+        const regex = new RegExp(`${prefix}-${currentYear}-(\\d+)`);
+        const maxId = invoices.reduce((max, inv) => {
+          const match = inv.id.match(regex);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            return num > max ? num : max;
+          }
+          return max;
+        }, 0);
+        newId = `${prefix}-${currentYear}-${(maxId + 1).toString().padStart(3, '0')}`;
+      } else {
+        newId = generateNextSequence('purchaseInvoices', invoices);
+      }
     }
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
@@ -581,6 +585,9 @@ const Purchases: React.FC<PurchasesProps> = ({
     // Balance Logic for Suppliers (Credit): Opening + Purchases - Payments
     const currentGlobalBalance = (supplier?.openingBalance || 0) + totalInv - totalPay;
     const previousBalance = currentGlobalBalance - invoice.total;
+    const batchCode = invoice.items.find(i => i.batchCode)?.batchCode ||
+      invoice.notes?.match(/JOB-\d{4}-\d+/)?.[0] ||
+      '';
 
     const printContent = `
       <html>
@@ -663,8 +670,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                 <span style="font-size: 1.2em;">${invoice.supplierName}</span>
                 ${invoice.companyName ? `<br><span>شركة: ${invoice.companyName}</span>` : ''}
               </div>
-              <div style="text-align: left;">
+              <div style="text-align: left; line-height: 1.5;">
                 <strong>التاريخ:</strong> ${invoice.date}<br>
+                ${batchCode ? `<strong>أمر الشغل / التشغيلة:</strong> <span style="font-family: monospace; font-weight: bold; color: #0284c7;">${batchCode}</span><br>` : ''}
                 <strong>طريقة السداد:</strong> ${invoice.paymentMethod}
               </div>
             </div>
@@ -673,24 +681,21 @@ const Purchases: React.FC<PurchasesProps> = ({
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">#</th>
-                  <th style="width: 12%; text-align: center;">كود الصنف</th>
-                  <th style="width: 13%; text-align: center;">أمر الشغل / التشغيلة</th>
+                  <th style="width: 15%; text-align: center;">كود الصنف</th>
                   <th>الصنف والبيان وتفاصيل التشغيلة</th>
-                  <th style="width: 9%; text-align: center;">الكمية</th>
-                  <th style="width: 9%; text-align: center;">الوحدة</th>
-                  <th style="width: 13%; text-align: center;">السعر</th>
-                  <th style="width: 15%; text-align: center;">الإجمالي</th>
+                  <th style="width: 10%; text-align: center;">الكمية</th>
+                  <th style="width: 10%; text-align: center;">الوحدة</th>
+                  <th style="width: 15%; text-align: center;">السعر</th>
+                  <th style="width: 18%; text-align: center;">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
                  ${invoice.items.map((item, index) => {
                   const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
-                  const batchCode = item.batchCode || (item.description && item.description.match(/JOB-\d{4}-\d+/)?.[0]) || (item.productName && item.productName.match(/JOB-\d{4}-\d+/)?.[0]) || '';
                   return `
                   <tr>
                     <td style="text-align: center;">${index + 1}</td>
                     <td style="text-align: center; font-family: monospace; font-size: 12px; color: #374151; font-weight: 600;">${itemCode || '-'}</td>
-                    <td style="text-align: center; font-family: monospace; font-size: 12px; color: #0284c7; font-weight: 700; background: #f0f9ff;">${batchCode || '-'}</td>
                     <td>
                       <div>
                         <strong>${item.productName}</strong>

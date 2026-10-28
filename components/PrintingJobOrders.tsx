@@ -3,9 +3,10 @@ import type {
   PrintingJobOrder, JobOperationItem, PrintingOperationId, PrintingOperationDefinition,
   ConsolidatedVendorInvoice, ConsolidatedVendorInvoiceLine, Customer, Supplier, Account,
   JournalEntry, ModulePostingSettings, Permission, SalesInvoice, PurchaseInvoice,
-  OperationBillingStatus, CartonBoxSpecs
+  OperationBillingStatus, CartonBoxSpecs, Product, StockTransaction
 } from '../types.ts';
 import { showNotification } from '../services/notificationService.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 // ==================== 21 Standard Printing & Carton Operations Catalog ====================
 export const STANDARD_PRINTING_OPERATIONS: PrintingOperationDefinition[] = [
@@ -93,6 +94,10 @@ export const PRINTING_TEMPLATES: { name: string; icon: string; desc: string; ope
 interface PrintingJobOrdersProps {
   jobOrders: PrintingJobOrder[];
   setJobOrders: React.Dispatch<React.SetStateAction<PrintingJobOrder[]>>;
+  products?: Product[];
+  setProducts?: React.Dispatch<React.SetStateAction<Product[]>>;
+  stockTransactions?: StockTransaction[];
+  setStockTransactions?: React.Dispatch<React.SetStateAction<StockTransaction[]>>;
   consolidatedInvoices: ConsolidatedVendorInvoice[];
   setConsolidatedInvoices: React.Dispatch<React.SetStateAction<ConsolidatedVendorInvoice[]>>;
   salesInvoices?: SalesInvoice[];
@@ -113,9 +118,36 @@ interface PrintingJobOrdersProps {
   onNavigate?: (page: string) => void;
 }
 
+// ==================== Customer Product Recipes & Presets (سوابق وقوالب منتجات العميل) ====================
+export interface CustomerProductPreset {
+  id: string;
+  source: 'order' | 'product';
+  productTitle: string;
+  productCategory?: string;
+  unit?: string;
+  quantity?: number;
+  unitPrice?: number;
+  clientSalePrice?: number;
+  paperSheetLength?: number;
+  paperSheetWidth?: number;
+  paperGrammage?: number;
+  paperSheetsCount?: number;
+  paperPricePerTon?: number;
+  selectedOps: PrintingOperationId[];
+  prepressDetails?: PrintingJobPrepressDetails;
+  cartonSpecs?: CartonBoxSpecs;
+  notes?: string;
+  lastUsedDate?: string;
+  orderCode?: string;
+}
+
 const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
   jobOrders = [],
   setJobOrders,
+  products = [],
+  setProducts,
+  stockTransactions = [],
+  setStockTransactions,
   consolidatedInvoices = [],
   setConsolidatedInvoices,
   salesInvoices = [],
@@ -321,22 +353,23 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     shippingFee: number;
     otherFees: number;
     otherFeesDescription: string;
+    saveAsCustomerPreset: boolean;
   }>({
     customerId: '',
     productTitle: '',
-    productCategory: 'كرتون وتغليف ومطبوعات',
-    quantity: 1000,
+    productCategory: 'علب وتغليف كرتون',
+    quantity: 0,
     unit: 'علبة',
     unitPrice: 0,
     clientSalePrice: 0,
     deliveryDate: '',
     notes: '',
-    selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
-    paperSheetLength: 100,
-    paperSheetWidth: 70,
-    paperGrammage: 300,
-    paperSheetsCount: 1000,
-    paperPricePerTon: 45000,
+    selectedOps: [],
+    paperSheetLength: 0,
+    paperSheetWidth: 0,
+    paperGrammage: 0,
+    paperSheetsCount: 0,
+    paperPricePerTon: 0,
     moldType: 'existing',
     moldPrice: 0,
     platesType: 'existing',
@@ -344,8 +377,121 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     designFee: 0,
     shippingFee: 0,
     otherFees: 0,
-    otherFeesDescription: ''
+    otherFeesDescription: '',
+    saveAsCustomerPreset: true
   });
+
+  // Unique Product Presets for selected customer (from orders history & coded products)
+  const customerProductPresets = useMemo(() => {
+    if (!formData.customerId) return [];
+
+    const presetsMap = new Map<string, CustomerProductPreset>();
+
+    // 1. Scan historical Job Orders for this customer
+    jobOrders
+      .filter(o => o.customerId === formData.customerId && o.productTitle)
+      .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+      .forEach(o => {
+        const key = o.productTitle.trim().toLowerCase();
+        if (!presetsMap.has(key)) {
+          const paperOp = o.operations.find(op => op.operationId === 'paper_supply' || op.name.includes('ورق'));
+          presetsMap.set(key, {
+            id: `ord-${o.id}`,
+            source: 'order',
+            productTitle: o.productTitle,
+            productCategory: o.productCategory,
+            unit: o.unit,
+            quantity: Number(o.quantity) || 0,
+            unitPrice: o.unitPrice || (o.quantity > 0 ? o.clientSalePrice / o.quantity : undefined),
+            clientSalePrice: o.clientSalePrice,
+            paperSheetLength: paperOp?.paperSheetLength || o.paperSpecs?.sheetLength || 0,
+            paperSheetWidth: paperOp?.paperSheetWidth || o.paperSpecs?.sheetWidth || 0,
+            paperGrammage: paperOp?.paperGrammage || o.paperSpecs?.grammage || 0,
+            paperSheetsCount: paperOp?.paperSheetsCount || o.paperSpecs?.sheetsCount || 0,
+            paperPricePerTon: paperOp?.estimatedRate || o.paperSpecs?.pricePerTon || 0,
+            selectedOps: o.operations.map(op => op.operationId),
+            prepressDetails: o.prepressDetails,
+            cartonSpecs: o.cartonSpecs,
+            notes: o.notes,
+            lastUsedDate: o.date,
+            orderCode: o.code
+          });
+        }
+      });
+
+    // 2. Scan Products coded for this customer
+    (products || [])
+      .filter(p => p.customerId === formData.customerId && p.name)
+      .forEach(p => {
+        const key = p.name.trim().toLowerCase();
+        if (!presetsMap.has(key)) {
+          presetsMap.set(key, {
+            id: `prod-${p.id}`,
+            source: 'product',
+            productTitle: p.name,
+            productCategory: p.category || 'علب وتغليف كرتون',
+            unit: p.unit || 'علبة',
+            quantity: Number(p.defaultOrderQuantity) || 0,
+            unitPrice: p.salePrice || 0,
+            clientSalePrice: (p.defaultOrderQuantity && p.salePrice) ? (p.defaultOrderQuantity * p.salePrice) : undefined,
+            paperSheetLength: p.paperSpecs?.sheetLength || 0,
+            paperSheetWidth: p.paperSpecs?.sheetWidth || 0,
+            paperGrammage: p.paperSpecs?.grammage || 0,
+            paperSheetsCount: p.paperSpecs?.sheetsCount || 0,
+            paperPricePerTon: p.paperSpecs?.pricePerTon || 0,
+            selectedOps: (p.operationsTemplate as PrintingOperationId[]) || [],
+            prepressDetails: p.prepressDetails,
+            lastUsedDate: undefined
+          });
+        }
+      });
+
+    return Array.from(presetsMap.values());
+  }, [formData.customerId, jobOrders, products]);
+
+  // Apply selected customer product recipe
+  const handleApplyCustomerPreset = (preset: CustomerProductPreset) => {
+    const savedQty = Number(preset.quantity) || 0;
+    const q = savedQty > 0 ? savedQty : (Number(formData.quantity) || 0);
+    const uPrice = Number(preset.unitPrice) || Number(formData.unitPrice) || 0;
+    const prep = preset.prepressDetails;
+    const moldP = prep?.moldType === 'new' ? (prep.moldPrice || 0) : 0;
+    const platP = prep?.platesType === 'new' ? (prep.platesPrice || 0) : 0;
+    const desF = prep?.designFee || 0;
+    const shipF = prep?.shippingFee || 0;
+    const otherF = prep?.otherFees || 0;
+    const prepTotal = moldP + platP + desF + shipF + otherF;
+    const computedSalePrice = (q > 0 && uPrice > 0)
+      ? Math.round(((q * uPrice) + prepTotal) * 100) / 100
+      : (preset.clientSalePrice || 0);
+
+    setFormData(prev => ({
+      ...prev,
+      productTitle: preset.productTitle,
+      productCategory: preset.productCategory || prev.productCategory,
+      quantity: q,
+      unit: preset.unit || prev.unit,
+      unitPrice: uPrice,
+      clientSalePrice: computedSalePrice > 0 ? computedSalePrice : prev.clientSalePrice,
+      paperSheetLength: preset.paperSheetLength || 0,
+      paperSheetWidth: preset.paperSheetWidth || 0,
+      paperGrammage: preset.paperGrammage || 0,
+      paperPricePerTon: preset.paperPricePerTon || 0,
+      paperSheetsCount: preset.paperSheetsCount || (q > 0 ? Math.ceil(q / 2) : 0),
+      selectedOps: preset.selectedOps && preset.selectedOps.length > 0 ? preset.selectedOps : [],
+      moldType: prep?.moldType || 'existing',
+      moldPrice: moldP,
+      platesType: prep?.platesType || 'existing',
+      platesPrice: platP,
+      designFee: desF,
+      shippingFee: shipF,
+      otherFees: otherF,
+      otherFeesDescription: prep?.otherFeesDescription || '',
+      notes: preset.notes || prev.notes
+    }));
+
+    showNotification(`تم استرجاع كامل مواصفات وكمية ومراحل (${preset.productTitle}) بنجاح 🚀`, 'success');
+  };
 
   const handleOpenCreateModal = (orderToEdit?: PrintingJobOrder) => {
     if (orderToEdit) {
@@ -356,7 +502,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       setFormData({
         customerId: orderToEdit.customerId,
         productTitle: orderToEdit.productTitle,
-        productCategory: orderToEdit.productCategory || 'كرتون وتغليف ومطبوعات',
+        productCategory: orderToEdit.productCategory || 'علب وتغليف كرتون',
         quantity: orderToEdit.quantity,
         unit: orderToEdit.unit,
         unitPrice: Math.round(computedUnitPrice * 1000) / 1000,
@@ -364,11 +510,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         deliveryDate: orderToEdit.deliveryDate || '',
         notes: orderToEdit.notes || '',
         selectedOps: orderToEdit.operations.map(o => o.operationId),
-        paperSheetLength: paperOp?.paperSheetLength || orderToEdit.paperSpecs?.sheetLength || 100,
-        paperSheetWidth: paperOp?.paperSheetWidth || orderToEdit.paperSpecs?.sheetWidth || 70,
-        paperGrammage: paperOp?.paperGrammage || orderToEdit.paperSpecs?.grammage || 300,
-        paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || Math.ceil(orderToEdit.quantity / 2) || 1000,
-        paperPricePerTon: paperOp?.estimatedRate || orderToEdit.paperSpecs?.pricePerTon || 45000,
+        paperSheetLength: paperOp?.paperSheetLength || orderToEdit.paperSpecs?.sheetLength || 0,
+        paperSheetWidth: paperOp?.paperSheetWidth || orderToEdit.paperSpecs?.sheetWidth || 0,
+        paperGrammage: paperOp?.paperGrammage || orderToEdit.paperSpecs?.grammage || 0,
+        paperSheetsCount: paperOp?.paperSheetsCount || orderToEdit.paperSpecs?.sheetsCount || 0,
+        paperPricePerTon: paperOp?.estimatedRate || orderToEdit.paperSpecs?.pricePerTon || 0,
         moldType: prep?.moldType || 'existing',
         moldPrice: prep?.moldPrice || 0,
         platesType: prep?.platesType || 'existing',
@@ -376,26 +522,27 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         designFee: prep?.designFee || 0,
         shippingFee: prep?.shippingFee || 0,
         otherFees: prep?.otherFees || 0,
-        otherFeesDescription: prep?.otherFeesDescription || ''
+        otherFeesDescription: prep?.otherFeesDescription || '',
+        saveAsCustomerPreset: true
       });
     } else {
       setEditingJob(null);
       setFormData({
-        customerId: customers[0]?.id || '',
+        customerId: '',
         productTitle: '',
-        productCategory: 'كرتون وتغليف ومطبوعات',
-        quantity: 1000,
+        productCategory: 'علب وتغليف كرتون',
+        quantity: 0,
         unit: 'علبة',
         unitPrice: 0,
         clientSalePrice: 0,
         deliveryDate: '',
         notes: '',
-        selectedOps: ['paper_supply', 'paper_cutting', 'ctp_plates', 'printing', 'lamination', 'corrugated_flute', 'flute_lamination', 'laser_die', 'die_cutting', 'gluing', 'packaging', 'shipping'],
-        paperSheetLength: 100,
-        paperSheetWidth: 70,
-        paperGrammage: 300,
-        paperSheetsCount: 1000,
-        paperPricePerTon: 45000,
+        selectedOps: [],
+        paperSheetLength: 0,
+        paperSheetWidth: 0,
+        paperGrammage: 0,
+        paperSheetsCount: 0,
+        paperPricePerTon: 0,
         moldType: 'existing',
         moldPrice: 0,
         platesType: 'existing',
@@ -403,7 +550,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
         designFee: 0,
         shippingFee: 0,
         otherFees: 0,
-        otherFeesDescription: ''
+        otherFeesDescription: '',
+        saveAsCustomerPreset: true
       });
     }
     setIsCreateModalOpen(true);
@@ -526,6 +674,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       showNotification('يرجى كتابة اسم أو وصف المطبوع', 'error');
       return;
     }
+    if (!formData.quantity || formData.quantity <= 0) {
+      showNotification('يرجى إدخال الكمية المطلوبة لأمر الشغل', 'error');
+      return;
+    }
     if (formData.selectedOps.length === 0) {
       showNotification('يرجى تحديد عملية واحدة على الأقل لأمر الشغل', 'error');
       return;
@@ -639,8 +791,7 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       logAction(`تحديث أمر تشغيل: ${editingJob.code} للعميل ${customer?.name}`);
       showNotification('تم تحديث أمر الشغل بنجاح', 'success');
     } else {
-      const nextNum = jobOrders.length + 1;
-      const orderCode = `JOB-${new Date().getFullYear()}-${String(nextNum).padStart(4, '0')}`;
+      const orderCode = generateNextSequence('printingJobOrders', jobOrders);
       const newId = `JOB_${Date.now()}`;
 
       const ops: JobOperationItem[] = formData.selectedOps.map(opId => {
@@ -719,13 +870,80 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
       showNotification(`تم إنشاء أمر الشغل (${orderCode}) وبدء خط سير التشغيل بنجاح 🚀`, 'success');
     }
 
+    // Save / Update Customer Product Preset in Inventory Products
+    if (formData.saveAsCustomerPreset && setProducts && formData.customerId && formData.productTitle.trim()) {
+      setProducts(prevProducts => {
+        const titleTrimmed = formData.productTitle.trim();
+        const existingIdx = prevProducts.findIndex(
+          p => p.customerId === formData.customerId && p.name.trim().toLowerCase() === titleTrimmed.toLowerCase()
+        );
+
+        const paperSpecsData = (paperL > 0 || paperW > 0 || paperG > 0 || paperS > 0 || paperRate > 0) ? {
+          sheetLength: paperL,
+          sheetWidth: paperW,
+          grammage: paperG,
+          sheetsCount: paperS,
+          pricePerTon: paperRate
+        } : undefined;
+
+        const calculatedUnitPrice = Number(formData.unitPrice) || (Number(formData.quantity) > 0 ? (Number(formData.clientSalePrice) / Number(formData.quantity)) : 0);
+        const orderQty = Number(formData.quantity) || 0;
+
+        const prepressData = {
+          moldType: formData.moldType || 'existing',
+          moldPrice: formData.moldType === 'new' ? (Number(formData.moldPrice) || 0) : 0,
+          platesType: formData.platesType || 'existing',
+          platesPrice: formData.platesType === 'new' ? (Number(formData.platesPrice) || 0) : 0,
+          designFee: Number(formData.designFee) || 0,
+          shippingFee: Number(formData.shippingFee) || 0,
+          otherFees: Number(formData.otherFees) || 0,
+          otherFeesDescription: formData.otherFeesDescription || ''
+        };
+
+        if (existingIdx >= 0) {
+          const updated = [...prevProducts];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            salePrice: calculatedUnitPrice > 0 ? calculatedUnitPrice : updated[existingIdx].salePrice,
+            unit: formData.unit || updated[existingIdx].unit,
+            category: formData.productCategory || updated[existingIdx].category,
+            operationsTemplate: formData.selectedOps,
+            paperSpecs: paperSpecsData || updated[existingIdx].paperSpecs,
+            defaultOrderQuantity: orderQty > 0 ? orderQty : updated[existingIdx].defaultOrderQuantity,
+            prepressDetails: prepressData
+          };
+          return updated;
+        } else {
+          const newProd: Product = {
+            id: `PROD-CUST-${Date.now()}`,
+            name: titleTrimmed,
+            sku: `CUST-${Date.now().toString().slice(-4)}`,
+            category: formData.productCategory || 'علب وتغليف كرتون',
+            unit: formData.unit || 'علبة',
+            salePrice: calculatedUnitPrice,
+            costPrice: calcPaperCost > 0 ? Math.round((calcPaperCost / (orderQty || 1)) * 100) / 100 : 0,
+            quantity: 0,
+            stock: 0,
+            productType: 'منتج تام',
+            lowStockThreshold: 10,
+            customerId: formData.customerId,
+            customerName: customer?.name || '',
+            operationsTemplate: formData.selectedOps,
+            paperSpecs: paperSpecsData,
+            defaultOrderQuantity: orderQty,
+            prepressDetails: prepressData
+          };
+          return [newProd, ...prevProducts];
+        }
+      });
+    }
+
     setIsCreateModalOpen(false);
   };
 
   // Feature 4: Duplicate Job Order
   const handleDuplicateJob = (order: PrintingJobOrder) => {
-    const nextNum = jobOrders.length + 1;
-    const newCode = `JOB-${new Date().getFullYear()}-${String(nextNum).padStart(4, '0')}`;
+    const newCode = generateNextSequence('printingJobOrders', jobOrders);
     const newId = `JOB_${Date.now()}`;
 
     // Reset status and cost journal IDs, keeping vendors and operational setup
@@ -1014,7 +1232,11 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
 
     const pinvCount = (purchaseInvoices?.length || 0) + 1;
     const yearStr = (data.invoiceDate || new Date().toISOString().split('T')[0]).split('-')[0];
-    const pInvId = `PINV-${cleanInvNum.replace(/[^a-zA-Z0-9_-]/g, '') || `${yearStr}-${String(pinvCount).padStart(4, '0')}`}`;
+    const safeInvClean = (cleanInvNum && cleanInvNum !== '0') ? cleanInvNum.replace(/[^a-zA-Z0-9_-]/g, '') : '';
+    const safeOpKey = op.operationId || `op${opIndex}`;
+    const pInvId = safeInvClean 
+      ? `PINV-${order.code}-${safeOpKey}-${safeInvClean}`
+      : `PINV-${order.code}-${safeOpKey}-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
 
     // Create Purchase Invoice
     const isPaperStage = op.operationId === 'paper_supply' || op.name.includes('ورق');
@@ -1531,6 +1753,81 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     const grossProfit = finalGrandTotal - order.totalActualCost;
     const profitMarginPercent = finalGrandTotal > 0 ? (grossProfit / finalGrandTotal) * 100 : 0;
 
+    // 8. Stock & Warehouse Movement (تسجيل حركة المخزن وكارت الصنف)
+    const targetProdName = (order.productTitle || '').trim();
+    let matchedProduct = products?.find(p => 
+      (p.customerId === order.customerId || !p.customerId) && 
+      p.name.trim().toLowerCase() === targetProdName.toLowerCase()
+    );
+
+    const actualUnitCost = delQty > 0 ? Math.round((order.totalActualCost / delQty) * 100) / 100 : 0;
+    const finalProdId = matchedProduct ? matchedProduct.id : `PROD-CUST-${order.code}`;
+
+    if (!matchedProduct && setProducts) {
+      const newInventoryProd: Product = {
+        id: finalProdId,
+        name: targetProdName,
+        sku: order.code,
+        category: order.productCategory || 'علب وتغليف كرتون',
+        unit: order.unit || 'علبة',
+        costPrice: actualUnitCost,
+        salePrice: unitPrice,
+        quantity: 0,
+        productType: 'منتج تام',
+        lowStockThreshold: 10,
+        customerId: order.customerId,
+        customerName: customerName
+      };
+      setProducts(prev => [newInventoryProd, ...prev]);
+    } else if (matchedProduct && setProducts) {
+      setProducts(prev => prev.map(p => p.id === matchedProduct!.id ? {
+        ...p,
+        costPrice: actualUnitCost > 0 ? actualUnitCost : p.costPrice,
+        salePrice: unitPrice > 0 ? unitPrice : p.salePrice
+      } : p));
+    }
+
+    if (setStockTransactions) {
+      const nowIso = new Date().toISOString();
+      const currentQty = Number(matchedProduct?.quantity) || 0;
+      
+      const inTx: StockTransaction = {
+        id: `STX-IN-${order.code}-${Date.now()}`,
+        date: todayStr,
+        productId: finalProdId,
+        productName: targetProdName,
+        type: 'production_in',
+        quantityIn: delQty,
+        quantityOut: 0,
+        unitCost: actualUnitCost,
+        totalCost: order.totalActualCost,
+        balanceAfter: currentQty + delQty,
+        referenceId: order.code,
+        referenceType: 'Adjustment',
+        notes: `وارد إنتاج تام من أمر تشغيل ${order.code} - كمية ${delQty.toLocaleString()} ${order.unit || ''}`,
+        createdAt: nowIso
+      };
+
+      const outTx: StockTransaction = {
+        id: `STX-OUT-${order.code}-${Date.now() + 1}`,
+        date: todayStr,
+        productId: finalProdId,
+        productName: targetProdName,
+        type: 'sale',
+        quantityIn: 0,
+        quantityOut: delQty,
+        unitCost: actualUnitCost,
+        totalCost: order.totalActualCost,
+        balanceAfter: currentQty,
+        referenceId: invId,
+        referenceType: 'SalesInvoice',
+        notes: `تسليم للعميل ${customerName} بموجب فاتورة مبيعات ${invId} (أمر تشغيل ${order.code})`,
+        createdAt: new Date(Date.now() + 1000).toISOString()
+      };
+
+      setStockTransactions(prev => [outTx, inTx, ...prev]);
+    }
+
     const updatedOrder: PrintingJobOrder = {
       ...order,
       operations: newOps,
@@ -1548,8 +1845,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     setJobOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
     if (viewingJob?.id === order.id) setViewingJob(updatedOrder);
 
-    logAction(`تسليم أمر شغل المطبوعات ${order.code} بالكمية المسلمة ${delQty} ${order.unit || ''} وإصدار فاتورة بيع ${invId} بقيمة ${finalSalePrice} ج.م`);
-    showNotification(`تم تسليم الطلبية بنجاح بالكمية المسلمة (${delQty}) وإصدار فاتورة المبيعات (${invId}) بقيمة ${finalSalePrice.toLocaleString()} ج.م 📦`, 'success');
+    logAction(`تسليم أمر شغل المطبوعات ${order.code} بالكمية المسلمة ${delQty} ${order.unit || ''} وإصدار فاتورة بيع ${invId} بقيمة ${finalGrandTotal} ج.م`);
+    showNotification(`تم تسليم الطلبية بنجاح بالكمية المسلمة (${delQty}) وإصدار فاتورة المبيعات (${invId}) بقيمة ${finalGrandTotal.toLocaleString()} ج.م 📦`, 'success');
     setDeliverModal(null);
   };
 
@@ -1927,7 +2224,10 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
     // Generate real Purchase Invoice for supplier
     const pinvCount = (purchaseInvoices?.length || 0) + 1;
     const yearStr = consForm.date.split('-')[0] || new Date().getFullYear().toString();
-    const pInvId = consForm.invoiceNumber ? `PINV-${consForm.invoiceNumber}` : `PINV-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
+    const cleanConsNum = (consForm.invoiceNumber && consForm.invoiceNumber.trim() !== '0') ? consForm.invoiceNumber.trim().replace(/[^a-zA-Z0-9_-]/g, '') : '';
+    const pInvId = cleanConsNum 
+      ? `PINV-CONS-${cleanConsNum}-${Date.now().toString().slice(-4)}` 
+      : `PINV-CONS-${yearStr}-${String(pinvCount).padStart(4, '0')}`;
 
     const newPurchaseInvoice: PurchaseInvoice = {
       id: pInvId,
@@ -2894,6 +3194,56 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                 </div>
               </div>
 
+              {/* Customer Product Presets Selector */}
+              {formData.customerId && (
+                <div className={`p-3.5 rounded-xl border transition-all ${
+                  customerProductPresets.length > 0 
+                    ? 'bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border-indigo-200 shadow-xs' 
+                    : 'bg-amber-50/60 border-amber-200/80'
+                }`}>
+                  {customerProductPresets.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="flex items-center gap-1.5 text-xs font-black text-indigo-950">
+                          <span className="text-base">📂</span>
+                          <span>منتجات ومواصفات سابقة لهذا العميل ({customerProductPresets.length} منتج محفوظ):</span>
+                        </label>
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                          استرجاع فوري لكافة المراحل والمقاسات
+                        </span>
+                      </div>
+                      <select
+                        onChange={e => {
+                          const selectedId = e.target.value;
+                          if (!selectedId) return;
+                          const found = customerProductPresets.find(p => p.id === selectedId);
+                          if (found) {
+                            handleApplyCustomerPreset(found);
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full p-2.5 bg-white border-2 border-indigo-300 rounded-xl text-xs font-bold text-indigo-950 shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
+                      >
+                        <option value="">-- اضغط هنا للاختيار واسترجاع كامل مراحل ومواصفات المنتج فوراً --</option>
+                        {customerProductPresets.map(preset => (
+                          <option key={preset.id} value={preset.id}>
+                            📦 {preset.productTitle} {preset.orderCode ? `[أمر سابق: ${preset.orderCode}]` : '[صنف معتمد]'} {preset.quantity ? `• كمية: ${preset.quantity.toLocaleString('en-US')}` : ''} {preset.unitPrice ? `• سعر: ${preset.unitPrice} ج.م` : ''} {preset.paperGrammage ? `• ${preset.paperGrammage}جم (${preset.paperSheetLength}×${preset.paperSheetWidth})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-indigo-700 mt-1.5 flex items-center gap-1">
+                        <span>💡 بمجرد اختيار الصنف، يتم تلقائياً ضبط الاسم وسعر البيع ومقاسات الورق ومراحل التشغيل المحددة، ويمكنك تعديل أي قيمة بحرية.</span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-amber-800">
+                      <span className="text-base">✨</span>
+                      <span>لا توجد منتجات سابقة مسجلة لهذا العميل حتى الآن. بمجرد حفظ هذا الأمر، سيتم حفظ الصنف ومراحله ومواصفاته الفنية تلقائياً لطلباته المستقبلية.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Row 2: Title, Quantity, Price */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
@@ -2913,7 +3263,8 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                     <input
                       type="number"
                       min={1}
-                      value={formData.quantity}
+                      placeholder="أدخل الكمية المطلوبة"
+                      value={formData.quantity || ''}
                       onChange={e => {
                         const q = Number(e.target.value) || 0;
                         const up = formData.unitPrice || 0;
@@ -3443,6 +3794,24 @@ const PrintingJobOrders: React.FC<PrintingJobOrdersProps> = ({
                   className="w-full p-2.5 border border-gray-300 rounded-xl text-sm"
                 />
               </div>
+
+              {/* Save as preset checkbox */}
+              {formData.customerId && (
+                <label className="flex items-center gap-2.5 cursor-pointer bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-xl border border-indigo-200 text-xs font-bold text-indigo-950 hover:bg-indigo-100/50 transition-all select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.saveAsCustomerPreset}
+                    onChange={e => setFormData(prev => ({ ...prev, saveAsCustomerPreset: e.target.checked }))}
+                    className="w-4 h-4 text-indigo-600 rounded border-indigo-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="font-black text-indigo-900">💾 حفظ وتحديث هذا المنتج ومراحله ومواصفاته الفنية في قائمة منتجات العميل</span>
+                    <span className="block text-[10px] text-indigo-700 mt-0.5">
+                      يتيح لك إعادة تشغيل نفس الصنف بمقاساته ومراحله بضغطة زر واحدة في الأوامر القادمة لهذا العميل.
+                    </span>
+                  </div>
+                </label>
+              )}
             </div>
 
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">

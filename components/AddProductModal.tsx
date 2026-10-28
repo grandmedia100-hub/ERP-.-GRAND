@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Product } from '../types.ts';
+import type { Product, Customer } from '../types.ts';
 import AlertModal from './AlertModal.tsx';
 
 interface AddProductModalProps {
   onClose: () => void;
   onSave: (product: Omit<Product, 'id'>) => void;
   existingProducts: Product[];
+  customers?: Customer[];
 }
 
-const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, existingProducts }) => {
+const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, existingProducts, customers = [] }) => {
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [quantity, setQuantity] = useState(0);
@@ -20,6 +21,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, exis
   const [productType, setProductType] = useState('منتج تام');
   const [category, setCategory] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [customerId, setCustomerId] = useState('');
 
   // Alert State
   const [alertMessage, setAlertMessage] = useState('');
@@ -57,7 +59,21 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, exis
       showAlert('اسم الصنف مطلوب.');
       return;
     }
-    onSave({ name, sku: sku.trim(), quantity, costPrice, salePrice, lowStockThreshold, unit, productType, category, barcode });
+    const selCust = customers.find(c => c.id === customerId);
+    onSave({ 
+      name, 
+      sku: sku.trim(), 
+      quantity, 
+      costPrice, 
+      salePrice, 
+      lowStockThreshold, 
+      unit, 
+      productType, 
+      category, 
+      barcode,
+      customerId: customerId || undefined,
+      customerName: selCust?.name
+    });
   };
 
   return (
@@ -76,6 +92,22 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, exis
             
             <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
+                     <div className="col-span-2">
+                         <label htmlFor="customerSelect" className="block text-sm font-medium text-gray-700 mb-1">
+                           العميل المخصص له هذا الصنف (اختياري - لمصانع ومطابع التشغيل للغير)
+                         </label>
+                         <select
+                           id="customerSelect"
+                           value={customerId}
+                           onChange={e => setCustomerId(e.target.value)}
+                           className="w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white"
+                         >
+                           <option value="">-- عام (غير مخصص لعميل محدد) --</option>
+                           {customers.map(c => (
+                             <option key={c.id} value={c.id}>{c.name} {c.companyName ? `(${c.companyName})` : ''}</option>
+                           ))}
+                         </select>
+                     </div>
                      <div>
                          <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">اسم الصنف <span className="text-red-500">*</span></label>
                          <input type="text" id="productName" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm" />

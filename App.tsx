@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Page, Product, Customer, Supplier, SalesInvoice, PurchaseInvoice, CustomerPayment, SupplierPayment, Account, User, JournalEntry, JournalEntryLine, LogEntry, ThemeSettings, Quotation, TreasuryTransfer, StockTransaction, Warehouse, FixedAsset, DepreciationEntry, BillOfMaterials, ProductionOrder, ProductionPlan, ModulePostingSettings, PurchaseRequest, PurchaseOrder, PrintingJobOrder, ConsolidatedVendorInvoice } from './types.ts';
 
 // Component Imports
@@ -37,6 +37,7 @@ import { showNotification } from './services/notificationService.ts';
 // Data Imports
 import * as initialData from './data.ts';
 import apiService from './services/api.ts';
+import { PAGE_TITLES, getPageUrl, getInitialPageFromUrl } from './utils/navigation.ts';
 
 // --- Utility Hooks (Outside Component) ---
 
@@ -249,49 +250,10 @@ function checkAndFixDuplicates(invoices: any[]): any[] {
     return fixedInvoices;
 }
 
-const PAGE_TITLES: Record<Page, string> = {
-    dashboard: 'لوحة التحكم الرئيسية',
-    sales: 'فواتير ومرتجعات المبيعات',
-    quotations: 'عروض الأسعار',
-    purchaseRequests: 'طلبات الشراء (PR)',
-    purchaseOrders: 'أوامر الشراء (PO)',
-    purchases: 'فواتير المشتريات',
-    purchaseReturns: 'مرتجعات المشتريات (إشعارات الخصم)',
-    inventory: 'إدارة المخزون والأصناف',
-    warehouse: 'إدارة المستودعات والجرد',
-    manufacturing: 'أوامر التصنيع والتشغيل',
-    printingJobs: 'أوامر تشغيل المطبوعات والتوريدات',
-    customers: 'حسابات العملاء والتحصيلات',
-    suppliers: 'حسابات الموردين والمدفوعات',
-    treasury: 'الخزينة والمصارف',
-    reports: 'التقارير والقوائم المالية',
-    journalEntries: 'القيود اليومية',
-    chartOfAccounts: 'دليل الحسابات',
-    fixedAssets: 'الأصول الثابتة والإهلاك',
-    settings: 'الإعدادات العامة والشركة',
-    accountingSettings: 'إعدادات التوجيه المحاسبي',
-    users: 'المستخدمين والصلاحيات',
-    backup: 'النسخ الاحتياطي والأمان',
-    auditLog: 'سجل العمليات والرقابة',
-};
-
 // --- Main Component ---
 const App: React.FC = () => {
-    // 1. All State Definitions
-    const getInitialPage = (): Page => {
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const pageParam = urlParams.get('page') as Page;
-            if (pageParam) return pageParam;
-            const hash = window.location.hash.replace('#', '') as Page;
-            if (hash) return hash;
-        } catch (e) {
-            // fallback
-        }
-        return 'dashboard';
-    };
-
-    const [activePage, setActivePage] = useState<Page>(getInitialPage);
+    // 1. All State Definitions (Route aware - URL search param, hash or default)
+    const [activePage, setActivePage] = useState<Page>(getInitialPageFromUrl);
 
     useEffect(() => {
         const pageTitle = PAGE_TITLES[activePage] || 'MediaHive ERP';
@@ -299,18 +261,22 @@ const App: React.FC = () => {
         try {
             const url = new URL(window.location.href);
             url.searchParams.set('page', activePage);
+            url.hash = '';
             window.history.replaceState({}, '', url.toString());
         } catch (e) {}
     }, [activePage]);
 
     useEffect(() => {
-        const handlePopState = () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const page = (urlParams.get('page') || 'dashboard') as Page;
+        const handleNavigation = () => {
+            const page = getInitialPageFromUrl();
             setActivePage(page);
         };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
+        window.addEventListener('popstate', handleNavigation);
+        window.addEventListener('hashchange', handleNavigation);
+        return () => {
+            window.removeEventListener('popstate', handleNavigation);
+            window.removeEventListener('hashchange', handleNavigation);
+        };
     }, []);
 
     // Multi-Branch State (Global)
@@ -466,6 +432,83 @@ const App: React.FC = () => {
         }
     }, [products]);
 
+    // 🛡️ Continuous Accounting Integrity Monitor (مراقب النزاهة والتوازن المحاسبي اللحظي)
+    const auditHealth = useMemo(() => {
+        let totalGeneralDebit = 0;
+        let totalGeneralCredit = 0;
+        (journalEntries || []).forEach((entry: any) => {
+            (entry.lines || []).forEach((line: any) => {
+                totalGeneralDebit += Number(line.debit || 0);
+                totalGeneralCredit += Number(line.credit || 0);
+            });
+        });
+        const trialBalanceDiff = Math.abs(totalGeneralDebit - totalGeneralCredit);
+
+        // Customer Subledger Sum
+        let customerSubledger = 0;
+        (customers || []).forEach((c: any) => {
+            const openBal = Number(c.openingBalance || 0);
+            const sales = (salesInvoices || [])
+                .filter((i: any) => i.customerId === c.id && i.status !== 'voided')
+                .reduce((s: number, i: any) => s + (i.invoiceType === 'return' ? -Number(i.total || 0) : Number(i.total || 0)), 0);
+            const pays = (customerPayments || [])
+                .filter((p: any) => p.customerId === c.id && p.status !== 'voided')
+                .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+            customerSubledger += (openBal + sales - pays);
+        });
+
+        let glArDebit = 0;
+        let glArCredit = 0;
+        (journalEntries || []).forEach((entry: any) => {
+            (entry.lines || []).forEach((line: any) => {
+                if (line.accountId === '1103' || line.accountId?.startsWith('1103') || line.accountName?.includes('العملاء')) {
+                    glArDebit += Number(line.debit || 0);
+                    glArCredit += Number(line.credit || 0);
+                }
+            });
+        });
+        const glArBalance = glArDebit - glArCredit;
+        const arDiff = Math.abs(customerSubledger - glArBalance);
+
+        // Supplier Subledger Sum
+        let supplierSubledger = 0;
+        (suppliers || []).forEach((s: any) => {
+            const openBal = Number(s.openingBalance || 0);
+            const purch = (purchaseInvoices || [])
+                .filter((i: any) => i.supplierId === s.id && i.status !== 'voided')
+                .reduce((sum: number, i: any) => sum + (i.invoiceType === 'return' ? -Number(i.total || 0) : Number(i.total || 0)), 0);
+            const pays = (supplierPayments || [])
+                .filter((p: any) => p.supplierId === s.id && p.status !== 'voided')
+                .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+            supplierSubledger += (openBal + purch - pays);
+        });
+
+        let glApDebit = 0;
+        let glApCredit = 0;
+        (journalEntries || []).forEach((entry: any) => {
+            (entry.lines || []).forEach((line: any) => {
+                if (line.accountId === '2101' || line.accountId?.startsWith('2101') || line.accountName?.includes('المورد')) {
+                    glApDebit += Number(line.debit || 0);
+                    glApCredit += Number(line.credit || 0);
+                }
+            });
+        });
+        const glApBalance = glApCredit - glApDebit;
+        const apDiff = Math.abs(supplierSubledger - glApBalance);
+
+        const isHealthy = trialBalanceDiff < 1 && arDiff < 1 && apDiff < 1;
+        const maxDiff = Math.max(trialBalanceDiff, arDiff, apDiff);
+        return { isHealthy, trialBalanceDiff, arDiff, apDiff, maxDiff };
+    }, [journalEntries, customers, suppliers, salesInvoices, purchaseInvoices, customerPayments, supplierPayments]);
+
+    const prevAuditHealthyRef = useRef(true);
+    useEffect(() => {
+        if (!auditHealth.isHealthy && prevAuditHealthyRef.current && (journalEntries || []).length > 0) {
+            showNotification(`⚠️ تنبيه تدقيق الحسابات: تم رصد فارق عدم تطابق في الدفاتر بقيمة ${auditHealth.maxDiff.toLocaleString()} ج.م! يرجى مراجعة شاشة تدقيق الدفاتر.`, 'warning');
+        }
+        prevAuditHealthyRef.current = auditHealth.isHealthy;
+    }, [auditHealth.isHealthy, auditHealth.maxDiff, journalEntries]);
+
     const handleCreateBranch = () => {
         if (!newBranchName.trim()) return;
         const newBranch = { id: `branch_${Date.now()}`, name: newBranchName.trim() };
@@ -545,14 +588,31 @@ const App: React.FC = () => {
             type = arg4 || 'manual';
         }
 
+        // 🛡️ Integrity Shield 1: Validate Debit == Credit before posting
+        const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+        const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+        const balanceDiff = Math.abs(totalDebit - totalCredit);
+        if (balanceDiff > 0.05 && lines.length > 0) {
+            console.error('⛔ خطأ محاسبي حرج: محاولة ترحيل قيد يومية غير متوازن!', { description, totalDebit, totalCredit, lines });
+            showNotification(`تنبيه محاسبي حرج: القيد غير متوازن! (مدين: ${totalDebit.toLocaleString()} ج.م / دائن: ${totalCredit.toLocaleString()} ج.م)`, 'error');
+        }
+
+        // 🛡️ Integrity Shield 2: Sanitize Reference ID against collisions
+        const cleanRef = String(referenceId || '').trim();
+        const safeRefId = (cleanRef && cleanRef !== '0' && cleanRef !== 'null' && cleanRef !== 'undefined') ? cleanRef : undefined;
+
         const entryId = `JE-${Date.now()}`;
+        const refType = (typeof arg1 === 'object' && arg1 !== null && (arg1.referenceType || arg1.type)) 
+            ? (arg1.referenceType || arg1.type) 
+            : (type || 'Manual');
         const newEntry: JournalEntry = {
             id: entryId,
             date,
             description,
             lines,
-            referenceId,
+            referenceId: safeRefId,
             type,
+            referenceType: refType,
             status: 'posted',
             createdAt: new Date().toISOString(),
             branchId
@@ -754,6 +814,7 @@ const App: React.FC = () => {
                 logAction={logAction} currentUser={currentUser}
                 warehouses={warehouses} setWarehouses={setWarehouses}
                 accounts={accounts}
+                customers={customers}
             />;
         }
         if (activePage === 'warehouse' && hasPermission('access_warehouse')) {
@@ -804,6 +865,10 @@ const App: React.FC = () => {
             return <PrintingJobOrders
                 jobOrders={printingJobOrders}
                 setJobOrders={setPrintingJobOrders}
+                products={products}
+                setProducts={setProducts}
+                stockTransactions={stockTransactions}
+                setStockTransactions={setStockTransactions}
                 consolidatedInvoices={consolidatedInvoices}
                 setConsolidatedInvoices={setConsolidatedInvoices}
                 salesInvoices={salesInvoices}
@@ -905,6 +970,8 @@ const App: React.FC = () => {
                 journalEntries={journalEntries}
                 products={products}
                 warehouses={warehouses}
+                customers={customers}
+                suppliers={suppliers}
             />;
         }
         if (activePage === 'users' && hasPermission('manage_users')) {
@@ -970,21 +1037,30 @@ const App: React.FC = () => {
                                     Ctrl + K
                                 </kbd>
                             </button>
-                            <button
-                                onClick={() => window.open(`/?page=${activePage}`, '_blank')}
-                                className="bg-white/90 hover:bg-white text-gray-700 hover:text-blue-700 border border-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+                            <a
+                                href={getPageUrl(activePage)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-white/90 hover:bg-white text-gray-700 hover:text-blue-700 border border-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all no-underline"
                                 title="فتح هذه الشاشة في نافذة جديدة مستقلة للعمل على أكثر من شاشة في نفس الوقت"
                             >
                                 <span className="text-sm">↗️</span>
                                 <span className="hidden sm:inline">نافذة جديدة</span>
-                            </button>
+                            </a>
                             <button
                                 onClick={() => setIsAuditModalOpen(true)}
-                                className="hidden lg:flex items-center gap-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all"
-                                title="فاحص وتدقيق التوازن والنزاهة المحاسبية الآلي"
+                                className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all ${
+                                    auditHealth.isHealthy
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                                        : 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100 animate-pulse'
+                                }`}
+                                title={auditHealth.isHealthy ? 'النزاهة المحاسبية متطابقة 100% بين الأستاذ العام والدفاتر الفرعية وميزان المراجعة' : `تنبيه: يوجد فارق محاسبي غير مطابق (${auditHealth.maxDiff.toLocaleString()} ج.م) - انقر للمعاينة والتدقيق`}
                             >
-                                <span>⚖️</span>
-                                <span>تدقيق الدفاتر</span>
+                                <span>{auditHealth.isHealthy ? '🛡️' : '🚨'}</span>
+                                <span>{auditHealth.isHealthy ? 'الدفاتر متطابقة' : `فارق تدقيق: ${auditHealth.maxDiff.toLocaleString()} ج.م`}</span>
+                                {auditHealth.isHealthy && (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                                )}
                             </button>
                             <button
                                 onClick={() => setIsCashFlowModalOpen(true)}

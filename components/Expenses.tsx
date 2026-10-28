@@ -4,6 +4,7 @@ import type { Expense, CompanyInfo, JournalEntry, Account } from '../types.ts';
 import AddExpenseModal from './AddExpenseModal.tsx';
 import ConfirmationModal from './ConfirmationModal.tsx';
 import { exportToExcel } from '../utils/exportToExcel.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface ExpensesProps {
   expenses: Expense[];
@@ -160,15 +161,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, setExpenses, createJourna
 
     } else {
       // CREATE MODE
-      const prefix = 'EXP-';
-      const maxNum = expenses.reduce((max, e) => {
-        if (e.voucherNumber.startsWith(prefix)) {
-          const num = parseInt(e.voucherNumber.substring(prefix.length), 10);
-          return isNaN(num) ? max : Math.max(max, num);
-        }
-        return max;
-      }, 0);
-      const nextVoucherNum = `EXP-${(Math.max(maxNum, 9) + 1).toString().padStart(3, '0')}`;
+      const nextVoucherNum = generateNextSequence('expenses', expenses);
 
       const newExpense: Expense = {
         ...expenseData,

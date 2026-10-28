@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Page, User } from '../types.ts';
+import { getPageUrl } from '../utils/navigation.ts';
 
 interface SidebarProps {
   activePage: Page;
@@ -214,7 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             return (
               <div key={mod.id} className="rounded-xl overflow-hidden transition-all">
-                {/* Module Main Button */}
+                {/* Module Main Item */}
                 <div
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${isModuleActive
                     ? 'bg-blue-600 text-white shadow-md'
@@ -227,28 +228,36 @@ const Sidebar: React.FC<SidebarProps> = ({
                     handleSelectPage(mod.targetPage);
                   }}
                 >
-                  <div className="flex items-center gap-3">
+                  <a
+                    href={getPageUrl(mod.targetPage)}
+                    onClick={(e) => {
+                      if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="flex-1 flex items-center gap-3 no-underline text-inherit"
+                  >
                     <span className="text-lg w-7 text-center">{mod.icon}</span>
                     <span className="font-bold text-sm">{mod.label}</span>
-                  </div>
+                  </a>
 
-                  <div className="flex items-center gap-1">
-                    <button
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <a
+                      href={getPageUrl(mod.targetPage)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       title="فتح هذه الصفحة في نافذة مستقلة جديدة"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(`/?page=${mod.targetPage}`, '_blank');
-                      }}
-                      className={`p-1 rounded-lg transition-colors text-xs opacity-0 group-hover:opacity-100 ${
+                      className={`p-1 rounded-lg transition-colors text-xs opacity-0 group-hover:opacity-100 no-underline ${
                         isModuleActive ? 'hover:bg-blue-700 text-blue-100' : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'
                       }`}
                     >
                       ↗
-                    </button>
+                    </a>
 
                     {/* Arrow for Dropdown */}
                     {hasSub && (
                       <button
+                        type="button"
                         onClick={(e) => toggleModule(mod.id, e)}
                         className={`p-1 rounded-md text-xs transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                       >
@@ -268,26 +277,31 @@ const Sidebar: React.FC<SidebarProps> = ({
                           key={sub.id}
                           className="flex items-center group justify-between gap-1"
                         >
-                          <button
-                            onClick={() => handleSelectPage(sub.id as Page)}
-                            className={`flex-1 flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-right transition-all ${isSubActive
+                          <a
+                            href={getPageUrl(sub.id as Page)}
+                            onClick={(e) => {
+                              if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                                e.preventDefault();
+                                handleSelectPage(sub.id as Page);
+                              }
+                            }}
+                            className={`flex-1 flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-right transition-all no-underline ${isSubActive
                               ? 'bg-blue-100 text-blue-800 font-bold'
                               : 'text-gray-600 hover:bg-white hover:text-blue-600'
                             }`}
                           >
                             <span className="text-xs">{sub.icon}</span>
                             <span>{sub.label}</span>
-                          </button>
-                          <button
-                            title="فتح في نافذة مستقلة"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`/?page=${sub.id}`, '_blank');
-                            }}
-                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-white rounded transition-all text-xs"
+                          </a>
+                          <a
+                            href={getPageUrl(sub.id as Page)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="فتح في نافذة مستقلة جديدة"
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-white rounded transition-all text-xs no-underline"
                           >
                             ↗
-                          </button>
+                          </a>
                         </div>
                       );
                     })}

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Customer } from '../types.ts';
 import AlertModal from './AlertModal.tsx';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface AddCustomerModalProps {
   onClose: () => void;
@@ -41,16 +42,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onSave, cu
           setIsCreditLocked(!!customerToEdit.isCreditLocked);
           setTaxNumber(customerToEdit.taxNumber || '');
       } else {
-          const prefix = 'C-';
-          const maxNum = existingCustomers.reduce((max, c) => {
-              if (c.id.startsWith(prefix)) {
-                  const num = parseInt(c.id.substring(prefix.length), 10);
-                  return isNaN(num) ? max : Math.max(max, num);
-              }
-              const num = parseInt(c.id.replace('C', ''), 10);
-              return isNaN(num) ? max : Math.max(max, num);
-          }, 0);
-          const nextId = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`;
+          const nextId = generateNextSequence('customers', existingCustomers);
           setCustomerCode(nextId);
           setName('');
           setCompanyName('');

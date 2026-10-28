@@ -221,6 +221,18 @@ export interface Product {
   category?: string;    // التصنيف
   barcode?: string;     // الباركود
   productType?: string; // نوع الصنف (خام، منتج تام، إلخ)
+  customerId?: string;  // العميل المخصص له هذا الصنف
+  customerName?: string; // اسم العميل
+  operationsTemplate?: string[]; // خط سير مراحل التشغيل المعتمدة لهذا المنتج
+  paperSpecs?: {
+    sheetLength?: number;
+    sheetWidth?: number;
+    grammage?: number;
+    sheetsCount?: number;
+    pricePerTon?: number;
+  };
+  defaultOrderQuantity?: number; // الكمية المحفوظة والمعتمدة للتشغيل
+  prepressDetails?: PrintingJobPrepressDetails; // مواصفات ما قبل الطباعة المحفوظة للعميل
 }
 
 // حركات المخزون - نظام الجرد المستمر
@@ -979,4 +991,33 @@ export interface ConsolidatedVendorInvoice {
   createdAt: string;
   notes?: string;
 }
+
+// ==================== Numbering & Coding Sequence Types ====================
+export type SequenceModuleKey =
+  | 'customerPayments'      // سندات القبض
+  | 'supplierPayments'      // سندات الصرف
+  | 'treasuryTransfers'     // التحويلات المالية
+  | 'expenses'              // سندات المصروفات
+  | 'salesInvoices'         // فواتير المبيعات
+  | 'purchaseInvoices'      // فواتير المشتريات
+  | 'quotations'            // عروض الأسعار
+  | 'purchaseRequests'      // طلبات الشراء PR
+  | 'purchaseOrders'        // أوامر الشراء PO
+  | 'printingJobOrders'     // أوامر تشغيل المطبوعات
+  | 'productionOrders'      // أوامر التصنيع والكرتون
+  | 'customers'             // أكواد العملاء
+  | 'suppliers'             // أكواد الموردين
+  | 'products'              // أكواد الأصناف والمنتجات
+  | 'journalEntries';       // قيود اليومية
+
+export interface SequenceConfig {
+  prefix: string;           // بادئة الكود (مثلاً CP, INV-, JOB-)
+  includeYear: boolean;     // تضمين السنة الحالية (مثلاً 2026)
+  padding: number;          // عدد خانات الترقيم (2-6)
+  startNumber: number;      // بداية الترقيم (1, 1001، إلخ)
+  delimiter: string;        // الفاصل (- أو فارغ أو /)
+}
+
+export type NumberingSequenceSettings = Record<SequenceModuleKey, SequenceConfig>;
+
 

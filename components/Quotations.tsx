@@ -4,6 +4,7 @@ import AddQuotationModal from './AddQuotationModal.tsx';
 import AddSalesInvoiceModal from './AddSalesInvoiceModal.tsx';
 import QuoteCalculatorModal from './QuoteCalculatorModal.tsx';
 import { getPrintSettings } from '../utils/printEngine.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface QuotationsProps {
     quotations: Quotation[];
@@ -59,16 +60,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
             setQuotations(prev => prev.map(q => q.id === quoteData.id ? { ...q, ...quoteData } as Quotation : q));
             logAction(`تعديل عرض سعر: ${quoteData.id}`);
         } else {
-            const currentYear = new Date().getFullYear();
-            const prefix = `Q-${currentYear}-`;
-            const maxNum = quotations.reduce((max, q) => {
-                if (q.id.startsWith(prefix)) {
-                    const num = parseInt(q.id.substring(prefix.length), 10);
-                    return isNaN(num) ? max : Math.max(max, num);
-                }
-                return max;
-            }, 0);
-            const newId = `${prefix}${(maxNum + 1).toString().padStart(3, '0')}`;
+            const newId = generateNextSequence('quotations', quotations);
             const newQuote: Quotation = {
                 ...quoteData,
                 id: newId,

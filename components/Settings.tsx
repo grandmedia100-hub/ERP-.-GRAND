@@ -5,6 +5,7 @@ import ConfirmationModal from './ConfirmationModal.tsx';
 import OpeningBalancesModal from './OpeningBalancesModal.tsx';
 import ConnectionSettings from './ConnectionSettings.tsx';
 import PrintSettingsModal from './PrintSettingsModal.tsx';
+import NumberingSequenceModal from './NumberingSequenceModal.tsx';
 
 const WALLPAPER_PRESETS = [
   { id: 'office', name: 'أبراج وأعمال حديثة', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1920' },
@@ -102,6 +103,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [isOpeningBalancesOpen, setIsOpeningBalancesOpen] = useState(false);
   const [isConnectionSettingsOpen, setIsConnectionSettingsOpen] = useState(false);
   const [isPrintSettingsOpen, setIsPrintSettingsOpen] = useState(false);
+  const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
   const [selectedBgPage, setSelectedBgPage] = useState<string>('dashboard');
 
   const handleBgFileUpload = (e: React.ChangeEvent<HTMLInputElement>, targetPage?: string) => {
@@ -630,6 +632,15 @@ const Settings: React.FC<SettingsProps> = ({
               <span>🖨️</span>
               إعدادات وتنسيق الطباعة
             </button>
+
+            <button
+              onClick={() => setIsSequenceModalOpen(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+              title="إدارة تسلسل وبادئات التكويد لكافة السندات والفواتير"
+            >
+              <span>🔢</span>
+              إدارة التكويد والتسلسل
+            </button>
           </div>
           <button onClick={handleSaveSettings} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 shadow-md">
             حفظ الكل
@@ -657,6 +668,28 @@ const Settings: React.FC<SettingsProps> = ({
         >
           <span>⚙️</span>
           <span>تخصيص نماذج الطباعة</span>
+        </button>
+      </div>
+
+      {/* Dedicated Card for Numbering & Sequence Coding Management */}
+      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-6 rounded-2xl shadow-lg max-w-3xl mx-auto mb-8 border border-purple-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 flex items-center justify-center text-3xl backdrop-blur-sm border border-purple-400/30">
+            🔢
+          </div>
+          <div>
+            <h3 className="text-lg font-bold">إدارة التكويد والتسلسل الرقمي التلقائي لكافة الموديولات</h3>
+            <p className="text-xs text-purple-200 mt-1 max-w-lg leading-relaxed">
+              تخصيص بادئات الترقيم وخانات الأصفار ودمج السنوات لسندات القبض، سندات الصرف، التحويلات، فواتير المبيعات والمشتريات، وأوامر الشغل والتصنيع.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsSequenceModalOpen(true)}
+          className="whitespace-nowrap bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all active:scale-95"
+        >
+          <span>⚙️</span>
+          <span>إدارة قواعد التكويد</span>
         </button>
       </div>
 
@@ -1292,6 +1325,11 @@ const Settings: React.FC<SettingsProps> = ({
           onClose={() => setIsPrintSettingsOpen(false)}
         />
       )}
+
+      <NumberingSequenceModal
+        isOpen={isSequenceModalOpen}
+        onClose={() => setIsSequenceModalOpen(false)}
+      />
     </div >
   );
 };

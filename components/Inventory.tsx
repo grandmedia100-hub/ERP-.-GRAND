@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Product, Warehouse, Permission } from '../types.ts';
+import type { Product, Warehouse, Permission, Customer } from '../types.ts';
 import AddProductModal from './AddProductModal.tsx';
 import ExcelImportModal from './ExcelImportModal.tsx';
 
@@ -10,10 +10,11 @@ interface InventoryProps {
   setWarehouses?: React.Dispatch<React.SetStateAction<Warehouse[]>>;
   logAction?: (action: string) => void;
   currentUser?: any;
+  customers?: Customer[];
   [key: string]: any;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses = [], setWarehouses, logAction, currentUser }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses = [], setWarehouses, logAction, currentUser, customers = [] }) => {
   const hasPerm = (perm: Permission) => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
@@ -117,7 +118,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
               {products.map((product: Product) => (
                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                   <td className="p-3 font-mono text-sm font-bold text-blue-700">{product.sku || product.id}</td>
-                  <td className="p-3 text-sm font-semibold text-gray-800">{product.name}</td>
+                  <td className="p-3 text-sm font-semibold text-gray-800">
+                    <div>{product.name}</div>
+                    {product.customerName && (
+                      <span className="inline-block mt-0.5 text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
+                        👤 لعميل: {product.customerName}
+                      </span>
+                    )}
+                  </td>
                   <td className="p-3 text-sm">
                     {product.warehouseName ? (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">{product.warehouseName}</span>
@@ -149,6 +157,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, warehouses
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveProduct}
           existingProducts={products}
+          customers={customers}
         />
       )}
       {isImportOpen && (

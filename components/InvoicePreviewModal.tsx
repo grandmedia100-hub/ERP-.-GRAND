@@ -69,27 +69,29 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                     : (invoice.discountValue || 0).toLocaleString()} ج.م</span>
             </div>` : '';
 
-        const hasJobOrderColumn = isSales || invoice.items.some(it => it.batchCode || (it.productId && (it.productId.startsWith('PRNT-') || it.productId.startsWith('JOB-') || it.productId.startsWith('MOLD-') || it.productId.startsWith('CTP-') || it.productId.startsWith('DSGN-') || it.productId.startsWith('SHIP-'))));
+        const overallJobOrderCode = invoice.items.find(i => i.batchCode)?.batchCode ||
+            invoice.notes?.match(/JOB-\d{4}-\d+/)?.[0] ||
+            invoice.items.map(i => i.productId).find(p => p && p.startsWith('PRNT-'))?.replace('PRNT-', '') ||
+            '';
 
         const itemsHtml = invoice.items.map((item, idx) => {
             const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
-            const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
             const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
 
             // Specifications box (below item in sales invoices or anytime specs are present)
             const specsHtml = item.specifications ? `
-                <div style="margin-top:4px;padding:3px 8px;background:#f8fafc;border-right:3px solid #2563eb;border-radius:3px;font-size:10px;color:#334155;line-height:1.4;">
-                    <span style="font-weight:700;color:#1e40af;">المواصفات:</span> ${item.specifications}
+                <div style="margin-top:3px;padding:2px 8px;background:#f0fdf4;border-right:3px solid #16a34a;border-radius:3px;font-size:10px;color:#166534;line-height:1.4;">
+                    <span style="font-weight:700;color:#15803d;">المواصفات:</span> ${item.specifications}
                 </div>` : '';
 
             // Batch paper weight box (in purchase invoices)
             const batchHtml = (!isSales && (item.batchCode || item.weightTon)) ? `
-                <div style="margin-top:4px;padding:3px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:10px;color:#92400e;line-height:1.4;">
+                <div style="margin-top:3px;padding:2px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:10px;color:#92400e;line-height:1.4;">
                     <strong>بيانات وزن تشغيلة:</strong> 
                     <span>أمر شغل: <b style="font-family:monospace;">${item.batchCode || '-'}</b></span>
-                    ${item.batchQuantity ? ` | <span>كمية التشغيلة: <b>${item.batchQuantity.toLocaleString()}</b></span>` : ''}
+                    ${item.batchQuantity ? ` | <span>كمية: <b>${item.batchQuantity.toLocaleString()}</b></span>` : ''}
                     ${item.weightTon ? ` | <span>الوزن المستلم: <b style="color:#b45309;">${item.weightTon} طن</b></span>` : ''}
-                    ${item.totalOrderSalePrice ? ` | <span>سعر بيع التشغيلة: <b>${item.totalOrderSalePrice.toLocaleString()} ج.م</b></span>` : ''}
+                    ${item.totalOrderSalePrice ? ` | <span>سعر البيع: <b>${item.totalOrderSalePrice.toLocaleString()} ج.م</b></span>` : ''}
                 </div>` : '';
 
             return `
@@ -97,13 +99,9 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;font-size:11px;color:#374151;font-weight:600;">
                     ${itemCode || (idx + 1)}
                 </td>
-                ${hasJobOrderColumn ? `
-                <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;font-family:monospace;font-size:11.5px;color:#1d4ed8;font-weight:700;background:#eff6ff40;">
-                    ${jobOrderCode || '-'}
-                </td>` : ''}
                 <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">
                     <div style="font-weight:700;color:#1e293b;">${cleanProductName}</div>
-                    ${item.description ? `<div style="font-size:10.5px;color:#64748b;margin-top:2px;">${item.description}</div>` : ''}
+                    ${item.description ? `<div style="font-size:10.5px;color:#64748b;margin-top:1px;">${item.description}</div>` : ''}
                     ${specsHtml}
                     ${batchHtml}
                 </td>
@@ -215,6 +213,10 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                 <div style="font-size:11px;color:#64748b;margin-top:2px;">
                     التاريخ: <span style="font-family:monospace;">${invoice.date}</span>
                 </div>
+                ${overallJobOrderCode ? `
+                <div style="font-size:11px;color:#1e40af;margin-top:2px;font-weight:bold;">
+                    رقم أمر الشغل: <span style="font-family:monospace;background:#eff6ff;padding:1px 6px;border-radius:4px;border:1px solid #bfdbfe;">${overallJobOrderCode}</span>
+                </div>` : ''}
             </td>
         </tr>
     </table>
@@ -228,9 +230,14 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                     <div style="font-size:14px;font-weight:800;color:#0f172a;margin-top:2px;">${entityName}</div>
                     ${invoice.companyName ? `<div style="font-size:11px;color:#475569;">شركة: ${invoice.companyName}</div>` : ''}
                 </td>
-                <td style="text-align:left;width:35%;">
+                <td style="text-align:left;width:35%;vertical-align:top;">
                     <span style="font-size:11px;color:#64748b;font-weight:bold;">طريقة السداد:</span>
                     <div style="font-size:12px;font-weight:bold;color:${primaryHex};margin-top:2px;">${invoice.paymentMethod || 'نقدي'}</div>
+                    ${overallJobOrderCode ? `
+                    <div style="font-size:11px;color:#334155;margin-top:3px;">
+                        <span style="color:#64748b;font-weight:bold;">أمر الشغل: </span>
+                        <span style="font-family:monospace;font-weight:bold;color:#1e40af;">${overallJobOrderCode}</span>
+                    </div>` : ''}
                 </td>
             </tr>
         </table>
@@ -240,12 +247,11 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
     <table class="print-table">
         <thead>
             <tr>
-                <th style="width:10%;text-align:center;">كود الصنف</th>
-                ${hasJobOrderColumn ? '<th style="width:14%;text-align:center;">رقم أمر الشغل</th>' : ''}
+                <th style="width:12%;text-align:center;">كود الصنف</th>
                 <th style="text-align:right;">الصنف والبيان والمواصفات</th>
-                <th style="width:11%;text-align:center;">الكمية</th>
-                <th style="width:13%;text-align:center;">السعر</th>
-                <th style="width:15%;text-align:center;">الإجمالي</th>
+                <th style="width:12%;text-align:center;">الكمية</th>
+                <th style="width:14%;text-align:center;">السعر</th>
+                <th style="width:16%;text-align:center;">الإجمالي</th>
             </tr>
         </thead>
         <tbody>
@@ -326,6 +332,11 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
             handlePrint();
         }
     };
+
+    const overallJobOrderCode = invoice.items.find(i => i.batchCode)?.batchCode ||
+        invoice.notes?.match(/JOB-\d{4}-\d+/)?.[0] ||
+        invoice.items.map(i => i.productId).find(p => p && p.startsWith('PRNT-'))?.replace('PRNT-', '') ||
+        '';
 
     return (
         <>
@@ -423,6 +434,11 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                             <div className="text-xs text-gray-500 mt-1">
                                                 التاريخ: <span className="font-mono">{invoice.date}</span>
                                             </div>
+                                            {overallJobOrderCode && (
+                                                <div className="text-xs text-blue-700 font-bold mt-1">
+                                                    رقم أمر الشغل: <span className="font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{overallJobOrderCode}</span>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -442,6 +458,11 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                 <span className="inline-block px-3 py-1 bg-white rounded-lg border border-gray-200 text-xs font-bold text-gray-700 shadow-sm">
                                     {invoice.paymentMethod || 'نقدي'}
                                 </span>
+                                {overallJobOrderCode && (
+                                    <div className="text-xs mt-1.5 text-gray-600">
+                                        أمر شغل: <span className="font-mono font-bold text-blue-700">{overallJobOrderCode}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -451,7 +472,6 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                 <thead>
                                     <tr style={{ backgroundColor: primaryHex, color: '#ffffff' }}>
                                         <th className="p-3 text-center w-16">كود الصنف</th>
-                                        {hasJobOrderColumn && <th className="p-3 text-center w-28">رقم أمر الشغل</th>}
                                         <th className="p-3">الصنف / البيان والمواصفات</th>
                                         <th className="p-3 text-center w-24">الكمية</th>
                                         <th className="p-3 text-center w-28">السعر</th>
@@ -461,17 +481,11 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ onClose, invo
                                 <tbody className="divide-y divide-gray-100">
                                     {invoice.items.map((item, index) => {
                                         const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
-                                        const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
                                         const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
 
                                         return (
                                             <tr key={index} className="hover:bg-gray-50/70">
                                                 <td className="p-3 text-center font-mono text-gray-500 font-semibold">{itemCode || (index + 1)}</td>
-                                                {hasJobOrderColumn && (
-                                                    <td className="p-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/30">
-                                                        {jobOrderCode || '-'}
-                                                    </td>
-                                                )}
                                                 <td className="p-3">
                                                     <div className="font-bold text-gray-800">{cleanProductName}</div>
                                                     {item.description && <div className="text-gray-400 text-[11px] mt-0.5">{item.description}</div>}

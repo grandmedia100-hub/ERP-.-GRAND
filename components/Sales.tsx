@@ -7,6 +7,7 @@ import DetailedSalesByItemReport from './DetailedSalesByItemReport.tsx';
 import apiService from '../services/api.ts';
 import { showNotification } from '../services/notificationService.ts';
 import { generateInvoiceWhatsAppText, openWhatsAppWithMessage } from '../utils/whatsappHelper.ts';
+import { generateNextSequence } from '../utils/sequenceManager.ts';
 
 interface SalesProps {
   invoices: SalesInvoice[];
@@ -185,19 +186,22 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
     const originalInvoice = isEdit ? invoices.find(i => i.id === newId) : null;
 
     if (!isEdit) {
-      // Generate ID only if creating new
-      const currentYear = new Date().getFullYear();
-      const prefix = type === 'return' ? 'RET-SAL' : 'INV';
-      const regex = new RegExp(`${prefix}-${currentYear}-(\\d+)`);
-      const maxId = invoices.reduce((max, inv) => {
-        const match = inv.id.match(regex);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          return num > max ? num : max;
-        }
-        return max;
-      }, 0);
-      newId = `${prefix}-${currentYear}-${(maxId + 1).toString().padStart(3, '0')}`;
+      if (type === 'return') {
+        const currentYear = new Date().getFullYear();
+        const prefix = 'RET-SAL';
+        const regex = new RegExp(`${prefix}-${currentYear}-(\\d+)`);
+        const maxId = invoices.reduce((max, inv) => {
+          const match = inv.id.match(regex);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            return num > max ? num : max;
+          }
+          return max;
+        }, 0);
+        newId = `${prefix}-${currentYear}-${(maxId + 1).toString().padStart(3, '0')}`;
+      } else {
+        newId = generateNextSequence('salesInvoices', invoices);
+      }
     }
 
     const newInvoice: SalesInvoice = {
@@ -520,6 +524,10 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
 
     const currentGlobalBalance = (customer?.openingBalance || 0) + totalInv - totalPay;
     const previousBalance = currentGlobalBalance - invoice.total;
+    const jobOrderCode = invoice.items.find(i => i.batchCode)?.batchCode ||
+      invoice.notes?.match(/JOB-\d{4}-\d+/)?.[0] ||
+      invoice.items.map(i => i.productId).find(p => p && p.startsWith('PRNT-'))?.replace('PRNT-', '') ||
+      '';
 
     const printContent = `
       <html>
@@ -603,8 +611,9 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
                 <span style="font-size: 1.2em;">${invoice.customerName}</span>
                 ${invoice.companyName ? `<br><span>شركة: ${invoice.companyName}</span>` : ''}
               </div>
-              <div style="text-align: left;">
+              <div style="text-align: left; line-height: 1.5;">
                 <strong>التاريخ:</strong> ${invoice.date}<br>
+                ${jobOrderCode ? `<strong>رقم أمر الشغل:</strong> <span style="font-family: monospace; font-weight: bold; color: #1e40af;">${jobOrderCode}</span><br>` : ''}
                 <strong>طريقة السداد:</strong> ${invoice.paymentMethod}
               </div>
             </div>
@@ -612,28 +621,25 @@ const Sales: React.FC<SalesProps> = ({ invoices, setInvoices, customers, product
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">#</th>
-                  <th style="width: 13%; text-align: center;">كود الصنف</th>
-                  <th style="width: 14%; text-align: center;">رقم أمر الشغل</th>
-                  <th>الصنف والبيان والمواصفات</th>
-                  <th style="width: 11%; text-align: center;">الكمية</th>
-                  <th style="width: 14%; text-align: center;">السعر</th>
-                  <th style="width: 16%; text-align: center;">الإجمالي</th>
+                  <th style="width: 15%; text-align: center;">كود الصنف</th>
+                  <th>الصنف والمواصفات</th>
+                  <th style="width: 12%; text-align: center;">الكمية</th>
+                  <th style="width: 15%; text-align: center;">السعر</th>
+                  <th style="width: 18%; text-align: center;">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
                  ${invoice.items.map((item, index) => {
                   const itemCode = item.productCode || item.sku || (item.productId && !item.productId.startsWith('MANUAL') ? item.productId : '');
-                  const jobOrderCode = item.batchCode || (item.productId && item.productId.startsWith('PRNT-') ? item.productId.replace('PRNT-', '') : (item.productCode && item.productCode.startsWith('JOB-') ? item.productCode : ''));
                   const cleanProductName = item.productName.replace(/\s*\(أمر شغل\s+JOB-[^)]+\)/, '');
                   return `
                   <tr>
                     <td style="text-align: center;">${index + 1}</td>
                     <td style="text-align: center; font-family: monospace; font-size: 12px; color: ${isGrayscale ? '#000' : '#374151'}; font-weight: 600;">${itemCode || '-'}</td>
-                    <td style="text-align: center; font-family: monospace; font-size: 12px; color: #1d4ed8; font-weight: 700; background: #eff6ff40;">${jobOrderCode || '-'}</td>
                     <td>
                       <strong>${cleanProductName}</strong>
-                      ${item.description ? `<div style="font-size: 12px; color: ${isGrayscale ? '#000' : '#666'}; margin-top: 2px;">${item.description}</div>` : ''}
-                      ${item.specifications ? `<div style="font-size: 10.5px; color: #1e40af; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; margin-top: 3px; border-right: 2px solid #16a34a;"><strong>المواصفات:</strong> ${item.specifications}</div>` : ''}
+                      ${item.description ? `<div style="font-size: 11px; color: ${isGrayscale ? '#000' : '#666'}; margin-top: 1px;">${item.description}</div>` : ''}
+                      ${item.specifications ? `<div style="font-size: 10px; color: #166534; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; margin-top: 3px; border-right: 2px solid #22c55e; line-height: 1.3;"><strong>المواصفات:</strong> ${item.specifications}</div>` : ''}
                     </td>
                     <td style="text-align: center;">${item.quantity.toLocaleString('en-US')} ${item.unit || ''}</td>
                     <td style="text-align: center;">${item.price.toLocaleString('en-US', { style: 'currency', currency: 'EGP' })}</td>
