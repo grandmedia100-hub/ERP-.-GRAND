@@ -677,7 +677,19 @@ app.post("/api/:table", (req, res) => {
         });
     };
 
-    if (isPartnerTable && data[partnerCol]) {
+    if (table === "journal_entries" && data.id) {
+        db.get("SELECT id, description, lines FROM journal_entries WHERE id = ?", [data.id], (err, existing) => {
+            if (existing && existing.id === data.id) {
+                const existingLines = existing.lines || '[]';
+                const incomingLines = typeof data.lines === 'string' ? data.lines : JSON.stringify(data.lines || []);
+                if (existing.description !== data.description || existingLines !== incomingLines) {
+                    console.warn(`⚠️ منع تضارب قيد يومية: المعرّف ${data.id} مستخدم لقيد آخر! تم توليد معرّف جديد لتفادي الاستبدال.`);
+                    data.id = `${data.id}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
+                }
+            }
+            executeInsert();
+        });
+    } else if (isPartnerTable && data[partnerCol]) {
         db.get(`SELECT id, ${partnerCol} FROM ${table} WHERE id = ?`, [data.id], (err, existing) => {
             if (existing && existing[partnerCol] && existing[partnerCol] !== data[partnerCol]) {
                 // ID collision with a DIFFERENT partner! Give it a safe unique suffix to avoid overwriting!

@@ -601,7 +601,7 @@ const App: React.FC = () => {
         const cleanRef = String(referenceId || '').trim();
         const safeRefId = (cleanRef && cleanRef !== '0' && cleanRef !== 'null' && cleanRef !== 'undefined') ? cleanRef : undefined;
 
-        const entryId = `JE-${Date.now()}`;
+        const entryId = `JE-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         const refType = (typeof arg1 === 'object' && arg1 !== null && (arg1.referenceType || arg1.type)) 
             ? (arg1.referenceType || arg1.type) 
             : (type || 'Manual');
