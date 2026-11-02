@@ -711,6 +711,21 @@ app.put("/api/:table/:id", (req, res) => {
     if (req.query.branch && !data.branchId) {
         data.branchId = req.query.branch;
     }
+
+    // Strict Journal Entry Validation on Update: Debits MUST equal Credits
+    if (table === "journal_entries") {
+        let lines = [];
+        try { lines = typeof data.lines === 'string' ? JSON.parse(data.lines) : (data.lines || []); } catch(e) {}
+        const sumDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+        const sumCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+        if (lines.length > 0 && Math.abs(sumDebit - sumCredit) > 0.05) {
+            console.error(`⛔ خطأ محاسبي حرج في التعديل: محاولة ترحيل قيد غير متوازن! مدين: ${sumDebit} / دائن: ${sumCredit}`);
+            return res.status(400).json({ 
+                error: `قيد اليومية غير متوازن! إجمالي المدين (${sumDebit.toFixed(2)}) لا يتساوى مع إجمالي الدائن (${sumCredit.toFixed(2)})` 
+            });
+        }
+    }
+
     const cols = getTableColumns(table);
     const placeholders = cols.map(() => "?").join(",");
     const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(",")}) VALUES (${placeholders})`;
@@ -744,7 +759,7 @@ app.delete("/api/:table/:id", (req, res) => {
     db.run("DELETE FROM " + table + " WHERE id = ?", [id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
-        // If a sales invoice is deleted, automatically delete any mirrored purchase invoice!
+        // If a sales invoice is deleted, automatically delete any mirrored purchase invoice and linked journal entries!
         if (table === "sales_invoices") {
             db.run("DELETE FROM purchase_invoices WHERE id = ? OR id = ? OR notes LIKE ?", [
                 "PUR-IC-" + id,
@@ -753,13 +768,45 @@ app.delete("/api/:table/:id", (req, res) => {
             ], (delErr) => {
                 if (!delErr) console.log(`تم حذف فواتير المشتريات المقابلة المرتبطة بفاتورة المبيعات ${id}`);
             });
+            // 🛡️ Cascade delete Journal Entries associated with this sales invoice
+            db.run("DELETE FROM journal_entries WHERE referenceId = ? OR referenceId = ? OR id = ? OR id LIKE ?", [
+                id, 'VOID-' + id, 'JE-REV-' + id, '%-' + id + '%'
+            ], (delErr) => {
+                if (!delErr) console.log(`🛡️ تم تنظيف قيود اليومية المرتبطة بفاتورة المبيعات ${id}`);
+            });
         }
 
         // If a mirrored purchase invoice is deleted, also delete the corresponding sales invoice
-        if (table === "purchase_invoices" && id.startsWith("PUR-IC-")) {
-            const salesId = id.replace("PUR-IC-", "");
-            db.run("DELETE FROM sales_invoices WHERE id = ?", [salesId], (delErr) => {
-                if (!delErr) console.log(`تم حذف فاتورة المبيعات الأصلية المقابلة ${salesId}`);
+        if (table === "purchase_invoices") {
+            if (id.startsWith("PUR-IC-")) {
+                const salesId = id.replace("PUR-IC-", "");
+                db.run("DELETE FROM sales_invoices WHERE id = ?", [salesId], (delErr) => {
+                    if (!delErr) console.log(`تم حذف فاتورة المبيعات الأصلية المقابلة ${salesId}`);
+                });
+            }
+            // 🛡️ Cascade delete Journal Entries associated with this purchase invoice
+            db.run("DELETE FROM journal_entries WHERE referenceId = ? OR referenceId = ? OR id = ? OR referenceId LIKE ?", [
+                id, 'VOID-' + id, 'JE-' + id, '%-' + id + '%'
+            ], (delErr) => {
+                if (!delErr) console.log(`🛡️ تم تنظيف قيود اليومية المرتبطة بفاتورة المشتريات ${id}`);
+            });
+        }
+
+        if (table === "expenses") {
+            // 🛡️ Cascade delete Journal Entries associated with this expense
+            db.run("DELETE FROM journal_entries WHERE referenceId = ? OR referenceId = ? OR id = ?", [
+                id, 'VOID-' + id, 'JE-EXP-' + id
+            ], (delErr) => {
+                if (!delErr) console.log(`🛡️ تم تنظيف قيود اليومية المرتبطة بالمصروف ${id}`);
+            });
+        }
+
+        if (table === "partner_transactions") {
+            // 🛡️ Cascade delete Journal Entries associated with this partner transaction
+            db.run("DELETE FROM journal_entries WHERE referenceId = ? OR referenceId = ?", [
+                id, 'VOID-' + id
+            ], (delErr) => {
+                if (!delErr) console.log(`🛡️ تم تنظيف قيود اليومية المرتبطة بمعاملة الشريك ${id}`);
             });
         }
 

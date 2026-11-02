@@ -552,7 +552,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           description: `إلغاء (عكس) فاتورة مشتريات رقم ${invoice.id}`,
           lines: lines,
           referenceType: 'PurchaseInvoice',
-          referenceId: invoice.id
+          referenceId: `VOID-${invoice.id}`
         });
 
         // 5. Log Action

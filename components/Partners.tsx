@@ -160,7 +160,7 @@ const Partners: React.FC<PartnersProps> = ({ partners, setPartners, transactions
                         date: new Date().toISOString().split('T')[0],
                         description: `إلغاء حركة شريك رقم ${tx.id}`,
                         referenceType: 'Manual',
-                        referenceId: tx.id,
+                        referenceId: `VOID-${tx.id}`,
                         lines: [
                             // Reverse of original
                             {

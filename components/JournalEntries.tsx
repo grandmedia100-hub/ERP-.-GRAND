@@ -105,6 +105,11 @@ const JournalEntries: React.FC<JournalEntriesProps> = ({ journalEntries, setJour
     };
 
     const handleDeleteEntry = (id: string) => {
+        const entry = journalEntries.find(je => je.id === id);
+        if (entry && entry.referenceType && entry.referenceType !== 'Manual' && entry.referenceType !== 'manual') {
+            alert(`⚠️ لا يمكن حذف هذا القيد من سجل القيود لأنه قيد آلي مرتبط بمستند (${entry.referenceType} #${entry.referenceId || ''}). لحذفه، يرجى حذف أو إلغاء المستند الأصلي لضمان تطابق الحسابات.`);
+            return;
+        }
         if (window.confirm('هل أنت متأكد من حذف هذا القيد؟ لا يمكن التراجع عن هذا الإجراء.')) {
             setJournalEntries(prev => prev.filter(je => je.id !== id));
             logAction(`حذف قيد محاسبي: ${id}`);

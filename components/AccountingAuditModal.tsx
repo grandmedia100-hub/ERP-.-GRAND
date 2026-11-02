@@ -112,7 +112,11 @@ const AccountingAuditModal: React.FC<AccountingAuditModalProps> = ({
         let glArCredit = 0;
         (journalEntries || []).forEach(entry => {
             (entry.lines || []).forEach(line => {
-                if (arAccountIds.has(line.accountId)) {
+                const isAr = arAccountIds.has(line.accountId) || 
+                    line.accountId === '1103' || 
+                    line.accountId?.startsWith('1103') || 
+                    (line.accountName && (line.accountName.includes('العملاء') || line.accountName.startsWith('عميل')));
+                if (isAr) {
                     glArDebit += Number(line.debit || 0);
                     glArCredit += Number(line.credit || 0);
                 }
@@ -160,7 +164,11 @@ const AccountingAuditModal: React.FC<AccountingAuditModalProps> = ({
         let glApCredit = 0;
         (journalEntries || []).forEach(entry => {
             (entry.lines || []).forEach(line => {
-                if (apAccountIds.has(line.accountId)) {
+                const isAp = apAccountIds.has(line.accountId) || 
+                    line.accountId === '2101' || 
+                    line.accountId?.startsWith('2101') || 
+                    (line.accountName && (line.accountName.includes('المورد') || line.accountName.startsWith('مورد')));
+                if (isAp) {
                     glApDebit += Number(line.debit || 0);
                     glApCredit += Number(line.credit || 0);
                 }
@@ -210,7 +218,11 @@ const AccountingAuditModal: React.FC<AccountingAuditModalProps> = ({
         let glInvCredit = 0;
         (journalEntries || []).forEach(entry => {
             (entry.lines || []).forEach(line => {
-                if (invAccountIds.has(line.accountId)) {
+                const isInv = invAccountIds.has(line.accountId) || 
+                    line.accountId === '1104' || 
+                    line.accountId?.startsWith('1104') || 
+                    (line.accountName && (line.accountName.includes('مخزون') || line.accountName.includes('التصنيع')));
+                if (isInv) {
                     glInvDebit += Number(line.debit || 0);
                     glInvCredit += Number(line.credit || 0);
                 }
@@ -223,12 +235,16 @@ const AccountingAuditModal: React.FC<AccountingAuditModalProps> = ({
         // Look for account 2102 (جاري الشركة / المصنع)
         const icAccounts = accounts.filter(a => a.id === '2102' || a.name.includes('جاري') || a.name.includes('المصنع'));
         let icBalance = 0;
-        if (icAccounts.length > 0) {
+        {
             let d = 0, c = 0;
             const icIds = new Set(icAccounts.map(a => a.id));
             (journalEntries || []).forEach(entry => {
                 (entry.lines || []).forEach(line => {
-                    if (icIds.has(line.accountId)) {
+                    const isIc = icIds.has(line.accountId) || 
+                        line.accountId === '2102' || 
+                        line.accountId?.startsWith('2102') || 
+                        (line.accountName && (line.accountName.includes('جاري') || line.accountName.includes('المصنع')));
+                    if (isIc) {
                         d += Number(line.debit || 0);
                         c += Number(line.credit || 0);
                     }

@@ -219,7 +219,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, setExpenses, createJourna
           date: new Date().toISOString().split('T')[0],
           description: `إلغاء مصروف رقم ${expense.voucherNumber}`,
           referenceType: 'Manual',
-          referenceId: expense.id,
+          referenceId: `VOID-${expense.id}`,
           lines: [
             { accountId: '1101', accountName: 'الخزينة الرئيسية', debit: expense.amount, credit: 0 },
             { accountId: getOrCreateExpenseAccount(expense.category), accountName: expense.category, debit: 0, credit: expense.amount }

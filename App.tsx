@@ -588,13 +588,27 @@ const App: React.FC = () => {
             type = arg4 || 'manual';
         }
 
-        // 🛡️ Integrity Shield 1: Validate Debit == Credit before posting
-        const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
-        const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+        // 🛡️ Integrity Shield 1: Sanitize & Validate Debit == Credit before posting
+        const cleanLines = (lines || [])
+            .map(l => ({
+                ...l,
+                debit: Number(l.debit) || 0,
+                credit: Number(l.credit) || 0
+            }))
+            .filter(l => l.debit > 0 || l.credit > 0);
+
+        if (cleanLines.length === 0) {
+            console.warn('⚠️ تم تجاهل قيد يومية فارغ أو بمبالغ صفرية:', description);
+            return undefined;
+        }
+
+        const totalDebit = cleanLines.reduce((s, l) => s + l.debit, 0);
+        const totalCredit = cleanLines.reduce((s, l) => s + l.credit, 0);
         const balanceDiff = Math.abs(totalDebit - totalCredit);
-        if (balanceDiff > 0.05 && lines.length > 0) {
-            console.error('⛔ خطأ محاسبي حرج: محاولة ترحيل قيد يومية غير متوازن!', { description, totalDebit, totalCredit, lines });
-            showNotification(`تنبيه محاسبي حرج: القيد غير متوازن! (مدين: ${totalDebit.toLocaleString()} ج.م / دائن: ${totalCredit.toLocaleString()} ج.م)`, 'error');
+        if (balanceDiff > 0.05) {
+            console.error('⛔ خطأ محاسبي حرج: تم منع ترحيل قيد يومية غير متوازن!', { description, totalDebit, totalCredit, lines: cleanLines });
+            showNotification(`تنبيه محاسبي حرج: تم رفض ترحيل القيد لعدم توازنه! (مدين: ${totalDebit.toLocaleString()} ج.م / دائن: ${totalCredit.toLocaleString()} ج.م)`, 'error');
+            return undefined;
         }
 
         // 🛡️ Integrity Shield 2: Sanitize Reference ID against collisions
@@ -609,7 +623,7 @@ const App: React.FC = () => {
             id: entryId,
             date,
             description,
-            lines,
+            lines: cleanLines,
             referenceId: safeRefId,
             type,
             referenceType: refType,
@@ -619,7 +633,7 @@ const App: React.FC = () => {
         };
         setJournalEntries(prev => [...prev, newEntry]);
         return entryId;
-    }, [currentBranchId, setJournalEntries]);
+    }, [currentBranchId, setJournalEntries, showNotification]);
 
     const deleteJournalEntryByReference = useCallback((referenceId: string) => {
         setJournalEntries(prev => prev.filter(e => e.referenceId !== referenceId));
