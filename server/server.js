@@ -12,7 +12,18 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "50mb" }));
 
-const dbPath = path.join(__dirname, "mediahive-clean.db");
+// Serve built frontend (for Electron & production)
+const fs = require("fs");
+const distPath = process.env.DIST_PATH || path.join(__dirname, "..", "dist");
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+}
+
+const dataDir = process.env.MEDIAHIVE_DATA_DIR || __dirname;
+if (!fs.existsSync(dataDir)) {
+    try { fs.mkdirSync(dataDir, { recursive: true }); } catch (e) {}
+}
+const dbPath = path.join(dataDir, "mediahive-clean.db");
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("خطأ في الاتصال بقاعدة البيانات:", err.message);
@@ -597,7 +608,7 @@ app.get("/api/backup/download-db", (req, res) => {
 
 app.post("/api/backup/create-snapshot", (req, res) => {
     const fs = require("fs");
-    const backupsDir = path.join(__dirname, "backups");
+    const backupsDir = path.join(dataDir, "backups");
     if (!fs.existsSync(backupsDir)) {
         fs.mkdirSync(backupsDir, { recursive: true });
     }
@@ -624,7 +635,7 @@ app.post("/api/backup/create-snapshot", (req, res) => {
 
 app.get("/api/backup/list-snapshots", (req, res) => {
     const fs = require("fs");
-    const backupsDir = path.join(__dirname, "backups");
+    const backupsDir = path.join(dataDir, "backups");
     if (!fs.existsSync(backupsDir)) {
         return res.json({ snapshots: [] });
     }
@@ -964,6 +975,17 @@ function getRowValues(table, row) {
         default: return [];
     }
 }
+
+// SPA Fallback - serve index.html for any non-API route (for Electron & production)
+app.get("*", (req, res) => {
+    if (!req.path.startsWith("/api/")) {
+        const indexFile = path.join(distPath, "index.html");
+        if (fs.existsSync(indexFile)) {
+            return res.sendFile(indexFile);
+        }
+    }
+    res.status(404).json({ error: "Not found" });
+});
 
 app.listen(PORT, () => {
     console.log("الخادم يعمل على المنفذ " + PORT);
