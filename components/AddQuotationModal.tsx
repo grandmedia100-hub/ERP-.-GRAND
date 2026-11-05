@@ -30,10 +30,13 @@ export const getPresetDefaultColor = (preset: string): string => {
     if (preset.includes('دفعة مقدمة') || preset.includes('صلاحية هذا العرض') || preset.includes('لا ترد ولا تستبدل')) {
         return '#dc2626'; // Red for critical terms
     }
-    if (preset.includes('الأسعار قابلة للتغير') || preset.includes('لا تشمل')) {
+    if (preset.includes('غير شاملة ضريبة') || preset.includes('غير شاملة تجهيزات') || preset.includes('الأسعار قابلة للتغير') || preset.includes('لا تشمل')) {
         return '#d97706'; // Amber/warning
     }
-    if (preset.includes('مدة العمل') || preset.includes('اعتماد البروفة')) {
+    if (preset.includes('شاملة ضريبة') || preset.includes('شاملة تجهيزات')) {
+        return '#059669'; // Green/positive
+    }
+    if (preset.includes('مدة العمل') || preset.includes('اعتماد البروفة') || preset.includes('الاستلام')) {
         return '#2563eb'; // Blue
     }
     return '#1e293b'; // Slate default
@@ -61,25 +64,30 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
     const [delegateName, setDelegateName] = useState(''); // Added Delegate Name
     const [showTotalInPrint, setShowTotalInPrint] = useState(true); // Default true
 
-    const [options, setOptions] = useState({
-        prep: 'non_inclusive', // non_inclusive, inclusive
-        vat: 'non_inclusive',  // non_inclusive, inclusive
-        delivery: 'factory'    // factory, client_site
-    });
-
-    const [optionsColors, setOptionsColors] = useState({
-        prep: '#2563eb',
-        vat: '#dc2626',
-        delivery: '#059669'
-    });
-
-    const PREDEFINED_NOTES = [
-        "صلاحية هذا العرض 7 أيام من تاريخه.",
-        "دفعة مقدمة 50% عند التعاقد والباقي عند الاستلام.",
-        "الأسعار قابلة للتغير ما لم يتم تثبيت العرض بدفعة مقدمة.",
-        "الأسعار لا تشمل تكلفة التصميم.",
-        "مدة العمل تبدأ من تاريخ اعتماد البروفة النهائية ودفع المقدم.",
-        "الاستلام من مقر الشركة خلال مواعيد العمل الرسمية."
+    const PRESET_GROUPS = [
+        {
+            title: '⚙️ شروط التجهيزات والضريبة والاستلام:',
+            presets: [
+                'الأسعار غير شاملة تجهيزات الطباعة',
+                'الأسعار شاملة تجهيزات الطباعة',
+                'الأسعار غير شاملة ضريبة القيمة المضافة (14%)',
+                'الأسعار شاملة ضريبة القيمة المضافة (14%)',
+                'الاستلام أرض المصنع',
+                'الاستلام في مقر العميل'
+            ]
+        },
+        {
+            title: '📌 شروط الدفع والتعاقد والتوريد:',
+            presets: [
+                'دفعة مقدمة 50% عند التعاقد والباقي عند الاستلام.',
+                'صلاحية هذا العرض 7 أيام من تاريخه.',
+                'الأسعار قابلة للتغير ما لم يتم تثبيت العرض بدفعة مقدمة.',
+                'مدة العمل تبدأ من تاريخ اعتماد البروفة النهائية ودفع المقدم.',
+                'الأسعار لا تشمل تكلفة التصميم.',
+                'الاستلام من مقر الشركة خلال مواعيد العمل الرسمية.',
+                'البضاعة المباعة لا ترد ولا تستبدل بعد الاستلام.'
+            ]
+        }
     ];
 
     const togglePreset = (preset: string) => {
@@ -88,7 +96,16 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             if (exists) {
                 return prev.filter(n => n.text !== preset);
             } else {
-                return [...prev, { id: Math.random().toString(), text: preset, color: getPresetDefaultColor(preset) }];
+                // Mutually exclusive replacement
+                let next = prev;
+                if (preset.includes('تجهيزات الطباعة')) {
+                    next = next.filter(n => !n.text.includes('تجهيزات الطباعة'));
+                } else if (preset.includes('ضريبة القيمة المضافة')) {
+                    next = next.filter(n => !n.text.includes('ضريبة القيمة المضافة'));
+                } else if (preset.includes('الاستلام أرض المصنع') || preset.includes('الاستلام في مقر العميل')) {
+                    next = next.filter(n => !(n.text.includes('الاستلام أرض المصنع') || n.text.includes('الاستلام في مقر العميل')));
+                }
+                return [...next, { id: Math.random().toString(), text: preset, color: getPresetDefaultColor(preset) }];
             }
         });
     };
@@ -141,40 +158,15 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             setItems(quotationToEdit.items);
             
             if (quotationToEdit.notesDetails && quotationToEdit.notesDetails.length > 0) {
-                // If structured notesDetails exist, restore custom notes and options colors
-                const patternsToRemove = [
-                    /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
-                    /الأسعار (شاملة|غير شاملة) ضريبة القيمة المضافة/,
-                    /الاستلام (أرض المصنع|في مقر العميل)/
-                ];
-
-                const prepItem = quotationToEdit.notesDetails.find(n => n.text.includes('تجهيزات الطباعة'));
-                const vatItem = quotationToEdit.notesDetails.find(n => n.text.includes('ضريبة القيمة المضافة'));
-                const deliveryItem = quotationToEdit.notesDetails.find(n => n.text.includes('الاستلام'));
-
-                if (prepItem?.color) setOptionsColors(prev => ({ ...prev, prep: prepItem.color! }));
-                if (vatItem?.color) setOptionsColors(prev => ({ ...prev, vat: vatItem.color! }));
-                if (deliveryItem?.color) setOptionsColors(prev => ({ ...prev, delivery: deliveryItem.color! }));
-
-                const customNotes = quotationToEdit.notesDetails
-                    .filter(n => !patternsToRemove.some(regex => regex.test(n.text)))
-                    .map(n => ({
-                        id: n.id || Math.random().toString(),
-                        text: n.text.replace(/^- /, '').trim(),
-                        color: n.color || DEFAULT_NOTE_COLOR
-                    }));
-                setEditableNotes(customNotes);
+                setEditableNotes(quotationToEdit.notesDetails.map(n => ({
+                    id: n.id || Math.random().toString(),
+                    text: n.text.replace(/^- /, '').trim(),
+                    color: n.color || DEFAULT_NOTE_COLOR
+                })));
             } else if (quotationToEdit.notes) {
-                const patternsToRemove = [
-                    /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
-                    /الأسعار (شاملة|غير شاملة) ضريبة القيمة المضافة/,
-                    /الاستلام (أرض المصنع|في مقر العميل)/
-                ];
-                
                 const splitNotes = quotationToEdit.notes.split('\n')
                                     .map(n => n.replace(/^- /, '').trim())
-                                    .filter(n => n.length > 0)
-                                    .filter(n => !patternsToRemove.some(regex => regex.test(n)));
+                                    .filter(n => n.length > 0);
                 
                 setEditableNotes(splitNotes.map(text => ({ 
                     id: Math.random().toString(), 
@@ -357,41 +349,15 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             return;
         }
 
-        // Sanitize editableNotes: Remove any that look like our options
-        const patternsToRemove = [
-            /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
-            /الأسعار (شاملة|غير شاملة) ضريبة القيمة المضافة/,
-            /الاستلام (أرض المصنع|في مقر العميل)/
-        ];
-
         const cleanNotesItems: QuotationNoteItem[] = editableNotes
             .filter(n => n.text.trim().length > 0)
-            .filter(n => !patternsToRemove.some(regex => regex.test(n.text)))
             .map(n => ({
                 id: n.id,
                 text: n.text.trim(),
                 color: n.color || DEFAULT_NOTE_COLOR
             }));
 
-        const optionsItems: QuotationNoteItem[] = [
-            {
-                text: options.prep === 'inclusive' ? 'الأسعار شاملة تجهيزات الطباعة' : 'الأسعار غير شاملة تجهيزات الطباعة',
-                color: optionsColors.prep || '#2563eb'
-            },
-            {
-                text: options.vat === 'inclusive' ? 'الأسعار شاملة ضريبة القيمة المضافة (14%)' : 'الأسعار غير شاملة ضريبة القيمة المضافة',
-                color: optionsColors.vat || '#dc2626'
-            },
-            {
-                text: options.delivery === 'factory' ? 'الاستلام أرض المصنع' : 'الاستلام في مقر العميل',
-                color: optionsColors.delivery || '#059669'
-            }
-        ];
-
-        const allNotesDetails: QuotationNoteItem[] = [...cleanNotesItems, ...optionsItems];
-        const userNotesStr = cleanNotesItems.map(n => `- ${n.text}`).join('\n');
-        const optionsText = optionsItems.map(o => `- ${o.text}`).join('\n');
-        const finalNotes = userNotesStr ? `${userNotesStr}\n\n${optionsText}` : optionsText;
+        const finalNotes = cleanNotesItems.map(n => `- ${n.text}`).join('\n');
 
         try {
             onSave({
@@ -404,7 +370,7 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                 items,
                 total,
                 notes: finalNotes,
-                notesDetails: allNotesDetails,
+                notesDetails: cleanNotesItems,
                 delegateName, // Save delegate name
                 status,
                 deliveryDuration,
@@ -487,88 +453,6 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                             placeholder="أدخل اسم المندوب..."
                             className="w-full p-2 border border-gray-300 rounded-md"
                         />
-                    </div>
-
-                    {/* Quotation Options */}
-                    <div className="bg-gradient-to-r from-gray-50 to-blue-50/30 p-4 rounded-xl mb-6 border border-gray-200 shadow-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3 border-b border-gray-200/80 pb-2">
-                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                                <span className="text-amber-500">⚙️</span>
-                                <span>شروط العرض الأساسية</span>
-                            </h3>
-                            <span className="text-xs text-gray-500">اختر تفاصيل الشروط وحدد لون الخط لكل شرط ليظهر ملوناً في الطباعة</span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="text-xs font-bold text-gray-700">تجهيزات الطباعة</label>
-                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط التجهيزات">
-                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
-                                        <input
-                                            type="color"
-                                            value={optionsColors.prep}
-                                            onChange={e => setOptionsColors({ ...optionsColors, prep: e.target.value })}
-                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
-                                        />
-                                    </label>
-                                </div>
-                                <select
-                                    value={options.prep}
-                                    onChange={e => setOptions({ ...options, prep: e.target.value as any })}
-                                    style={{ color: optionsColors.prep, fontWeight: 'bold' }}
-                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="non_inclusive">غير شاملة التجهيزات</option>
-                                    <option value="inclusive">شاملة التجهيزات</option>
-                                </select>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="text-xs font-bold text-gray-700">ضريبة القيمة المضافة</label>
-                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط الضريبة">
-                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
-                                        <input
-                                            type="color"
-                                            value={optionsColors.vat}
-                                            onChange={e => setOptionsColors({ ...optionsColors, vat: e.target.value })}
-                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
-                                        />
-                                    </label>
-                                </div>
-                                <select
-                                    value={options.vat}
-                                    onChange={e => setOptions({ ...options, vat: e.target.value as any })}
-                                    style={{ color: optionsColors.vat, fontWeight: 'bold' }}
-                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="non_inclusive">غير شاملة الضريبة (14%)</option>
-                                    <option value="inclusive">شاملة الضريبة (14%)</option>
-                                </select>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="text-xs font-bold text-gray-700">مكان الاستلام</label>
-                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط الاستلام">
-                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
-                                        <input
-                                            type="color"
-                                            value={optionsColors.delivery}
-                                            onChange={e => setOptionsColors({ ...optionsColors, delivery: e.target.value })}
-                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
-                                        />
-                                    </label>
-                                </div>
-                                <select
-                                    value={options.delivery}
-                                    onChange={e => setOptions({ ...options, delivery: e.target.value as any })}
-                                    style={{ color: optionsColors.delivery, fontWeight: 'bold' }}
-                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="factory">أرض المصنع</option>
-                                    <option value="client_site">مقر العميل</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -771,32 +655,42 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
 
 
                     <div className="mb-4 bg-gray-50/70 p-4 rounded-xl border border-gray-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
                             <label className="block text-sm font-bold text-gray-800 flex items-center gap-1.5">
                                 <span className="text-amber-600">📝</span>
-                                <span>ملاحظات وشروط إضافية</span>
+                                <span>شروط وملاحظات العرض</span>
                             </label>
-                            <span className="text-xs text-gray-500">اضغط على دوائر الألوان أو 🎨 لاختيار لون الخط المخصص لكل سطر</span>
+                            <span className="text-xs text-gray-500">اضغط على أي شرط لإضافته أو حذفه، وحدد لون الخط المخصص لكل سطر</span>
                         </div>
 
-                        {/* Presets Chips */}
-                        <div className="flex flex-wrap gap-2 mb-3">
-                            {PREDEFINED_NOTES.map((preset, idx) => {
-                                const isSelected = editableNotes.some(n => n.text === preset);
-                                return (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => togglePreset(preset)}
-                                        className={`text-xs px-3 py-1.5 rounded-full border transition-all ${isSelected
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
-                                            }`}
-                                    >
-                                        {isSelected ? '✓ ' : '+ '}{preset}
-                                    </button>
-                                );
-                            })}
+                        {/* Presets Chips grouped */}
+                        <div className="space-y-3 mb-4">
+                            {PRESET_GROUPS.map((group, gIdx) => (
+                                <div key={gIdx} className="bg-white p-2.5 rounded-lg border border-gray-200 shadow-2xs">
+                                    <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+                                        <span>{group.title}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {group.presets.map((preset, idx) => {
+                                            const isSelected = editableNotes.some(n => n.text === preset);
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => togglePreset(preset)}
+                                                    className={`text-xs px-3 py-1.5 rounded-full border transition-all flex items-center gap-1 ${isSelected
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold'
+                                                        : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                                                        }`}
+                                                >
+                                                    <span className="font-bold">{isSelected ? '✓' : '+'}</span>
+                                                    <span>{preset}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
 
                         {/* Editable Notes Rows */}
