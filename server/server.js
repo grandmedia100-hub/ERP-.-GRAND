@@ -28,6 +28,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
         // Dynamic column migrations
         db.run("ALTER TABLE quotations ADD COLUMN deliveryDuration TEXT;", (e) => {});
         db.run("ALTER TABLE quotations ADD COLUMN notesDetails TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN expirationDate TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN companyName TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN delegateName TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN showTotalInPrint INTEGER DEFAULT 1;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN version INTEGER DEFAULT 1;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN originalQuotationId TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN createdAt TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN updatedAt TEXT;", (e) => {});
         db.run("ALTER TABLE customers ADD COLUMN companyName TEXT;", (e) => {});
         db.run("ALTER TABLE suppliers ADD COLUMN companyName TEXT;", (e) => {});
         db.run("ALTER TABLE products ADD COLUMN productType TEXT;", (e) => {});
@@ -144,6 +152,63 @@ app.post("/api/kv/:key", (req, res) => {
             res.json({ success: true });
         }
     );
+});
+
+// Bulk KV Store export - get ALL kv_store entries
+app.get("/api/kv-all", (req, res) => {
+    db.all("SELECT key, value FROM kv_store", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const result = {};
+        (rows || []).forEach(row => {
+            try { result[row.key] = JSON.parse(row.value); }
+            catch(e) { result[row.key] = row.value; }
+        });
+        res.json(result);
+    });
+});
+
+// Full Export - ALL SQL tables (all branches) + ALL KV store data
+app.get("/api/backup/full-export", (req, res) => {
+    const allTables = {};
+    const tables = ALLOWED_TABLES;
+    let completed = 0;
+
+    tables.forEach(table => {
+        db.all("SELECT * FROM " + table, [], (err, rows) => {
+            if (err) { allTables[table] = []; }
+            else {
+                allTables[table] = (rows || []).map(row => {
+                    if (row.items) { try { row.items = JSON.parse(row.items); } catch(e) { row.items = []; } }
+                    if (row.lines) { try { row.lines = JSON.parse(row.lines); } catch(e) { row.lines = []; } }
+                    if (row.permissions) { try { row.permissions = JSON.parse(row.permissions); } catch(e) { row.permissions = []; } }
+                    if (row.notesDetails) { try { row.notesDetails = JSON.parse(row.notesDetails); } catch(e) { row.notesDetails = []; } }
+                    return row;
+                });
+            }
+            completed++;
+            if (completed === tables.length) {
+                // Now get KV store
+                db.all("SELECT key, value FROM kv_store", [], (kvErr, kvRows) => {
+                    const kvData = {};
+                    if (!kvErr && kvRows) {
+                        kvRows.forEach(row => {
+                            try { kvData[row.key] = JSON.parse(row.value); }
+                            catch(e) { kvData[row.key] = row.value; }
+                        });
+                    }
+                    res.json({
+                        meta: {
+                            exportedAt: new Date().toISOString(),
+                            version: 2,
+                            format: "full-export"
+                        },
+                        tables: allTables,
+                        kvStore: kvData
+                    });
+                });
+            }
+        });
+    });
 });
 
 // Centralized Inter-Company Mirroring Function
@@ -858,7 +923,7 @@ function getTableColumns(table) {
         case "journal_entries": return ["id", "date", "description", "referenceType", "referenceId", "lines", "createdAt", "branchId"];
         case "users": return ["id", "username", "password", "fullName", "role", "permissions"];
         case "logs": return ["id", "userId", "userName", "action", "timestamp"];
-        case "quotations": return ["id", "customerId", "customerName", "date", "validUntil", "total", "status", "notes", "items", "deliveryDuration", "branchId", "notesDetails"];
+        case "quotations": return ["id", "customerId", "customerName", "date", "validUntil", "total", "status", "notes", "items", "deliveryDuration", "branchId", "notesDetails", "expirationDate", "companyName", "delegateName", "showTotalInPrint", "version", "originalQuotationId", "createdAt", "updatedAt"];
         case "partners": return ["id", "name", "sharePercentage", "openingBalance", "branchId"];
         case "partner_transactions": return ["id", "partnerId", "type", "amount", "date", "description", "branchId"];
         case "accounts": return ["id", "code", "name", "type", "parentId", "branchId"];
@@ -892,7 +957,7 @@ function getRowValues(table, row) {
         case "journal_entries": return [row.id, row.date, row.description, row.referenceType || row.type || "Manual", row.referenceId, JSON.stringify(row.lines || []), row.createdAt, branch];
         case "users": return [row.id, row.username, row.password, row.fullName, row.role, JSON.stringify(row.permissions || [])];
         case "logs": return [row.id, row.userId, row.userName, row.action, row.timestamp];
-        case "quotations": return [row.id, row.customerId, row.customerName, row.date, row.validUntil, row.total, row.status, row.notes, JSON.stringify(row.items || []), row.deliveryDuration || "", branch, typeof row.notesDetails === 'object' ? JSON.stringify(row.notesDetails) : (row.notesDetails || "")];
+        case "quotations": return [row.id, row.customerId, row.customerName, row.date, row.validUntil, row.total, row.status, row.notes, JSON.stringify(row.items || []), row.deliveryDuration || "", branch, typeof row.notesDetails === 'object' ? JSON.stringify(row.notesDetails) : (row.notesDetails || ""), row.expirationDate || "", row.companyName || "", row.delegateName || "", row.showTotalInPrint !== undefined ? (row.showTotalInPrint ? 1 : 0) : 1, row.version || 1, row.originalQuotationId || "", row.createdAt || "", row.updatedAt || ""];
         case "partners": return [row.id, row.name, row.sharePercentage, row.openingBalance, branch];
         case "partner_transactions": return [row.id, row.partnerId, row.type, row.amount, row.date, row.description, branch];
         case "accounts": return [row.id, row.code, row.name, row.type, row.parentId, branch];

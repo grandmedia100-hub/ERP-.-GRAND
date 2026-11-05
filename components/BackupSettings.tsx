@@ -114,36 +114,84 @@ const BackupSettings: React.FC<BackupSettingsProps> = () => {
         }
     };
 
-    // --- Method 1: Local Backup (JSON) ---
-    const handleLocalBackup = () => {
-        const dataToBackup: Record<string, any> = {};
-        const keys = [
-            'companyInfo', 'products', 'customers', 'suppliers',
-            'salesInvoices', 'purchaseInvoices', 'expenses',
-            'customerPayments', 'supplierPayments', 'partners',
-            'partnerTransactions', 'accounts', 'users',
-            'journalEntries', 'logs', 'themeSettings', 'quotations'
-        ];
-
-        keys.forEach(key => {
-            const item = localStorage.getItem(key);
-            if (item) {
-                try {
-                    dataToBackup[key] = JSON.parse(item);
-                } catch (e) {
-                    dataToBackup[key] = item;
-                }
+    // --- Method 1: Local Backup (JSON) - Reads ALL data from Server ---
+    const handleLocalBackup = async () => {
+        try {
+            // Fetch ALL data from server (all branches, all tables)
+            const serverData = await apiService.request('/api/backup/full-export');
+            if (!serverData || !serverData.tables) {
+                alert('❌ فشل في جلب البيانات من السيرفر');
+                return;
             }
-        });
 
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToBackup));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        const date = new Date().toISOString().split('T')[0];
-        downloadAnchorNode.setAttribute("download", `ERP_Backup_Local_${date}.json`);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
+            const dataToBackup: Record<string, any> = {
+                _meta: serverData.meta || { exportedAt: new Date().toISOString(), version: 2, format: 'full-export' },
+            };
+
+            // Table name -> camelCase key mapping for JSON export
+            const tableKeyMap: Record<string, string> = {
+                'products': 'products',
+                'customers': 'customers',
+                'suppliers': 'suppliers',
+                'sales_invoices': 'salesInvoices',
+                'purchase_invoices': 'purchaseInvoices',
+                'customer_payments': 'customerPayments',
+                'supplier_payments': 'supplierPayments',
+                'expenses': 'expenses',
+                'journal_entries': 'journalEntries',
+                'users': 'users',
+                'logs': 'logs',
+                'quotations': 'quotations',
+                'partners': 'partners',
+                'partner_transactions': 'partnerTransactions',
+                'accounts': 'accounts',
+                'treasury_transfers': 'treasuryTransfers',
+            };
+
+            // Export all SQL tables
+            Object.entries(serverData.tables).forEach(([tableName, rows]: [string, any]) => {
+                const key = tableKeyMap[tableName] || tableName;
+                dataToBackup[key] = rows;
+            });
+
+            // Export KV Store data
+            if (serverData.kvStore && Object.keys(serverData.kvStore).length > 0) {
+                dataToBackup._kvStore = serverData.kvStore;
+            }
+
+            // Include localStorage-only settings
+            ['companyInfo', 'themeSettings', 'printSettings'].forEach(key => {
+                const item = localStorage.getItem(key);
+                if (item) {
+                    try { dataToBackup[key] = JSON.parse(item); }
+                    catch(e) { dataToBackup[key] = item; }
+                }
+            });
+
+            const jsonStr = JSON.stringify(dataToBackup, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", url);
+            const date = new Date().toISOString().split('T')[0];
+            const time = new Date().toISOString().split('T')[1].slice(0,5).replace(':', '-');
+            downloadAnchorNode.setAttribute("download", `ERP_Full_Backup_${date}_${time}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            URL.revokeObjectURL(url);
+
+            showNotification({
+                type: 'success',
+                title: 'تم تنزيل النسخة الاحتياطية',
+                message: 'تم تصدير جميع البيانات بنجاح (كل الفروع + المخزن + الإعدادات)',
+                sound: 'success',
+                category: 'system'
+            });
+        } catch (err: any) {
+            console.error('Error creating backup:', err);
+            alert(`❌ خطأ في إنشاء النسخة الاحتياطية: ${err.message}`);
+        }
     };
 
     // --- Method 2: Google Sheets Backup (OAuth Flow) ---
@@ -273,18 +321,29 @@ const BackupSettings: React.FC<BackupSettingsProps> = () => {
                     'quotations': 'quotations',
                     'partners': 'partners',
                     'partnerTransactions': 'partner_transactions',
-                    'accounts': 'accounts'
+                    'accounts': 'accounts',
+                    'treasuryTransfers': 'treasury_transfers',
+                    'users': 'users'
                 };
+
+                // Detect v2 format (full-export from server)
+                const isV2 = jsonData._meta && jsonData._meta.format === 'full-export';
 
                 const syncPayload: Record<string, any[]> = {};
 
+                // Process table data
                 Object.keys(jsonData).forEach(key => {
-                    const value = jsonData[key];
-                    const storedValue = (typeof value === 'object' && value !== null)
-                        ? JSON.stringify(value)
-                        : String(value);
+                    if (key === '_meta' || key === '_kvStore') return;
 
-                    localStorage.setItem(key, storedValue);
+                    const value = jsonData[key];
+
+                    // Restore localStorage-only settings
+                    if (['companyInfo', 'themeSettings', 'printSettings'].includes(key)) {
+                        const storedValue = (typeof value === 'object' && value !== null)
+                            ? JSON.stringify(value) : String(value);
+                        localStorage.setItem(key, storedValue);
+                        return;
+                    }
 
                     // Add to sync payload if it's a mapped table array
                     if (tablesMapping[key] && Array.isArray(value)) {
@@ -292,15 +351,49 @@ const BackupSettings: React.FC<BackupSettingsProps> = () => {
                     }
                 });
 
-                // Push all data to server via full sync POST /api/sync
+                // Clear all existing data before restore to prevent duplicates
+                await apiService.request('/api/clearAll', { method: 'POST' });
+
+                // Push all table data to server via sync
                 if (Object.keys(syncPayload).length > 0) {
-                    await apiService.request('/api/sync', {
-                        method: 'POST',
-                        body: JSON.stringify(syncPayload)
-                    });
+                    // Send each table separately to avoid overwhelming the server
+                    for (const [tableName, rows] of Object.entries(syncPayload)) {
+                        if (rows.length === 0) continue;
+                        for (const row of rows) {
+                            try {
+                                await apiService.request(`/api/${tableName}`, {
+                                    method: 'POST',
+                                    body: JSON.stringify(row)
+                                });
+                            } catch (rowErr: any) {
+                                console.warn(`Warning restoring row in ${tableName}:`, rowErr.message);
+                            }
+                        }
+                    }
                 }
 
-                // CRITICAL: Reload immediately without alert to avoid Race Condition
+                // Restore KV Store data
+                const kvData = jsonData._kvStore || {};
+                for (const [kvKey, kvValue] of Object.entries(kvData)) {
+                    try {
+                        await apiService.request(`/api/kv/${kvKey}`, {
+                            method: 'POST',
+                            body: JSON.stringify(kvValue)
+                        });
+                    } catch (kvErr: any) {
+                        console.warn(`Warning restoring KV key ${kvKey}:`, kvErr.message);
+                    }
+                }
+
+                showNotification({
+                    type: 'success',
+                    title: 'تمت استعادة النسخة الاحتياطية',
+                    message: `تم استعادة جميع البيانات بنجاح${isV2 ? ' (نسخة كاملة v2)' : ''}`,
+                    sound: 'success',
+                    category: 'system'
+                });
+
+                // Reload to apply restored data
                 window.location.reload();
             } catch (error) {
                 console.error('Error restoring data:', error);
