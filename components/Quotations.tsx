@@ -112,7 +112,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
         setIsModalOpen(true);
     };
 
-    const handlePrint = (quote: Quotation) => {
+    const handlePrint = (quote: Quotation, autoFormat?: 'pdf' | 'image') => {
         const companyInfoString = localStorage.getItem('companyInfo');
         const companyInfo: CompanyInfo = companyInfoString ? JSON.parse(companyInfoString) : { name: 'Company', logo: '', address: '', phone: '' };
         const printSettings = getPrintSettings();
@@ -148,6 +148,98 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                    background-color: #525659;
                    font-size: 10px;
                    line-height: 1.3;
+               }
+
+               /* Non-Printable Top Action Bar */
+               .no-print-bar {
+                   position: sticky;
+                   top: 0;
+                   left: 0;
+                   right: 0;
+                   z-index: 99999;
+                   background: #0f172a;
+                   color: #ffffff;
+                   padding: 10px 18px;
+                   display: flex;
+                   justify-content: space-between;
+                   align-items: center;
+                   box-shadow: 0 4px 15px rgba(0,0,0,0.35);
+                   font-family: 'Cairo', sans-serif;
+                   direction: rtl;
+               }
+
+               .bar-info {
+                   display: flex;
+                   align-items: center;
+                   gap: 12px;
+               }
+
+               .bar-title {
+                   font-size: 13px;
+                   font-weight: 700;
+                   color: #f8fafc;
+               }
+
+               .bar-badge {
+                   background: rgba(59, 130, 246, 0.2);
+                   color: #93c5fd;
+                   border: 1px solid rgba(147, 197, 253, 0.3);
+                   padding: 2px 8px;
+                   border-radius: 999px;
+                   font-size: 10px;
+                   font-weight: 600;
+               }
+
+               .bar-actions {
+                   display: flex;
+                   align-items: center;
+                   gap: 8px;
+               }
+
+               .bar-btn {
+                   display: inline-flex;
+                   align-items: center;
+                   gap: 6px;
+                   padding: 7px 14px;
+                   border-radius: 8px;
+                   font-size: 11.5px;
+                   font-weight: 700;
+                   font-family: inherit;
+                   cursor: pointer;
+                   border: none;
+                   transition: all 0.15s ease;
+               }
+
+               .bar-btn-print {
+                   background: #2563eb;
+                   color: #ffffff;
+               }
+               .bar-btn-print:hover {
+                   background: #1d4ed8;
+               }
+
+               .bar-btn-image {
+                   background: #059669;
+                   color: #ffffff;
+               }
+               .bar-btn-image:hover {
+                   background: #047857;
+               }
+
+               .bar-btn-jpeg {
+                   background: #475569;
+                   color: #ffffff;
+               }
+               .bar-btn-jpeg:hover {
+                   background: #334155;
+               }
+
+               .bar-btn-close {
+                   background: rgba(255,255,255,0.12);
+                   color: #e2e8f0;
+               }
+               .bar-btn-close:hover {
+                   background: rgba(255,255,255,0.22);
                }
 
                @page {
@@ -462,6 +554,31 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
             </style>
           </head>
           <body>
+             <!-- Non-Printable Action Bar -->
+             <div class="no-print-bar">
+                 <div class="bar-info">
+                     <span class="bar-title">📄 عرض سعر: #${quote.id} - ${quote.customerName || 'عميل'}</span>
+                     <span class="bar-badge">${printSettings.imageQuality === 'ultra' ? 'دقة فائقة (400 DPI)' : printSettings.imageQuality === 'standard' ? 'دقة قياسية (200 DPI)' : 'جودة طباعة (300 DPI)'}</span>
+                 </div>
+                 <div class="bar-actions">
+                     <button type="button" onclick="window.print()" class="bar-btn bar-btn-print" title="طباعة المستند أو الحفظ كملف PDF">
+                         <span>🖨️</span>
+                         <span>طباعة / حفظ PDF</span>
+                     </button>
+                     <button type="button" onclick="downloadImage('png')" class="bar-btn bar-btn-image" title="حفظ المستند كصورة PNG عالية الوضوح مناسبة للواتساب والطباعة">
+                         <span>🖼️</span>
+                         <span>حفظ كصورة عالية الدقة (PNG)</span>
+                     </button>
+                     <button type="button" onclick="downloadImage('jpeg')" class="bar-btn bar-btn-jpeg" title="حفظ المستند كصورة JPEG">
+                         <span>📷</span>
+                         <span>حفظ صورة (JPEG)</span>
+                     </button>
+                     <button type="button" onclick="window.close()" class="bar-btn bar-btn-close">
+                         <span>✕ إغلاق</span>
+                     </button>
+                 </div>
+             </div>
+
              <div class="page">
                  <div class="content-wrapper">
                      <!-- Header (Logo Right, Company Left) -->
@@ -720,12 +837,96 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                      </div>
                   </div>
               </div>
+              <script src="/html2canvas.min.js"></script>
               <script>
+                  // Fallback to CDN if local script is unavailable
+                  if (typeof html2canvas === 'undefined') {
+                      var script = document.createElement('script');
+                      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                      document.head.appendChild(script);
+                  }
+
+                  function downloadImage(format) {
+                      format = format || 'png';
+                      var page = document.querySelector('.page');
+                      if (!page) {
+                          alert('لم يتم العثور على محتوى المستند!');
+                          return;
+                      }
+
+                      var btn = event ? event.currentTarget : null;
+                      var originalHtml = btn ? btn.innerHTML : '';
+                      if (btn) {
+                          btn.disabled = true;
+                          btn.innerHTML = '<span>⏳</span><span>جاري تجهيز الصورة عالية الدقة...</span>';
+                      }
+
+                      var scale = ${printSettings.imageQuality === 'ultra' ? 4 : printSettings.imageQuality === 'standard' ? 2 : 3};
+
+                      window.scrollTo(0, 0);
+
+                      var tryCapture = function() {
+                          if (typeof html2canvas === 'undefined') {
+                              setTimeout(tryCapture, 200);
+                              return;
+                          }
+
+                          html2canvas(page, {
+                              scale: scale,
+                              useCORS: true,
+                              allowTaint: true,
+                              backgroundColor: '#ffffff',
+                              logging: false,
+                              windowWidth: page.scrollWidth || 1200,
+                              windowHeight: page.scrollHeight || 1600
+                          }).then(function(canvas) {
+                              var mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+                              var quality = format === 'jpeg' ? 0.95 : 1.0;
+                              var dataUrl = canvas.toDataURL(mime, quality);
+
+                              var a = document.createElement('a');
+                              var safeQuoteId = '${quote.id || 'quote'}';
+                              var safeCust = '${(quote.customerName || 'عميل').replace(/[\/\\?%*:|"<>]/g, '_')}';
+                              a.download = 'عرض_سعر_' + safeQuoteId + '_' + safeCust + '.' + format;
+                              a.href = dataUrl;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+
+                              if (btn) {
+                                  btn.innerHTML = '<span>✓</span><span>تم الحفظ بنجاح!</span>';
+                                  setTimeout(function() {
+                                      btn.innerHTML = originalHtml;
+                                      btn.disabled = false;
+                                  }, 2000);
+                              }
+                          }).catch(function(err) {
+                              console.error('Error saving image:', err);
+                              alert('حدث خطأ أثناء حفظ الصورة: ' + err.message);
+                              if (btn) {
+                                  btn.innerHTML = originalHtml;
+                                  btn.disabled = false;
+                              }
+                          });
+                      };
+
+                      tryCapture();
+                  }
+
                   window.onload = function() {
-                      setTimeout(function() {
-                          window.focus();
-                          window.print();
-                      }, 500);
+                      var autoAction = '${autoFormat || ''}';
+                      var savePref = '${printSettings.saveFormat || 'both'}';
+
+                      if (autoAction === 'image' || (autoAction === '' && savePref === 'image')) {
+                          setTimeout(function() {
+                              downloadImage('png');
+                          }, 600);
+                      } else if (autoAction === 'pdf' || (autoAction === '' && savePref === 'pdf')) {
+                          setTimeout(function() {
+                              window.focus();
+                              window.print();
+                          }, 600);
+                      }
                   };
               </script>
           </body>
@@ -798,7 +999,24 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                 <td className="p-3 flex items-center gap-2">
                                     <button onClick={() => { setEditingQuote(q); setIsModalOpen(true); }} className="text-blue-500 hover:text-blue-700">تعديل</button>
                                     <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-700">حذف</button>
-                                    <button onClick={() => handlePrint(q)} className="text-gray-500 hover:text-gray-700">طباعة</button>
+                                    <div className="inline-flex rounded-lg border border-gray-300 shadow-xs bg-white overflow-hidden text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePrint(q, 'pdf')}
+                                            className="px-2 py-1 text-gray-700 hover:bg-gray-100 border-l border-gray-200 flex items-center gap-1 font-semibold"
+                                            title="طباعة أو حفظ كملف PDF"
+                                        >
+                                            <span>🖨️</span> PDF
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePrint(q, 'image')}
+                                            className="px-2 py-1 text-emerald-700 hover:bg-emerald-50 flex items-center gap-1 font-semibold"
+                                            title="حفظ كصورة عالية الدقة PNG للواتساب والمشاركة"
+                                        >
+                                            <span>🖼️</span> صورة
+                                        </button>
+                                    </div>
                                     {q.status !== 'accepted' && (
                                         <>
                                             <button onClick={() => handleConvert(q)} className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700">تحويل لفاتورة</button>

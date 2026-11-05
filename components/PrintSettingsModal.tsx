@@ -17,7 +17,7 @@ interface PrintSettingsModalProps {
 
 const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
   const [settings, setSettings] = useState<PrintSettings>(getPrintSettings());
-  const [activeTab, setActiveTab] = useState<'branding' | 'layout' | 'colors' | 'terms'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'layout' | 'colors' | 'terms' | 'export'>('branding');
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
     name: 'جراند ميديا للدعاية والإنتاج',
     address: 'المنطقة الصناعية - العاشر من رمضان',
@@ -246,7 +246,18 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
             }`}
           >
             <span>✍️</span>
-            <span>الشروط والتوقيعات (أزرار الاختيار)</span>
+            <span>الشروط والتوقيعات</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('export')}
+            className={`py-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition-colors ${
+              activeTab === 'export'
+                ? 'border-indigo-600 text-indigo-700 bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span>💾</span>
+            <span>خيارات الحفظ (PDF / صورة)</span>
           </button>
         </div>
 
@@ -759,6 +770,94 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ onClose }) => {
                   )}
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB 5: Export & Save Settings (PDF / Image) */}
+            {activeTab === 'export' && (
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 pb-2 border-b">
+                  <span>💾</span> إعدادات حفظ وتصدير عروض الأسعار والمستندات
+                </h3>
+
+                {/* 1. Default Save Format */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-gray-700">صيغة الحفظ الافتراضية:</label>
+                  <p className="text-[11px] text-gray-500">اختر الوسيلة المفضلة عند طباعة أو تصدير عرض السعر للعملاء</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    {[
+                      { id: 'both', title: 'إتاحة الخيارين معاً', desc: 'شريط تحكم يتيح حفظ PDF وحفظ كصورة فوراً', icon: '⚡' },
+                      { id: 'pdf', title: 'حفظ كـ PDF (طباعة)', desc: 'فتح نافذة الطباعة الافتراضية لحفظ PDF', icon: '📄' },
+                      { id: 'image', title: 'صورة عالية الجودة', desc: 'تحويل المستند مباشرة لصورة عالية الدقة PNG', icon: '🖼️' },
+                    ].map(fmt => (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        onClick={() => handleChange('saveFormat', fmt.id as any)}
+                        className={`p-3 rounded-xl text-right border transition-all ${
+                          (settings.saveFormat || 'both') === fmt.id
+                            ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900 shadow-sm ring-1 ring-indigo-500'
+                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">{fmt.icon}</span>
+                          {(settings.saveFormat || 'both') === fmt.id && (
+                            <span className="text-[10px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded">محدد ✓</span>
+                          )}
+                        </div>
+                        <div className="text-xs font-bold">{fmt.title}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{fmt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Image Quality / Resolution (DPI) */}
+                <div className="space-y-2 pt-3 border-t">
+                  <label className="block text-xs font-bold text-gray-700">دقة ونقاء الصورة عند الحفظ (Image Quality / DPI):</label>
+                  <p className="text-[11px] text-gray-500">مقياس دقة البكسل عند تصدير عروض الأسعار كصور لضمان وضوح النصوص والأرقام</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    {[
+                      { id: 'high', title: 'عالية جداً (300 DPI)', desc: 'مقياس 3x - نقاء فائق للنصوص مناسب للطباعة والمشاركة', badge: 'موصى به ⭐' },
+                      { id: 'ultra', title: 'فائقة الدقة (400 DPI)', desc: 'مقياس 4x - أقصى تفاصيل كريستالية (حجم ملف أكبر)', badge: 'أعلى دقة 🌟' },
+                      { id: 'standard', title: 'قياسية (150-200 DPI)', desc: 'مقياس 2x - سريعة وخفيفة لمحادثات الدردشة السريعة', badge: 'سريع ⚡' },
+                    ].map(q => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => handleChange('imageQuality', q.id as any)}
+                        className={`p-3 rounded-xl text-right border transition-all ${
+                          (settings.imageQuality || 'high') === q.id
+                            ? 'border-emerald-600 bg-emerald-50/70 text-emerald-900 shadow-sm ring-1 ring-emerald-500'
+                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">{q.badge}</span>
+                          {(settings.imageQuality || 'high') === q.id && (
+                            <span className="text-[10px] text-emerald-600 font-bold">✓</span>
+                          )}
+                        </div>
+                        <div className="text-xs font-bold">{q.title}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{q.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notice & Feature Tips */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-amber-900 text-xs flex items-start gap-2.5">
+                  <span className="text-base">💡</span>
+                  <div className="space-y-1">
+                    <div className="font-bold">ميزة الحفظ كصورة فائقة الجودة:</div>
+                    <div className="text-[11px] text-amber-800 leading-relaxed">
+                      عند فتح نافذة عرض السعر، ستجد شريطاً علوياً يتيح لك فوراً حفظ عرض السعر بصيغة <b>PNG عالية الدقة</b> أو كملف <b>PDF</b> بضغطة زر واحدة دون أن يظهر شريط التحكم في الصورة المحفوظة أو المطبوعة.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

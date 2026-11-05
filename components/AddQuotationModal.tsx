@@ -210,6 +210,28 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
         setItems(newItems);
     };
 
+    const handleMoveItemUp = (index: number) => {
+        if (index <= 0) return;
+        setItems(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index - 1];
+            next[index - 1] = temp;
+            return next;
+        });
+    };
+
+    const handleMoveItemDown = (index: number) => {
+        if (index >= items.length - 1) return;
+        setItems(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index + 1];
+            next[index + 1] = temp;
+            return next;
+        });
+    };
+
     const total = items.reduce((sum, item) => {
         if (item.pricingTiers && item.pricingTiers.length > 0) return sum; // Don't add tiered items to total for now
         return sum + item.total;
@@ -439,24 +461,28 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                     <div className="mb-6 overflow-x-auto">
                         <table className="w-full text-right border-collapse">
                             <thead>
-                                <tr className="bg-gray-100">
+                                <tr className="bg-gray-100 text-xs text-gray-700">
+                                    <th className="p-2 border w-10 text-center">#</th>
                                     <th className="p-2 border">المنتج / البيان</th>
-                                    <th className="p-2 border w-24">الكمية</th>
-                                    <th className="p-2 border w-32">السعر</th>
-                                    <th className="p-2 border w-10"></th>
+                                    <th className="p-2 border w-24 text-center">الكمية</th>
+                                    <th className="p-2 border w-28 text-center">السعر</th>
+                                    <th className="p-2 border w-24 text-center">ترتيب / إجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {items.map((item, index) => (
                                     <React.Fragment key={index}>
-                                        <tr className={item.pricingTiers && item.pricingTiers.length > 0 ? 'bg-blue-50' : ''}>
+                                        <tr className={item.pricingTiers && item.pricingTiers.length > 0 ? 'bg-blue-50/60' : 'hover:bg-gray-50/50'}>
+                                            <td className="p-2 border text-center align-middle font-bold text-xs text-gray-500 bg-gray-50">
+                                                {index + 1}
+                                            </td>
                                             <td className="p-2 border">
                                                 <div className="space-y-2">
                                                     <input
                                                         type="text"
                                                         value={item.productName}
                                                         onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
-                                                        className="w-full p-1 border rounded focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                                                        className="w-full p-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
                                                         placeholder="اسم المنتج أو الخدمة"
                                                     />
                                                     <div className="grid grid-cols-2 gap-2">
@@ -525,7 +551,7 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                                                             min="1"
                                                             value={item.quantity}
                                                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                                                            className="w-full p-1 border rounded"
+                                                            className="w-full p-1.5 border rounded text-center"
                                                         />
                                                     </td>
                                                     <td className="p-2 border align-top">
@@ -535,13 +561,44 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                                                             min="0"
                                                             value={item.price}
                                                             onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                                                            className="w-full p-1 border rounded"
+                                                            className="w-full p-1.5 border rounded text-center font-semibold"
                                                         />
                                                     </td>
                                                 </>
                                             )}
-                                            <td className="p-2 border text-center align-top">
-                                                <button type="button" onClick={() => handleRemoveItem(index)} className="text-red-500 hover:text-red-700">&times;</button>
+                                            <td className="p-2 border text-center align-middle bg-gray-50/50">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        disabled={index === 0}
+                                                        onClick={() => handleMoveItemUp(index)}
+                                                        className="w-7 h-7 flex items-center justify-center rounded bg-white hover:bg-blue-100 text-gray-600 hover:text-blue-700 border border-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-xs"
+                                                        title="تحريك البند لأعلى (↑)"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={index === items.length - 1}
+                                                        onClick={() => handleMoveItemDown(index)}
+                                                        className="w-7 h-7 flex items-center justify-center rounded bg-white hover:bg-blue-100 text-gray-600 hover:text-blue-700 border border-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-xs"
+                                                        title="تحريك البند لأسفل (↓)"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveItem(index)}
+                                                        className="w-7 h-7 flex items-center justify-center rounded bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 transition-all font-bold text-base"
+                                                        title="حذف هذا البند"
+                                                    >
+                                                        &times;
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     </React.Fragment>

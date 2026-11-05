@@ -179,6 +179,8 @@ export interface PrintSettings {
   showSignature3?: boolean;
   signature3?: string;
   showQrCode?: boolean;
+  saveFormat?: 'pdf' | 'image' | 'both';
+  imageQuality?: 'standard' | 'high' | 'ultra';
 }
 
 export interface Account {

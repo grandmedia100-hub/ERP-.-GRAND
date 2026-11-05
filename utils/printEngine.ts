@@ -25,6 +25,8 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   showSignature3: true,
   signature3: 'اعتماد الإدارة',
   showQrCode: true,
+  saveFormat: 'both',
+  imageQuality: 'high',
 };
 
 export const COLOR_PALETTES = [
