@@ -27,6 +27,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
         
         // Dynamic column migrations
         db.run("ALTER TABLE quotations ADD COLUMN deliveryDuration TEXT;", (e) => {});
+        db.run("ALTER TABLE quotations ADD COLUMN notesDetails TEXT;", (e) => {});
         db.run("ALTER TABLE customers ADD COLUMN companyName TEXT;", (e) => {});
         db.run("ALTER TABLE suppliers ADD COLUMN companyName TEXT;", (e) => {});
         db.run("ALTER TABLE products ADD COLUMN productType TEXT;", (e) => {});
@@ -496,6 +497,7 @@ app.get("/api/sync", (req, res) => {
                     if (row.items) { try { row.items = JSON.parse(row.items); } catch(e) { row.items = []; } }
                     if (row.lines) { try { row.lines = JSON.parse(row.lines); } catch(e) { row.lines = []; } }
                     if (row.permissions) { try { row.permissions = JSON.parse(row.permissions); } catch(e) { row.permissions = []; } }
+                    if (row.notesDetails) { try { row.notesDetails = JSON.parse(row.notesDetails); } catch(e) { row.notesDetails = []; } }
                     return row;
                 });
             }
@@ -615,6 +617,7 @@ app.get("/api/:table", (req, res) => {
             if (row.items) { try { row.items = JSON.parse(row.items); } catch(e) {} }
             if (row.lines) { try { row.lines = JSON.parse(row.lines); } catch(e) {} }
             if (row.permissions) { try { row.permissions = JSON.parse(row.permissions); } catch(e) {} }
+            if (row.notesDetails) { try { row.notesDetails = JSON.parse(row.notesDetails); } catch(e) {} }
             return row;
         }));
     });
@@ -855,7 +858,7 @@ function getTableColumns(table) {
         case "journal_entries": return ["id", "date", "description", "referenceType", "referenceId", "lines", "createdAt", "branchId"];
         case "users": return ["id", "username", "password", "fullName", "role", "permissions"];
         case "logs": return ["id", "userId", "userName", "action", "timestamp"];
-        case "quotations": return ["id", "customerId", "customerName", "date", "validUntil", "total", "status", "notes", "items", "deliveryDuration", "branchId"];
+        case "quotations": return ["id", "customerId", "customerName", "date", "validUntil", "total", "status", "notes", "items", "deliveryDuration", "branchId", "notesDetails"];
         case "partners": return ["id", "name", "sharePercentage", "openingBalance", "branchId"];
         case "partner_transactions": return ["id", "partnerId", "type", "amount", "date", "description", "branchId"];
         case "accounts": return ["id", "code", "name", "type", "parentId", "branchId"];
@@ -889,7 +892,7 @@ function getRowValues(table, row) {
         case "journal_entries": return [row.id, row.date, row.description, row.referenceType || row.type || "Manual", row.referenceId, JSON.stringify(row.lines || []), row.createdAt, branch];
         case "users": return [row.id, row.username, row.password, row.fullName, row.role, JSON.stringify(row.permissions || [])];
         case "logs": return [row.id, row.userId, row.userName, row.action, row.timestamp];
-        case "quotations": return [row.id, row.customerId, row.customerName, row.date, row.validUntil, row.total, row.status, row.notes, JSON.stringify(row.items || []), row.deliveryDuration || "", branch];
+        case "quotations": return [row.id, row.customerId, row.customerName, row.date, row.validUntil, row.total, row.status, row.notes, JSON.stringify(row.items || []), row.deliveryDuration || "", branch, typeof row.notesDetails === 'object' ? JSON.stringify(row.notesDetails) : (row.notesDetails || "")];
         case "partners": return [row.id, row.name, row.sharePercentage, row.openingBalance, branch];
         case "partner_transactions": return [row.id, row.partnerId, row.type, row.amount, row.date, row.description, branch];
         case "accounts": return [row.id, row.code, row.name, row.type, row.parentId, branch];

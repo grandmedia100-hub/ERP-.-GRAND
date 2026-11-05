@@ -512,6 +512,13 @@ export interface Quotation {
   version?: number; // New: Revision number (V1, V2, etc.)
   originalQuotationId?: string; // New: Reference to root quotation ID
   showTotalInPrint?: boolean; // New: Toggle total visibility in PDF
+  notesDetails?: QuotationNoteItem[]; // New: Per-line notes with custom colors
+}
+
+export interface QuotationNoteItem {
+  id?: string;
+  text: string;
+  color?: string;
 }
 
 // ===== Fixed Assets & Depreciation =====

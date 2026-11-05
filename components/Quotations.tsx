@@ -519,13 +519,12 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                    font-size: 11.5px;
                    font-weight: 700;
                    color: #1e293b; 
-                   line-height: 1.6;
+                   line-height: 1.5;
                    border: 2px solid #f59e0b;
                    border-right: 6px solid #d97706;
                    padding: 10px 14px;
                    border-radius: 8px;
                    background-color: #fffbeb; 
-                   white-space: pre-line;
                    max-width: 65%;
                    box-shadow: 0 1px 4px rgba(217, 119, 6, 0.12);
                    -webkit-print-color-adjust: exact !important;
@@ -538,10 +537,27 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                    display: flex;
                    align-items: center;
                    gap: 6px;
-                   margin-bottom: 6px;
+                   margin-bottom: 8px;
                    font-weight: 800;
                    border-bottom: 1.5px dashed #fcd34d;
-                   padding-bottom: 4px;
+                   padding-bottom: 5px;
+                   -webkit-print-color-adjust: exact !important;
+                   print-color-adjust: exact !important;
+               }
+
+               .notes-content {
+                   display: flex;
+                   flex-direction: column;
+                   gap: 4px;
+               }
+
+               .note-line {
+                   display: flex;
+                   align-items: flex-start;
+                   gap: 6px;
+                   font-weight: 700;
+                   -webkit-print-color-adjust: exact !important;
+                   print-color-adjust: exact !important;
                }
 
                .totals { width: 200px; }
@@ -869,7 +885,31 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                      <div class="footer-section">
                          <div class="notes">
                              <strong class="notes-header">⚠️ شروط وملاحظات العرض الهامة (برجاء الاطلاع والاعتماد):</strong>
-                             ${quote.notes || 'لا توجد ملاحظات إضافية.'}
+                             <div class="notes-content">
+                                 ${(() => {
+                                     if (quote.notesDetails && quote.notesDetails.length > 0) {
+                                         return quote.notesDetails.map(n => {
+                                             const color = n.color || '#1e293b';
+                                             return `
+                                                 <div class="note-line" style="color: ${color};">
+                                                     <span style="color: ${color}; font-size: 13px; line-height: 1.1; flex-shrink: 0;">▪</span>
+                                                     <span style="flex: 1; word-break: break-word;">${n.text}</span>
+                                                 </div>
+                                             `;
+                                         }).join('');
+                                     }
+                                     const lines = (quote.notes || 'لا توجد ملاحظات إضافية.').split('\n').map(l => l.trim()).filter(Boolean);
+                                     return lines.map(line => {
+                                         const clean = line.replace(/^- /, '');
+                                         return `
+                                             <div class="note-line" style="color: #1e293b;">
+                                                 <span style="color: #d97706; font-size: 13px; line-height: 1.1; flex-shrink: 0;">▪</span>
+                                                 <span style="flex: 1; word-break: break-word;">${clean}</span>
+                                             </div>
+                                         `;
+                                     }).join('');
+                                 })()}
+                             </div>
                          </div>
                           ${(() => {
                               const allQtyOneForFooter = quote.items.every(item => {

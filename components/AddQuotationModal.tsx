@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Customer, Product, InvoiceItem, Quotation } from '../types.ts';
+import type { Customer, Product, InvoiceItem, Quotation, QuotationNoteItem } from '../types.ts';
 
 interface AddQuotationModalProps {
     onClose: () => void;
@@ -9,6 +9,36 @@ interface AddQuotationModalProps {
     quotationToEdit?: Quotation | null;
 }
 
+export interface EditableNoteItem {
+    id: string;
+    text: string;
+    color: string;
+}
+
+export const NOTE_COLOR_PRESETS = [
+    { label: 'أحمر عاجل / تنبيهي', color: '#dc2626' },
+    { label: 'برتقالي تحذيري', color: '#d97706' },
+    { label: 'أزرق ملكي / أساسي', color: '#2563eb' },
+    { label: 'أخضر معتمد / إيجابي', color: '#059669' },
+    { label: 'بنفسجي مميز', color: '#7c3aed' },
+    { label: 'كحلي داكن / قياسي', color: '#1e293b' }
+];
+
+export const DEFAULT_NOTE_COLOR = '#1e293b';
+
+export const getPresetDefaultColor = (preset: string): string => {
+    if (preset.includes('دفعة مقدمة') || preset.includes('صلاحية هذا العرض') || preset.includes('لا ترد ولا تستبدل')) {
+        return '#dc2626'; // Red for critical terms
+    }
+    if (preset.includes('الأسعار قابلة للتغير') || preset.includes('لا تشمل')) {
+        return '#d97706'; // Amber/warning
+    }
+    if (preset.includes('مدة العمل') || preset.includes('اعتماد البروفة')) {
+        return '#2563eb'; // Blue
+    }
+    return '#1e293b'; // Slate default
+};
+
 const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, customers, products, quotationToEdit }) => {
     // Original State
     const [customerId, setCustomerId] = useState<string>('');
@@ -16,7 +46,7 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
     const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [expirationDate, setExpirationDate] = useState<string>('');
     const [items, setItems] = useState<InvoiceItem[]>([]);
-    const [editableNotes, setEditableNotes] = useState<{ id: string, text: string }[]>([]);
+    const [editableNotes, setEditableNotes] = useState<EditableNoteItem[]>([]);
     const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
     const [deliveryDuration, setDeliveryDuration] = useState<string>(''); // New State
 
@@ -37,6 +67,12 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
         delivery: 'factory'    // factory, client_site
     });
 
+    const [optionsColors, setOptionsColors] = useState({
+        prep: '#2563eb',
+        vat: '#dc2626',
+        delivery: '#059669'
+    });
+
     const PREDEFINED_NOTES = [
         "صلاحية هذا العرض 7 أيام من تاريخه.",
         "دفعة مقدمة 50% عند التعاقد والباقي عند الاستلام.",
@@ -52,13 +88,17 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             if (exists) {
                 return prev.filter(n => n.text !== preset);
             } else {
-                return [...prev, { id: Math.random().toString(), text: preset }];
+                return [...prev, { id: Math.random().toString(), text: preset, color: getPresetDefaultColor(preset) }];
             }
         });
     };
     
-    const updateNote = (id: string, newText: string) => {
+    const updateNoteText = (id: string, newText: string) => {
         setEditableNotes(prev => prev.map(n => n.id === id ? { ...n, text: newText } : n));
+    };
+
+    const updateNoteColor = (id: string, newColor: string) => {
+        setEditableNotes(prev => prev.map(n => n.id === id ? { ...n, color: newColor } : n));
     };
 
     const removeNote = (id: string) => {
@@ -66,7 +106,29 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
     };
 
     const addCustomNote = () => {
-        setEditableNotes(prev => [...prev, { id: Math.random().toString(), text: '' }]);
+        setEditableNotes(prev => [...prev, { id: Math.random().toString(), text: '', color: DEFAULT_NOTE_COLOR }]);
+    };
+
+    const handleMoveNoteUp = (index: number) => {
+        if (index <= 0) return;
+        setEditableNotes(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index - 1];
+            next[index - 1] = temp;
+            return next;
+        });
+    };
+
+    const handleMoveNoteDown = (index: number) => {
+        if (index >= editableNotes.length - 1) return;
+        setEditableNotes(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index + 1];
+            next[index + 1] = temp;
+            return next;
+        });
     };
 
     // Edit Mode Initialization
@@ -78,7 +140,31 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             setExpirationDate(quotationToEdit.expirationDate || '');
             setItems(quotationToEdit.items);
             
-            if (quotationToEdit.notes) {
+            if (quotationToEdit.notesDetails && quotationToEdit.notesDetails.length > 0) {
+                // If structured notesDetails exist, restore custom notes and options colors
+                const patternsToRemove = [
+                    /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
+                    /الأسعار (شاملة|غير شاملة) ضريبة القيمة المضافة/,
+                    /الاستلام (أرض المصنع|في مقر العميل)/
+                ];
+
+                const prepItem = quotationToEdit.notesDetails.find(n => n.text.includes('تجهيزات الطباعة'));
+                const vatItem = quotationToEdit.notesDetails.find(n => n.text.includes('ضريبة القيمة المضافة'));
+                const deliveryItem = quotationToEdit.notesDetails.find(n => n.text.includes('الاستلام'));
+
+                if (prepItem?.color) setOptionsColors(prev => ({ ...prev, prep: prepItem.color! }));
+                if (vatItem?.color) setOptionsColors(prev => ({ ...prev, vat: vatItem.color! }));
+                if (deliveryItem?.color) setOptionsColors(prev => ({ ...prev, delivery: deliveryItem.color! }));
+
+                const customNotes = quotationToEdit.notesDetails
+                    .filter(n => !patternsToRemove.some(regex => regex.test(n.text)))
+                    .map(n => ({
+                        id: n.id || Math.random().toString(),
+                        text: n.text.replace(/^- /, '').trim(),
+                        color: n.color || DEFAULT_NOTE_COLOR
+                    }));
+                setEditableNotes(customNotes);
+            } else if (quotationToEdit.notes) {
                 const patternsToRemove = [
                     /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
                     /الأسعار (شاملة|غير شاملة) ضريبة القيمة المضافة/,
@@ -90,7 +176,11 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                                     .filter(n => n.length > 0)
                                     .filter(n => !patternsToRemove.some(regex => regex.test(n)));
                 
-                setEditableNotes(splitNotes.map(text => ({ id: Math.random().toString(), text })));
+                setEditableNotes(splitNotes.map(text => ({ 
+                    id: Math.random().toString(), 
+                    text,
+                    color: getPresetDefaultColor(text)
+                })));
             }
             
             setStatus(quotationToEdit.status);
@@ -267,13 +357,6 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             return;
         }
 
-        // Generate Options String
-        const optionsText = [
-            options.prep === 'inclusive' ? '- الأسعار شاملة تجهيزات الطباعة' : '- الأسعار غير شاملة تجهيزات الطباعة',
-            options.vat === 'inclusive' ? '- الأسعار شاملة ضريبة القيمة المضافة' : '- الأسعار غير شاملة ضريبة القيمة المضافة',
-            options.delivery === 'factory' ? '- الاستلام أرض المصنع' : '- الاستلام في مقر العميل'
-        ].join('\n');
-
         // Sanitize editableNotes: Remove any that look like our options
         const patternsToRemove = [
             /الأسعار (شاملة|غير شاملة) تجهيزات الطباعة/,
@@ -281,12 +364,33 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
             /الاستلام (أرض المصنع|في مقر العميل)/
         ];
 
-        const cleanNotesArray = editableNotes
-            .map(n => n.text.trim())
-            .filter(n => n.length > 0)
-            .filter(n => !patternsToRemove.some(regex => regex.test(n)));
+        const cleanNotesItems: QuotationNoteItem[] = editableNotes
+            .filter(n => n.text.trim().length > 0)
+            .filter(n => !patternsToRemove.some(regex => regex.test(n.text)))
+            .map(n => ({
+                id: n.id,
+                text: n.text.trim(),
+                color: n.color || DEFAULT_NOTE_COLOR
+            }));
 
-        const userNotesStr = cleanNotesArray.map(n => `- ${n}`).join('\n');
+        const optionsItems: QuotationNoteItem[] = [
+            {
+                text: options.prep === 'inclusive' ? 'الأسعار شاملة تجهيزات الطباعة' : 'الأسعار غير شاملة تجهيزات الطباعة',
+                color: optionsColors.prep || '#2563eb'
+            },
+            {
+                text: options.vat === 'inclusive' ? 'الأسعار شاملة ضريبة القيمة المضافة (14%)' : 'الأسعار غير شاملة ضريبة القيمة المضافة',
+                color: optionsColors.vat || '#dc2626'
+            },
+            {
+                text: options.delivery === 'factory' ? 'الاستلام أرض المصنع' : 'الاستلام في مقر العميل',
+                color: optionsColors.delivery || '#059669'
+            }
+        ];
+
+        const allNotesDetails: QuotationNoteItem[] = [...cleanNotesItems, ...optionsItems];
+        const userNotesStr = cleanNotesItems.map(n => `- ${n.text}`).join('\n');
+        const optionsText = optionsItems.map(o => `- ${o.text}`).join('\n');
         const finalNotes = userNotesStr ? `${userNotesStr}\n\n${optionsText}` : optionsText;
 
         try {
@@ -300,6 +404,7 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                 items,
                 total,
                 notes: finalNotes,
+                notesDetails: allNotesDetails,
                 delegateName, // Save delegate name
                 status,
                 deliveryDuration,
@@ -385,26 +490,80 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                     </div>
 
                     {/* Quotation Options */}
-                    <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-                        <h3 className="font-bold text-gray-700 mb-3 text-sm border-b pb-2">شروط العرض</h3>
+                    <div className="bg-gradient-to-r from-gray-50 to-blue-50/30 p-4 rounded-xl mb-6 border border-gray-200 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3 border-b border-gray-200/80 pb-2">
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                <span className="text-amber-500">⚙️</span>
+                                <span>شروط العرض الأساسية</span>
+                            </h3>
+                            <span className="text-xs text-gray-500">اختر تفاصيل الشروط وحدد لون الخط لكل شرط ليظهر ملوناً في الطباعة</span>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">تجهيزات الطباعة</label>
-                                <select value={options.prep} onChange={e => setOptions({ ...options, prep: e.target.value as any })} className="w-full p-1.5 text-sm border rounded">
+                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-bold text-gray-700">تجهيزات الطباعة</label>
+                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط التجهيزات">
+                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
+                                        <input
+                                            type="color"
+                                            value={optionsColors.prep}
+                                            onChange={e => setOptionsColors({ ...optionsColors, prep: e.target.value })}
+                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
+                                        />
+                                    </label>
+                                </div>
+                                <select
+                                    value={options.prep}
+                                    onChange={e => setOptions({ ...options, prep: e.target.value as any })}
+                                    style={{ color: optionsColors.prep, fontWeight: 'bold' }}
+                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                                >
                                     <option value="non_inclusive">غير شاملة التجهيزات</option>
                                     <option value="inclusive">شاملة التجهيزات</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">ضريبة القيمة المضافة</label>
-                                <select value={options.vat} onChange={e => setOptions({ ...options, vat: e.target.value as any })} className="w-full p-1.5 text-sm border rounded">
+                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-bold text-gray-700">ضريبة القيمة المضافة</label>
+                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط الضريبة">
+                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
+                                        <input
+                                            type="color"
+                                            value={optionsColors.vat}
+                                            onChange={e => setOptionsColors({ ...optionsColors, vat: e.target.value })}
+                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
+                                        />
+                                    </label>
+                                </div>
+                                <select
+                                    value={options.vat}
+                                    onChange={e => setOptions({ ...options, vat: e.target.value as any })}
+                                    style={{ color: optionsColors.vat, fontWeight: 'bold' }}
+                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                                >
                                     <option value="non_inclusive">غير شاملة الضريبة (14%)</option>
                                     <option value="inclusive">شاملة الضريبة (14%)</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">مكان الاستلام</label>
-                                <select value={options.delivery} onChange={e => setOptions({ ...options, delivery: e.target.value as any })} className="w-full p-1.5 text-sm border rounded">
+                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-bold text-gray-700">مكان الاستلام</label>
+                                    <label className="flex items-center gap-1 cursor-pointer bg-gray-50 px-1.5 py-0.5 rounded border hover:bg-gray-100" title="تغيير لون خط شرط الاستلام">
+                                        <span className="text-[10px] text-gray-500 font-medium">اللون</span>
+                                        <input
+                                            type="color"
+                                            value={optionsColors.delivery}
+                                            onChange={e => setOptionsColors({ ...optionsColors, delivery: e.target.value })}
+                                            className="w-4 h-4 rounded cursor-pointer border-0 p-0"
+                                        />
+                                    </label>
+                                </div>
+                                <select
+                                    value={options.delivery}
+                                    onChange={e => setOptions({ ...options, delivery: e.target.value as any })}
+                                    style={{ color: optionsColors.delivery, fontWeight: 'bold' }}
+                                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                                >
                                     <option value="factory">أرض المصنع</option>
                                     <option value="client_site">مقر العميل</option>
                                 </select>
@@ -611,9 +770,16 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                     </div>
 
 
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">ملاحظات وشروط إضافية</label>
+                    <div className="mb-4 bg-gray-50/70 p-4 rounded-xl border border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                            <label className="block text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                                <span className="text-amber-600">📝</span>
+                                <span>ملاحظات وشروط إضافية</span>
+                            </label>
+                            <span className="text-xs text-gray-500">اضغط على دوائر الألوان أو 🎨 لاختيار لون الخط المخصص لكل سطر</span>
+                        </div>
 
+                        {/* Presets Chips */}
                         <div className="flex flex-wrap gap-2 mb-3">
                             {PREDEFINED_NOTES.map((preset, idx) => {
                                 const isSelected = editableNotes.some(n => n.text === preset);
@@ -622,9 +788,9 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                                         key={idx}
                                         type="button"
                                         onClick={() => togglePreset(preset)}
-                                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${isSelected
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                        className={`text-xs px-3 py-1.5 rounded-full border transition-all ${isSelected
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold'
+                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
                                             }`}
                                     >
                                         {isSelected ? '✓ ' : '+ '}{preset}
@@ -633,33 +799,99 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
                             })}
                         </div>
 
+                        {/* Editable Notes Rows */}
                         <div className="space-y-2 mt-4">
-                            {editableNotes.map((note) => (
-                                <div key={note.id} className="flex gap-2 items-center">
-                                    <span className="text-gray-400 font-bold">-</span>
+                            {editableNotes.map((note, noteIdx) => (
+                                <div
+                                    key={note.id}
+                                    className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-2.5 rounded-lg border border-gray-200 shadow-2xs hover:border-blue-300 transition-all"
+                                >
+                                    {/* Line Number & Reordering Up/Down */}
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[11px] font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                                            #{noteIdx + 1}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            disabled={noteIdx === 0}
+                                            onClick={() => handleMoveNoteUp(noteIdx)}
+                                            className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 hover:bg-blue-100 text-gray-600 hover:text-blue-700 border border-gray-200 disabled:opacity-25 disabled:pointer-events-none transition-colors"
+                                            title="تحريك السطر لأعلى (↑)"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={noteIdx === editableNotes.length - 1}
+                                            onClick={() => handleMoveNoteDown(noteIdx)}
+                                            className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 hover:bg-blue-100 text-gray-600 hover:text-blue-700 border border-gray-200 disabled:opacity-25 disabled:pointer-events-none transition-colors"
+                                            title="تحريك السطر لأسفل (↓)"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    {/* Text Input with Styled Color & Bold */}
                                     <input
                                         type="text"
                                         value={note.text}
-                                        onChange={e => updateNote(note.id, e.target.value)}
-                                        className="flex-1 p-2 border border-gray-300 rounded-md text-sm"
-                                        placeholder="اكتب الشرط هنا..."
+                                        onChange={e => updateNoteText(note.id, e.target.value)}
+                                        style={{ color: note.color, fontWeight: 'bold' }}
+                                        className="flex-1 p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                        placeholder="اكتب نص الشرط أو الملاحظة هنا..."
                                     />
+
+                                    {/* Color Palette & Custom Picker */}
+                                    <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md border border-gray-200">
+                                        <span className="text-[10px] text-gray-400 font-medium hidden sm:inline">اللون:</span>
+                                        {NOTE_COLOR_PRESETS.map((preset) => {
+                                            const isActive = (note.color || DEFAULT_NOTE_COLOR).toLowerCase() === preset.color.toLowerCase();
+                                            return (
+                                                <button
+                                                    key={preset.color}
+                                                    type="button"
+                                                    onClick={() => updateNoteColor(note.id, preset.color)}
+                                                    style={{ backgroundColor: preset.color }}
+                                                    className={`w-4 h-4 rounded-full transition-transform hover:scale-125 ${isActive ? 'ring-2 ring-offset-1 ring-blue-600 scale-125 border border-white' : 'opacity-80 hover:opacity-100'}`}
+                                                    title={preset.label}
+                                                />
+                                            );
+                                        })}
+                                        {/* Custom Color Native Picker */}
+                                        <label className="relative cursor-pointer flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors" title="اختيار لون خط مخصص">
+                                            <span className="text-xs">🎨</span>
+                                            <input
+                                                type="color"
+                                                value={note.color || DEFAULT_NOTE_COLOR}
+                                                onChange={e => updateNoteColor(note.id, e.target.value)}
+                                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {/* Delete Button */}
                                     <button 
                                         type="button" 
                                         onClick={() => removeNote(note.id)} 
-                                        className="text-red-500 hover:text-red-700 px-2 py-1"
-                                        title="حذف"
+                                        className="w-7 h-7 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors font-bold text-lg"
+                                        title="حذف هذا الشرط"
                                     >
                                         &times;
                                     </button>
                                 </div>
                             ))}
+
                             <button 
                                 type="button" 
                                 onClick={addCustomNote} 
-                                className="text-sm text-blue-600 font-medium hover:underline mt-2"
+                                className="inline-flex items-center gap-1 text-sm text-blue-600 font-bold hover:text-blue-800 hover:underline mt-2 p-1"
                             >
-                                + إضافة ملاحظة جديدة
+                                <span>+</span>
+                                <span>إضافة سطر ملاحظة جديد</span>
                             </button>
                         </div>
                     </div>
