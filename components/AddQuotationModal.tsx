@@ -289,22 +289,25 @@ const AddQuotationModal: React.FC<AddQuotationModalProps> = ({ onClose, onSave, 
         const userNotesStr = cleanNotesArray.map(n => `- ${n}`).join('\n');
         const finalNotes = userNotesStr ? `${userNotesStr}\n\n${optionsText}` : optionsText;
 
-        onSave({
-            id: quotationToEdit?.id,
-            customerId: finalCustomerId,
-            customerName: finalCustomerName,
-            companyName,
-            date,
-            expirationDate,
-            items,
-            total,
-            notes: finalNotes,
-            delegateName, // Save delegate name
-            status,
-            deliveryDuration,
-            showTotalInPrint
-        });
-        onClose();
+        try {
+            onSave({
+                id: quotationToEdit?.id,
+                customerId: finalCustomerId,
+                customerName: finalCustomerName,
+                companyName,
+                date,
+                expirationDate,
+                items,
+                total,
+                notes: finalNotes,
+                delegateName, // Save delegate name
+                status,
+                deliveryDuration,
+                showTotalInPrint
+            });
+        } finally {
+            onClose();
+        }
     };
 
 

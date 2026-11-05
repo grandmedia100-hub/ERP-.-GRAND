@@ -508,6 +508,9 @@ export interface Quotation {
   status: 'pending' | 'accepted' | 'rejected';
   deliveryDuration?: string; // New: Delivery duration
   createdAt?: string; // New: Creation timestamp
+  updatedAt?: string; // New: Modification timestamp
+  version?: number; // New: Revision number (V1, V2, etc.)
+  originalQuotationId?: string; // New: Reference to root quotation ID
   showTotalInPrint?: boolean; // New: Toggle total visibility in PDF
 }
 

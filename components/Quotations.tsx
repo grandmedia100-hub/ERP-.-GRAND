@@ -55,18 +55,73 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
         ).reverse();
     }, [quotations, searchQuery]);
 
+    const formatDateTime = (isoStr?: string) => {
+        if (!isoStr) return null;
+        try {
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return null;
+            const hours = d.getHours();
+            const minutes = d.getMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'م' : 'ص';
+            const h12 = (hours % 12 || 12).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const year = d.getFullYear();
+            return {
+                time: `${h12}:${minutes} ${ampm}`,
+                date: `${day}/${month}/${year}`
+            };
+        } catch {
+            return null;
+        }
+    };
+
     const handleSaveQuotation = (quoteData: Omit<Quotation, 'id'> & { id?: string }) => {
+        const now = new Date().toISOString();
         if (quoteData.id) {
-            setQuotations(prev => prev.map(q => q.id === quoteData.id ? { ...q, ...quoteData } as Quotation : q));
-            logAction(`تعديل عرض سعر: ${quoteData.id}`);
+            // Find root/base quotation ID and determine next revision number
+            const targetQuote = quotations.find(q => q.id === quoteData.id);
+            const baseId = targetQuote?.originalQuotationId || quoteData.id.replace(/-V\d+$/i, '');
+            
+            // Find all existing versions for this base quote
+            const relatedQuotes = quotations.filter(q => 
+                q.id === baseId || 
+                q.originalQuotationId === baseId || 
+                q.id.startsWith(`${baseId}-V`)
+            );
+            
+            // Find the highest existing version number
+            let maxVersion = 1;
+            relatedQuotes.forEach(q => {
+                if (q.version && q.version > maxVersion) maxVersion = q.version;
+                const match = q.id.match(/-V(\d+)$/i);
+                if (match && parseInt(match[1]) > maxVersion) maxVersion = parseInt(match[1]);
+            });
+            const nextVersion = maxVersion + 1;
+            const newVersionId = `${baseId}-V${nextVersion}`;
+
+            const newQuoteVersion: Quotation = {
+                ...quoteData,
+                id: newVersionId,
+                originalQuotationId: baseId,
+                version: nextVersion,
+                createdAt: now,
+                updatedAt: now
+            } as Quotation;
+
+            // Prepend new version so it appears at the top, leaving old versions intact!
+            setQuotations(prev => [newQuoteVersion, ...prev]);
+            logAction(`إنشاء إصدار معدل جديد لعرض السعر: ${newVersionId} (الأصل: ${baseId})`);
         } else {
             const newId = generateNextSequence('quotations', quotations);
             const newQuote: Quotation = {
                 ...quoteData,
                 id: newId,
-                createdAt: new Date().toISOString()
+                version: 1,
+                createdAt: now,
+                updatedAt: now
             } as Quotation;
-            setQuotations(prev => [...prev, newQuote]);
+            setQuotations(prev => [newQuote, ...prev]);
             logAction(`إنشاء عرض سعر جديد: ${newId}`);
         }
         setIsModalOpen(false);
@@ -461,23 +516,32 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
 
                .notes {
                    flex: 1;
-                   font-size: 9px;
-                   color: #1f2937; 
-                   line-height: 1.3;
-                   border: 1px solid #fcd34d;
-                   padding: 6px;
-                   border-radius: 4px;
+                   font-size: 11.5px;
+                   font-weight: 700;
+                   color: #1e293b; 
+                   line-height: 1.6;
+                   border: 2px solid #f59e0b;
+                   border-right: 6px solid #d97706;
+                   padding: 10px 14px;
+                   border-radius: 8px;
                    background-color: #fffbeb; 
                    white-space: pre-line;
-                   max-width: 60%;
+                   max-width: 65%;
+                   box-shadow: 0 1px 4px rgba(217, 119, 6, 0.12);
+                   -webkit-print-color-adjust: exact !important;
+                   print-color-adjust: exact !important;
                }
 
-               .notes strong {
-                   color: #92400e; 
-                   font-size: 10px;
-                   display: block;
-                   margin-bottom: 3px;
+               .notes strong.notes-header {
+                   color: #b45309; 
+                   font-size: 13px;
+                   display: flex;
+                   align-items: center;
+                   gap: 6px;
+                   margin-bottom: 6px;
                    font-weight: 800;
+                   border-bottom: 1.5px dashed #fcd34d;
+                   padding-bottom: 4px;
                }
 
                .totals { width: 200px; }
@@ -804,8 +868,8 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                      <!-- Footer Section (Totals after table) -->
                      <div class="footer-section">
                          <div class="notes">
-                             <strong>الملاحظات والشروط:</strong><br>
-                             ${quote.notes || 'لا يوجد ملاحظات إضافية.'}
+                             <strong class="notes-header">⚠️ شروط وملاحظات العرض الهامة (برجاء الاطلاع والاعتماد):</strong>
+                             ${quote.notes || 'لا توجد ملاحظات إضافية.'}
                          </div>
                           ${(() => {
                               const allQtyOneForFooter = quote.items.every(item => {
@@ -959,33 +1023,53 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
 
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <table className="w-full text-right">
-                    <thead className="bg-gray-100">
+                    <thead className="bg-gray-100 text-xs text-gray-700">
                         <tr>
-                            <th className="p-3">رقم العرض</th>
+                            <th className="p-3">رقم العرض والإصدار</th>
                             <th className="p-3">العميل</th>
-                            <th className="p-3">التاريخ</th>
-                            <th className="p-3">وقت الإنشاء</th>
+                            <th className="p-3">تاريخ العرض</th>
+                            <th className="p-3">وقت الإنشاء / التعديل</th>
                             <th className="p-3">القيمة</th>
                             <th className="p-3">الحالة</th>
                             <th className="p-3">إجراءات</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y">
+                    <tbody className="divide-y text-sm">
                         {filteredQuotations.map(q => (
-                            <tr key={q.id} className="hover:bg-gray-50">
-                                <td className="p-3 font-bold">{q.id}</td>
+                            <tr key={q.id} className="hover:bg-gray-50/80 transition-colors">
+                                <td className="p-3">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-gray-900">{q.id}</span>
+                                        {(q.version && q.version > 1) || q.id.includes('-V') ? (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                                                إصدار {q.version ? `V${q.version}` : q.id.split('-V')[1] ? `V${q.id.split('-V')[1]}` : 'معدل'}
+                                            </span>
+                                        ) : (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600">
+                                                الأصل V1
+                                            </span>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="p-3">{q.customerName}</td>
                                 <td className="p-3">{q.date}</td>
-                                <td className="p-3 text-sm text-gray-600">
-                                    {q.createdAt ? (() => {
-                                        const date = new Date(q.createdAt);
-                                        const day = date.getDate().toString().padStart(2, '0');
-                                        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                                        const year = date.getFullYear();
-                                        const hours = date.getHours().toString().padStart(2, '0');
-                                        const minutes = date.getMinutes().toString().padStart(2, '0');
-                                        return `${day}/${month}/${year} - ${hours}:${minutes}`;
-                                    })() : '-'}
+                                <td className="p-3 text-xs">
+                                    {(() => {
+                                        const timeTarget = q.updatedAt || q.createdAt;
+                                        const dt = formatDateTime(timeTarget);
+                                        if (!dt) return <span className="text-gray-400">-</span>;
+                                        return (
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="font-bold text-indigo-700 text-xs flex items-center gap-1">
+                                                    <span>⏰</span> {dt.time}
+                                                </span>
+                                                <span className="text-[11px] text-gray-500 font-mono">{dt.date}</span>
+                                                {q.updatedAt && q.updatedAt !== q.createdAt && (
+                                                    <span className="text-[9px] text-purple-600 font-medium">ساعة التعديل</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </td>
                                 <td className="p-3 font-bold text-blue-600">{(Number(q.total) || 0).toLocaleString()} ج.م</td>
                                 <td className="p-3">
@@ -997,8 +1081,8 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                                     </span>
                                 </td>
                                 <td className="p-3 flex items-center gap-2">
-                                    <button onClick={() => { setEditingQuote(q); setIsModalOpen(true); }} className="text-blue-500 hover:text-blue-700">تعديل</button>
-                                    <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-700">حذف</button>
+                                    <button onClick={() => { setEditingQuote(q); setIsModalOpen(true); }} className="text-blue-500 hover:text-blue-700 font-medium">تعديل</button>
+                                    <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-700 font-medium">حذف</button>
                                     <div className="inline-flex rounded-lg border border-gray-300 shadow-xs bg-white overflow-hidden text-xs">
                                         <button
                                             type="button"
@@ -1031,7 +1115,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                             </tr>
                         ))}
                         {filteredQuotations.length === 0 && (
-                            <tr><td colSpan={6} className="text-center p-6 text-gray-500">لا توجد عروض أسعار</td></tr>
+                            <tr><td colSpan={7} className="text-center p-6 text-gray-500">لا توجد عروض أسعار</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -1039,7 +1123,10 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
 
             {isModalOpen && (
                 <AddQuotationModal
-                    onClose={() => setIsModalOpen(false)}
+                    onClose={() => {
+                        setIsModalOpen(false);
+                        setEditingQuote(null);
+                    }}
                     onSave={handleSaveQuotation}
                     customers={customers}
                     products={products}
