@@ -977,14 +977,14 @@ function getRowValues(table, row) {
 }
 
 // SPA Fallback - serve index.html for any non-API route (for Electron & production)
-app.get("*", (req, res) => {
-    if (!req.path.startsWith("/api/")) {
+app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api/")) {
         const indexFile = path.join(distPath, "index.html");
         if (fs.existsSync(indexFile)) {
             return res.sendFile(indexFile);
         }
     }
-    res.status(404).json({ error: "Not found" });
+    next();
 });
 
 app.listen(PORT, () => {
