@@ -181,8 +181,11 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
           <head>
             <title>عرض سعر #${quote.id}</title>
             <meta charset="UTF-8">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
             <style>
-               @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+               @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
                
                :root {
                    --primary-color: ${printSettings.primaryColor || '#1e40af'};
@@ -194,15 +197,20 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                    box-sizing: border-box;
                    margin: 0;
                    padding: 0;
+                   letter-spacing: normal !important;
+                   word-spacing: normal !important;
                }
 
                body {
-                   font-family: '${printSettings.fontFamily || 'Cairo'}', sans-serif;
+                   font-family: '${printSettings.fontFamily || 'Cairo'}', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif;
                    margin: 0;
                    padding: 0;
                    background-color: #525659;
                    font-size: 10px;
                    line-height: 1.3;
+                   font-variant-ligatures: normal;
+                   text-rendering: optimizeLegibility;
+                   -webkit-font-smoothing: antialiased;
                }
 
                /* Non-Printable Top Action Bar */
@@ -315,6 +323,22 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                }
 
                @media print {
+                   /* Completely remove and hide the top action bar in PDF / Print */
+                   .no-print-bar,
+                   .no-print-bar *,
+                   .no-print {
+                       display: none !important;
+                       visibility: hidden !important;
+                       height: 0 !important;
+                       max-height: 0 !important;
+                       padding: 0 !important;
+                       margin: 0 !important;
+                       border: none !important;
+                       overflow: hidden !important;
+                       opacity: 0 !important;
+                       pointer-events: none !important;
+                   }
+
                    body {
                        background: none;
                        margin: 0;
@@ -395,11 +419,12 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
 
                .doc-title {
                    text-align: center;
-                   font-size: 20px;
-                   font-weight: 700;
-                   color: #333;
+                   font-size: 22px;
+                   font-weight: 800;
+                   color: #1e293b;
                    margin: 6px 0;
-                   letter-spacing: 0.5px;
+                   letter-spacing: normal !important;
+                   word-spacing: normal !important;
                }
 
                .info-bar {
@@ -941,7 +966,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                      </div>
                   </div>
               </div>
-              <script src="/html2canvas.min.js"></script>
+              <script src="${window.location.origin}/html2canvas.min.js"></script>
               <script>
                   // Fallback to CDN if local script is unavailable
                   if (typeof html2canvas === 'undefined') {
@@ -958,7 +983,7 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                           return;
                       }
 
-                      var btn = event ? event.currentTarget : null;
+                      var btn = (typeof event !== 'undefined' && event) ? event.currentTarget : null;
                       var originalHtml = btn ? btn.innerHTML : '';
                       if (btn) {
                           btn.disabled = true;
@@ -969,68 +994,94 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
 
                       window.scrollTo(0, 0);
 
-                      var tryCapture = function() {
+                      var executeCapture = function() {
                           if (typeof html2canvas === 'undefined') {
-                              setTimeout(tryCapture, 200);
+                              setTimeout(executeCapture, 150);
                               return;
                           }
 
-                          html2canvas(page, {
-                              scale: scale,
-                              useCORS: true,
-                              allowTaint: true,
-                              backgroundColor: '#ffffff',
-                              logging: false,
-                              windowWidth: page.scrollWidth || 1200,
-                              windowHeight: page.scrollHeight || 1600
-                          }).then(function(canvas) {
-                              var mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-                              var quality = format === 'jpeg' ? 0.95 : 1.0;
-                              var dataUrl = canvas.toDataURL(mime, quality);
+                          // Ensure web fonts are completely loaded before capturing to prevent disconnected or overlapping Arabic letters
+                          var fontsReadyPromise = (document.fonts && document.fonts.ready)
+                              ? document.fonts.ready
+                              : Promise.resolve();
 
-                              var a = document.createElement('a');
-                              var safeQuoteId = '${quote.id || 'quote'}';
-                              var safeCust = '${(quote.customerName || 'عميل').replace(/[\/\\?%*:|"<>]/g, '_')}';
-                              a.download = 'عرض_سعر_' + safeQuoteId + '_' + safeCust + '.' + format;
-                              a.href = dataUrl;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
+                          fontsReadyPromise.then(function() {
+                              // Small timeout to allow the browser layout engine to finalize Arabic cursive ligatures
+                              setTimeout(function() {
+                                  html2canvas(page, {
+                                      scale: scale,
+                                      useCORS: true,
+                                      allowTaint: true,
+                                      backgroundColor: '#ffffff',
+                                      logging: false,
+                                      scrollX: 0,
+                                      scrollY: 0,
+                                      width: page.offsetWidth,
+                                      height: page.offsetHeight,
+                                      onclone: function(clonedDoc) {
+                                          var clonedPage = clonedDoc.querySelector('.page');
+                                          if (clonedPage) {
+                                              clonedPage.style.margin = '0';
+                                              clonedPage.style.boxShadow = 'none';
+                                              clonedPage.style.transform = 'none';
+                                          }
+                                      }
+                                  }).then(function(canvas) {
+                                      var mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+                                      var quality = format === 'jpeg' ? 0.98 : 1.0;
+                                      var dataUrl = canvas.toDataURL(mime, quality);
 
-                              if (btn) {
-                                  btn.innerHTML = '<span>✓</span><span>تم الحفظ بنجاح!</span>';
-                                  setTimeout(function() {
-                                      btn.innerHTML = originalHtml;
-                                      btn.disabled = false;
-                                  }, 2000);
-                              }
-                          }).catch(function(err) {
-                              console.error('Error saving image:', err);
-                              alert('حدث خطأ أثناء حفظ الصورة: ' + err.message);
-                              if (btn) {
-                                  btn.innerHTML = originalHtml;
-                                  btn.disabled = false;
-                              }
+                                      var a = document.createElement('a');
+                                      var safeQuoteId = '${quote.id || 'quote'}';
+                                      var safeCust = '${(quote.customerName || 'عميل').replace(/[\/\\?%*:|"<>]/g, '_')}';
+                                      a.download = 'عرض_سعر_' + safeQuoteId + '_' + safeCust + '.' + format;
+                                      a.href = dataUrl;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+
+                                      if (btn) {
+                                          btn.innerHTML = '<span>✓</span><span>تم الحفظ بنجاح!</span>';
+                                          setTimeout(function() {
+                                              btn.innerHTML = originalHtml;
+                                              btn.disabled = false;
+                                          }, 2000);
+                                      }
+                                  }).catch(function(err) {
+                                      console.error('Error saving image:', err);
+                                      alert('حدث خطأ أثناء حفظ الصورة: ' + err.message);
+                                      if (btn) {
+                                          btn.innerHTML = originalHtml;
+                                          btn.disabled = false;
+                                      }
+                                  });
+                              }, 150);
                           });
                       };
 
-                      tryCapture();
+                      executeCapture();
                   }
 
                   window.onload = function() {
                       var autoAction = '${autoFormat || ''}';
                       var savePref = '${printSettings.saveFormat || 'both'}';
 
-                      if (autoAction === 'image' || (autoAction === '' && savePref === 'image')) {
-                          setTimeout(function() {
-                              downloadImage('png');
-                          }, 600);
-                      } else if (autoAction === 'pdf' || (autoAction === '' && savePref === 'pdf')) {
-                          setTimeout(function() {
-                              window.focus();
-                              window.print();
-                          }, 600);
-                      }
+                      var fontsReady = (document.fonts && document.fonts.ready)
+                          ? document.fonts.ready
+                          : Promise.resolve();
+
+                      fontsReady.then(function() {
+                          if (autoAction === 'image' || (autoAction === '' && savePref === 'image')) {
+                              setTimeout(function() {
+                                  downloadImage('png');
+                              }, 400);
+                          } else if (autoAction === 'pdf' || (autoAction === '' && savePref === 'pdf')) {
+                              setTimeout(function() {
+                                  window.focus();
+                                  window.print();
+                              }, 400);
+                          }
+                      });
                   };
               </script>
           </body>
