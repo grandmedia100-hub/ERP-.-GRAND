@@ -966,15 +966,8 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                      </div>
                   </div>
               </div>
-              <script src="${window.location.origin}/html2canvas.min.js"></script>
+              <script src="${window.location.origin}/html-to-image.js"></script>
               <script>
-                  // Fallback to CDN if local script is unavailable
-                  if (typeof html2canvas === 'undefined') {
-                      var script = document.createElement('script');
-                      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                      document.head.appendChild(script);
-                  }
-
                   function downloadImage(format) {
                       format = format || 'png';
                       var page = document.querySelector('.page');
@@ -995,8 +988,8 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                       window.scrollTo(0, 0);
 
                       var executeCapture = function() {
-                          if (typeof html2canvas === 'undefined') {
-                              setTimeout(executeCapture, 150);
+                          if (typeof htmlToImage === 'undefined') {
+                              setTimeout(executeCapture, 100);
                               return;
                           }
 
@@ -1008,29 +1001,23 @@ const Quotations: React.FC<ExtendedQuotationsProps> = ({
                           fontsReadyPromise.then(function() {
                               // Small timeout to allow the browser layout engine to finalize Arabic cursive ligatures
                               setTimeout(function() {
-                                  html2canvas(page, {
-                                      scale: scale,
-                                      useCORS: true,
-                                      allowTaint: true,
+                                  var options = {
+                                      pixelRatio: scale,
                                       backgroundColor: '#ffffff',
-                                      logging: false,
-                                      scrollX: 0,
-                                      scrollY: 0,
                                       width: page.offsetWidth,
                                       height: page.offsetHeight,
-                                      onclone: function(clonedDoc) {
-                                          var clonedPage = clonedDoc.querySelector('.page');
-                                          if (clonedPage) {
-                                              clonedPage.style.margin = '0';
-                                              clonedPage.style.boxShadow = 'none';
-                                              clonedPage.style.transform = 'none';
-                                          }
+                                      style: {
+                                          margin: '0',
+                                          boxShadow: 'none',
+                                          transform: 'none'
                                       }
-                                  }).then(function(canvas) {
-                                      var mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-                                      var quality = format === 'jpeg' ? 0.98 : 1.0;
-                                      var dataUrl = canvas.toDataURL(mime, quality);
+                                  };
 
+                                  var capturePromise = (format === 'jpeg')
+                                      ? htmlToImage.toJpeg(page, Object.assign({}, options, { quality: 0.98 }))
+                                      : htmlToImage.toPng(page, options);
+
+                                  capturePromise.then(function(dataUrl) {
                                       var a = document.createElement('a');
                                       var safeQuoteId = '${quote.id || 'quote'}';
                                       var safeCust = '${(quote.customerName || 'عميل').replace(/[\/\\?%*:|"<>]/g, '_')}';
